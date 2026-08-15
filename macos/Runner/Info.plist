@@ -27,9 +27,9 @@
 			<string></string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>clash</string>
-				<string>clashmeta</string>
-				<string>flclash</string>
+				<string>clash-usage</string>
+				<string>clashmeta-usage</string>
+				<string>flclash-usage</string>
 			</array>
 		</dict>
 	</array>
@@ -44,6 +44,6 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>FlClash needs location access to detect WiFi network name for connectivity features.</string>
+	<string>FlClash Usage needs location access to detect WiFi network name for connectivity features.</string>
 </dict>
 </plist>

@@ -1,0 +1,72 @@
+name: Build FlClash Usage for macOS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-flclash-usage-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.44.4'
+
+jobs:
+  build:
+    name: Build Apple Silicon DMG
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.4'
+          cache-dependency-path: core/go.sum
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Verify build environment
+        run: |
+          xcodebuild -version
+          flutter --version
+          go version
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Verify macOS app identity
+        run: flutter test --no-pub --reporter expanded test/macos_app_identity_test.dart test/setup_test.dart
+
+      - name: Build macOS DMG
+        run: dart setup.dart macos --env stable -v
+
+      - name: Verify built application identity
+        shell: bash
+        run: |
+          app_path='build/macos/Build/Products/Release/FlClash Usage.app'
+          test -d "$app_path"
+          bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_path/Contents/Info.plist")
+          display_name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$app_path/Contents/Info.plist")
+          test "$bundle_id" = 'com.zding.flclash.usage'
+          test "$display_name" = 'FlClash Usage'
+          find dist -maxdepth 2 -type f -print
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlClash-Usage-macOS-Apple-Silicon
+          path: dist/*.dmg
+          if-no-files-found: error
+          retention-days: 14

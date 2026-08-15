@@ -10,6 +10,8 @@ import 'package:fl_clash/models/models.dart';
 import 'package:flutter/material.dart';
 
 const appName = 'FlClash';
+const macOSAppName = 'FlClash Usage';
+final platformAppName = system.isMacOS ? macOSAppName : appName;
 const appHelperService = 'FlClashHelperService';
 const coreManifestName = 'manifest.json';
 const coreName = 'clash.meta';
