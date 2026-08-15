@@ -8,6 +8,7 @@ import 'package:fl_clash/providers/action.dart';
 import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/providers/state.dart';
+import 'package:fl_clash/providers/usage.dart';
 import 'package:fl_clash/state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,7 +25,9 @@ class CoreManager extends ConsumerStatefulWidget {
 }
 
 class _CoreContainerState extends ConsumerState<CoreManager>
-    with CoreEventListener {
+    with CoreEventListener, WidgetsBindingObserver {
+  UsageRuntime? _usageRuntime;
+
   @override
   Widget build(BuildContext context) {
     return widget.child;
@@ -33,7 +36,13 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     coreEventManager.addListener(this);
+    final usageSupported = ref.read(usagePlatformSupportedProvider);
+    if (usageSupported) {
+      _usageRuntime = ref.read(usageRuntimeProvider.notifier);
+      ref.read(usageRuntimeProvider);
+    }
     ref.listenManual(currentProfileIdProvider, (prev, next) {
       if (prev != next) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -41,6 +50,18 @@ class _CoreContainerState extends ConsumerState<CoreManager>
         });
       }
     });
+    if (usageSupported) {
+      ref.listenManual(currentProfileProvider, (prev, next) {
+        if (prev?.id == next?.id && prev?.label != next?.label) {
+          ref.read(usageRuntimeProvider.notifier).syncCore();
+        }
+      });
+      ref.listenManual(coreStatusProvider, (prev, next) {
+        if (next == CoreStatus.connected && prev != next) {
+          ref.read(usageRuntimeProvider.notifier).syncCore();
+        }
+      });
+    }
     ref.listenManual(updateParamsProvider, (prev, next) {
       if (prev != next) {
         ref.read(setupActionProvider.notifier).updateConfigDebounce();
@@ -60,8 +81,30 @@ class _CoreContainerState extends ConsumerState<CoreManager>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     coreEventManager.removeListener(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final usageRuntime = _usageRuntime;
+    if (usageRuntime == null) {
+      return;
+    }
+    if (state == AppLifecycleState.resumed) {
+      ref.read(usageClockProvider.notifier).refresh();
+      unawaited(usageRuntime.syncLocalCalendar());
+      return;
+    }
+    if ({
+      AppLifecycleState.inactive,
+      AppLifecycleState.paused,
+      AppLifecycleState.detached,
+      AppLifecycleState.hidden,
+    }.contains(state)) {
+      unawaited(usageRuntime.flush());
+    }
   }
 
   @override

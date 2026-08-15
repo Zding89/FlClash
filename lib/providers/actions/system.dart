@@ -18,14 +18,30 @@ class SystemAction extends _$SystemAction {
     return ref.read(packagesProvider);
   }
 
-  Future<void> handleExit([bool needSave = false]) {
+  Future<void> handleExit([bool needSave = false]) async {
     final coordinator = _exitCoordinator ??= SystemExitCoordinator(
       watchdogDuration: exitWatchdogDuration,
       closeWindow: closeWindow,
       closeCore: closeCore,
       exitApplication: exitApplication,
     );
-    return coordinator.exit(cleanup: () => cleanupExitResources(needSave));
+    try {
+      await coordinator.exit(
+        cleanup: () => cleanupExitResources(needSave),
+        prepareForClose: () async {
+          if (!ref.read(usagePlatformSupportedProvider)) {
+            return;
+          }
+          await ref.read(usageRuntimeProvider.future);
+          await ref.read(usageRuntimeProvider.notifier).prepareForShutdown();
+        },
+      );
+    } catch (error, stackTrace) {
+      commonPrint.log(
+        'Failed to finish application exit: $error, $stackTrace',
+        logLevel: LogLevel.warning,
+      );
+    }
   }
 
   @protected

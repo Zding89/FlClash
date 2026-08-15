@@ -268,6 +268,23 @@ func handleMethodCall(call *MethodCall, response MethodResponse) {
 		}
 		handleClearEffect(profileId, response)
 		return
+	case configureUsageCollectionMethod:
+		params := UsageCollectionParams{}
+		if !decodeMethodArguments(call, response, &params) {
+			return
+		}
+		response.success(handleConfigureUsageCollection(params))
+		return
+	case readUsageBatchMethod:
+		response.success(handleReadUsageBatch())
+		return
+	case ackUsageBatchMethod:
+		ack := UsageBatchAck{}
+		if !decodeMethodArguments(call, response, &ack) {
+			return
+		}
+		response.success(handleAckUsageBatch(ack))
+		return
 	default:
 		if !handlePlatformMethodCall(call, response) {
 			response.notImplemented(call.Method)

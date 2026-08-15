@@ -496,6 +496,7 @@ func init() {
 		})
 	}
 	statistic.DefaultRequestNotify = func(c statistic.Tracker) {
+		usageStats.track(c)
 		sendMessage(Message{
 			Type: RequestMessage,
 			Data: c,

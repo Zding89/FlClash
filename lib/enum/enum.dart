@@ -322,6 +322,7 @@ extension GeoResourceExt on GeoResource {
 
 enum PageLabel {
   dashboard,
+  usage,
   proxies,
   profiles,
   tools,
@@ -330,6 +331,14 @@ enum PageLabel {
   resources,
   connections,
 }
+
+enum UsageRoute { proxy, direct, unknown }
+
+enum UsageTrafficScope { proxy, all, direct }
+
+enum UsageDimension { overview, node, application, domain, profile }
+
+enum UsageSort { total, upload, download, connections }
 
 enum RuleAction {
   DOMAIN('DOMAIN'),

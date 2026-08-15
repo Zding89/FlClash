@@ -131,6 +131,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Provide diverse configuration options",
     ),
     "agree": MessageLookupByLibrary.simpleMessage("Agree"),
+    "allTraffic": MessageLookupByLibrary.simpleMessage("All"),
     "allowBypass": MessageLookupByLibrary.simpleMessage(
       "Allow applications to bypass VPN",
     ),
@@ -222,6 +223,13 @@ class MessageLookup extends MessageLookupByLibrary {
       "The current application is already the latest version",
     ),
     "clearData": MessageLookupByLibrary.simpleMessage("Clear Data"),
+    "clearUsageData": MessageLookupByLibrary.simpleMessage("Clear usage data"),
+    "clearUsageDataConfirm": MessageLookupByLibrary.simpleMessage(
+      "All usage buckets and processed batch records will be permanently deleted. Continue?",
+    ),
+    "clearUsageDataDesc": MessageLookupByLibrary.simpleMessage(
+      "Delete all locally stored usage statistics without changing the recording switch",
+    ),
     "clipboardExport": MessageLookupByLibrary.simpleMessage("Export clipboard"),
     "clipboardImport": MessageLookupByLibrary.simpleMessage("Clipboard import"),
     "color": MessageLookupByLibrary.simpleMessage("Color"),
@@ -284,6 +292,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "create": MessageLookupByLibrary.simpleMessage("Create"),
     "createProfile": MessageLookupByLibrary.simpleMessage("Create Profile"),
     "creationTime": MessageLookupByLibrary.simpleMessage("Creation time"),
+    "currentSessionUsage": MessageLookupByLibrary.simpleMessage(
+      "Current session · recording off",
+    ),
     "custom": MessageLookupByLibrary.simpleMessage("Custom"),
     "cut": MessageLookupByLibrary.simpleMessage("Cut"),
     "dark": MessageLookupByLibrary.simpleMessage("Dark"),
@@ -329,6 +340,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Developer mode is enabled.",
     ),
     "direct": MessageLookupByLibrary.simpleMessage("Direct"),
+    "directTraffic": MessageLookupByLibrary.simpleMessage("Direct"),
     "disableUDP": MessageLookupByLibrary.simpleMessage("Disable UDP"),
     "disclaimer": MessageLookupByLibrary.simpleMessage("Disclaimer"),
     "disclaimerDesc": MessageLookupByLibrary.simpleMessage(
@@ -347,6 +359,9 @@ class MessageLookup extends MessageLookupByLibrary {
       "Do you want to pass",
     ),
     "domain": MessageLookupByLibrary.simpleMessage("Domain"),
+    "domainTargets": MessageLookupByLibrary.simpleMessage(
+      "Hosts and target IPs",
+    ),
     "download": MessageLookupByLibrary.simpleMessage("Download"),
     "edit": MessageLookupByLibrary.simpleMessage("Edit"),
     "editGlobalRules": MessageLookupByLibrary.simpleMessage(
@@ -358,6 +373,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "editSsid": MessageLookupByLibrary.simpleMessage("Edit SSID"),
     "emptyTip": m4,
     "en": MessageLookupByLibrary.simpleMessage("English"),
+    "enableUsageRecording": MessageLookupByLibrary.simpleMessage(
+      "Enable recording",
+    ),
     "entries": MessageLookupByLibrary.simpleMessage(" entries"),
     "entriesCount": m5,
     "exclude": MessageLookupByLibrary.simpleMessage("Hidden from recent tasks"),
@@ -376,6 +394,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "exit": MessageLookupByLibrary.simpleMessage("Exit"),
     "expand": MessageLookupByLibrary.simpleMessage("Standard"),
     "expectedStatus": MessageLookupByLibrary.simpleMessage("Expected status"),
+    "exportCsv": MessageLookupByLibrary.simpleMessage("Export CSV"),
     "exportFile": MessageLookupByLibrary.simpleMessage("Export file"),
     "exportLogs": MessageLookupByLibrary.simpleMessage("Export logs"),
     "exportSuccess": MessageLookupByLibrary.simpleMessage("Export Success"),
@@ -436,6 +455,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "goToConfigureScript": MessageLookupByLibrary.simpleMessage(
       "Go to configure script",
     ),
+    "goToSettings": MessageLookupByLibrary.simpleMessage("Go to settings"),
     "hasCacheChange": MessageLookupByLibrary.simpleMessage(
       "Do you want to cache the changes?",
     ),
@@ -452,6 +472,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "hotkeyManagementDesc": MessageLookupByLibrary.simpleMessage(
       "Use keyboard to control applications",
     ),
+    "hourlyDistribution": MessageLookupByLibrary.simpleMessage(
+      "24-hour distribution",
+    ),
     "hours": MessageLookupByLibrary.simpleMessage("hours"),
     "hoursAgo": m10,
     "hoursCount": m11,
@@ -459,6 +482,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "iconRecords": MessageLookupByLibrary.simpleMessage("Icon records"),
     "iconStyle": MessageLookupByLibrary.simpleMessage("Icon style"),
     "iconUrl": MessageLookupByLibrary.simpleMessage("Icon URL"),
+    "identificationCoverage": MessageLookupByLibrary.simpleMessage(
+      "Identification coverage",
+    ),
     "ignoreBatteryOptimization": MessageLookupByLibrary.simpleMessage(
       "Ignore Battery Optimization",
     ),
@@ -516,15 +542,22 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "key": MessageLookupByLibrary.simpleMessage("Key"),
     "language": MessageLookupByLibrary.simpleMessage("Language"),
+    "last24Hours": MessageLookupByLibrary.simpleMessage("24 hours"),
+    "last30Days": MessageLookupByLibrary.simpleMessage("30 days"),
+    "last7Days": MessageLookupByLibrary.simpleMessage("7 days"),
     "layout": MessageLookupByLibrary.simpleMessage("Layout"),
     "light": MessageLookupByLibrary.simpleMessage("Light"),
     "list": MessageLookupByLibrary.simpleMessage("List"),
     "listen": MessageLookupByLibrary.simpleMessage("Listen"),
+    "loadMore": MessageLookupByLibrary.simpleMessage("Load more"),
     "loadTest": MessageLookupByLibrary.simpleMessage("Load test"),
     "loading": MessageLookupByLibrary.simpleMessage("Loading..."),
     "local": MessageLookupByLibrary.simpleMessage("Local"),
     "localBackupDesc": MessageLookupByLibrary.simpleMessage(
       "Backup local data to local",
+    ),
+    "localUsageNotice": MessageLookupByLibrary.simpleMessage(
+      "Recorded locally; not billing-grade data",
     ),
     "locationPermission": MessageLookupByLibrary.simpleMessage(
       "Location Permission",
@@ -608,6 +641,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "noResolveHostname": MessageLookupByLibrary.simpleMessage(
       "No resolve hostname",
     ),
+    "noUsageData": MessageLookupByLibrary.simpleMessage(
+      "No usage data for the current filters",
+    ),
     "none": MessageLookupByLibrary.simpleMessage("none"),
     "notSelectedTip": MessageLookupByLibrary.simpleMessage(
       "The current proxy group cannot be selected.",
@@ -627,6 +663,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "onlyStatisticsProxyDesc": MessageLookupByLibrary.simpleMessage(
       "When turned on, only statistics proxy traffic",
+    ),
+    "openProcessSettings": MessageLookupByLibrary.simpleMessage(
+      "Process recognition settings",
     ),
     "optional": MessageLookupByLibrary.simpleMessage("Optional"),
     "options": MessageLookupByLibrary.simpleMessage("Options"),
@@ -675,6 +714,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "preview": MessageLookupByLibrary.simpleMessage("Preview"),
     "process": MessageLookupByLibrary.simpleMessage("Process"),
+    "processRecognitionOff": MessageLookupByLibrary.simpleMessage(
+      "Process recognition is off. App usage will be grouped as unknown where FlClash cannot identify it.",
+    ),
     "profile": MessageLookupByLibrary.simpleMessage("Profile"),
     "profileAutoUpdateIntervalInvalidValidationDesc":
         MessageLookupByLibrary.simpleMessage(
@@ -735,6 +777,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "proxyProvidersNotEmpty": MessageLookupByLibrary.simpleMessage(
       "Proxy providers cannot be empty",
     ),
+    "proxyTraffic": MessageLookupByLibrary.simpleMessage("Proxy"),
     "proxyType": MessageLookupByLibrary.simpleMessage("Proxy type"),
     "pruneCache": MessageLookupByLibrary.simpleMessage("Prune cache"),
     "pureBlackMode": MessageLookupByLibrary.simpleMessage("Pure black mode"),
@@ -761,6 +804,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "View recently request records",
     ),
     "reset": MessageLookupByLibrary.simpleMessage("Reset"),
+    "resetFilters": MessageLookupByLibrary.simpleMessage("Reset filters"),
     "resetPageChangesTip": MessageLookupByLibrary.simpleMessage(
       "The current page has changes. Are you sure you want to reset?",
     ),
@@ -949,6 +993,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "size": MessageLookupByLibrary.simpleMessage("Size"),
     "socksPort": MessageLookupByLibrary.simpleMessage("Socks Port"),
     "sort": MessageLookupByLibrary.simpleMessage("Sort"),
+    "sortByConnections": MessageLookupByLibrary.simpleMessage("Connections"),
+    "sortByDownload": MessageLookupByLibrary.simpleMessage("Download"),
+    "sortByTotal": MessageLookupByLibrary.simpleMessage("Total"),
+    "sortByUpload": MessageLookupByLibrary.simpleMessage("Upload"),
     "source": MessageLookupByLibrary.simpleMessage("Source"),
     "sourceIp": MessageLookupByLibrary.simpleMessage("Source IP"),
     "specialProxy": MessageLookupByLibrary.simpleMessage("Special proxy"),
@@ -1009,11 +1057,19 @@ class MessageLookup extends MessageLookupByLibrary {
     "themeMode": MessageLookupByLibrary.simpleMessage("Theme mode"),
     "tight": MessageLookupByLibrary.simpleMessage("Tight"),
     "time": MessageLookupByLibrary.simpleMessage("Time"),
+    "timeTrend": MessageLookupByLibrary.simpleMessage("Time trend"),
     "timeout": MessageLookupByLibrary.simpleMessage("Timeout"),
     "tip": MessageLookupByLibrary.simpleMessage("tip"),
+    "todayProxyUsage": MessageLookupByLibrary.simpleMessage(
+      "Today\'s proxy usage",
+    ),
     "toggle": MessageLookupByLibrary.simpleMessage("Toggle"),
     "tonalSpotScheme": MessageLookupByLibrary.simpleMessage("TonalSpot"),
     "tools": MessageLookupByLibrary.simpleMessage("Tools"),
+    "topApplications": MessageLookupByLibrary.simpleMessage("Top apps"),
+    "topDomains": MessageLookupByLibrary.simpleMessage("Top domains"),
+    "topNodes": MessageLookupByLibrary.simpleMessage("Top nodes"),
+    "topProfiles": MessageLookupByLibrary.simpleMessage("Top profiles"),
     "tproxyPort": MessageLookupByLibrary.simpleMessage("Tproxy Port"),
     "trafficUsage": MessageLookupByLibrary.simpleMessage("Traffic usage"),
     "tun": MessageLookupByLibrary.simpleMessage("TUN"),
@@ -1028,9 +1084,15 @@ class MessageLookup extends MessageLookupByLibrary {
       "Remove extra delays such as handshaking",
     ),
     "unknown": MessageLookupByLibrary.simpleMessage("Unknown"),
+    "unknownApplication": MessageLookupByLibrary.simpleMessage("Unknown app"),
+    "unknownDomain": MessageLookupByLibrary.simpleMessage(
+      "Unknown domain or IP",
+    ),
     "unknownNetworkError": MessageLookupByLibrary.simpleMessage(
       "Unknown network error",
     ),
+    "unknownNode": MessageLookupByLibrary.simpleMessage("Unknown node"),
+    "unknownProfile": MessageLookupByLibrary.simpleMessage("Unknown profile"),
     "unnamed": MessageLookupByLibrary.simpleMessage("Unnamed"),
     "update": MessageLookupByLibrary.simpleMessage("Update"),
     "upload": MessageLookupByLibrary.simpleMessage("Upload"),
@@ -1039,6 +1101,40 @@ class MessageLookup extends MessageLookupByLibrary {
       "Obtain profile through URL",
     ),
     "urlTip": m24,
+    "usage": MessageLookupByLibrary.simpleMessage("Usage"),
+    "usageApplications": MessageLookupByLibrary.simpleMessage("Apps"),
+    "usageConnections": MessageLookupByLibrary.simpleMessage("Connections"),
+    "usageDegradedIssue": MessageLookupByLibrary.simpleMessage(
+      "Usage detail was compressed because the pending queue reached its safety limit. Totals are retained, but some app, domain, node, subscription, or minute details are unavailable.",
+    ),
+    "usageDesc": MessageLookupByLibrary.simpleMessage(
+      "Local traffic usage by time, node, app, domain, and profile",
+    ),
+    "usageDomains": MessageLookupByLibrary.simpleMessage("Domains"),
+    "usageNodes": MessageLookupByLibrary.simpleMessage("Nodes"),
+    "usageNotEnabled": MessageLookupByLibrary.simpleMessage(
+      "Usage recording is off",
+    ),
+    "usageNotEnabledDesc": MessageLookupByLibrary.simpleMessage(
+      "Turn it on manually in Application settings to start local statistics. Historical traffic cannot be recovered.",
+    ),
+    "usageOverview": MessageLookupByLibrary.simpleMessage("Overview"),
+    "usagePersistenceIssue": MessageLookupByLibrary.simpleMessage(
+      "Usage data could not be saved. Recording will retry automatically; do not turn it off or quit until this warning clears.",
+    ),
+    "usagePrivacyDesc": MessageLookupByLibrary.simpleMessage(
+      "FlClash will store traffic amounts, process paths, domains, target IPs, nodes, and profile snapshots locally on this Mac. Minute-level details are retained for 90 days, are not included in configuration or WebDAV backups, and cannot be backfilled. The figures are local measurements, not billing data.",
+    ),
+    "usagePrivacyTitle": MessageLookupByLibrary.simpleMessage(
+      "Enable local usage recording?",
+    ),
+    "usageProfiles": MessageLookupByLibrary.simpleMessage("Profiles"),
+    "usageRecording": MessageLookupByLibrary.simpleMessage("Usage recording"),
+    "usageRecordingDesc": MessageLookupByLibrary.simpleMessage(
+      "Store minute-level traffic, app, and domain statistics on this Mac for 90 days",
+    ),
+    "usageToday": MessageLookupByLibrary.simpleMessage("Today"),
+    "usageTotal": MessageLookupByLibrary.simpleMessage("Total"),
     "useHosts": MessageLookupByLibrary.simpleMessage("Use hosts"),
     "useSystemHosts": MessageLookupByLibrary.simpleMessage("Use system hosts"),
     "userAgent": MessageLookupByLibrary.simpleMessage("User-Agent"),

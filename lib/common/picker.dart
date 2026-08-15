@@ -29,14 +29,26 @@ class Picker {
     if (!await localFile.exists()) {
       await localFile.create(recursive: true);
     }
-    final bytes = await localFile.readAsBytes();
-    final path = await FilePicker.saveFile(
-      fileName: fileName,
-      initialDirectory: await appPath.downloadDirPath,
-      bytes: bytes,
-    );
-    await localFile.safeDelete();
-    return path;
+    try {
+      if (system.isDesktop) {
+        final path = await FilePicker.saveFile(
+          fileName: fileName,
+          initialDirectory: await appPath.downloadDirPath,
+          bytes: Uint8List(0),
+        );
+        if (path != null) {
+          await localFile.copy(path);
+        }
+        return path;
+      }
+      return FilePicker.saveFile(
+        fileName: fileName,
+        initialDirectory: await appPath.downloadDirPath,
+        bytes: await localFile.readAsBytes(),
+      );
+    } finally {
+      await localFile.safeDelete();
+    }
   }
 
   Future<String?> pickerConfigQRCode() async {

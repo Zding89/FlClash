@@ -242,6 +242,18 @@ class CoreController {
   Future<String> clearEffect(int profileId) async {
     return _interface.clearEffect(profileId);
   }
+
+  Future<bool> configureUsageCollection(UsageCollectionParams params) {
+    return _interface.configureUsageCollection(params);
+  }
+
+  Future<UsageBatch?> readUsageBatch() {
+    return _interface.readUsageBatch();
+  }
+
+  Future<bool> ackUsageBatch(UsageBatchAck ack) {
+    return _interface.ackUsageBatch(ack);
+  }
 }
 
 final coreController = CoreController();

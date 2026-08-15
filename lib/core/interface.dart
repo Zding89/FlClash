@@ -77,6 +77,12 @@ mixin CoreInterface {
   FutureOr<bool> closeConnections();
 
   FutureOr<bool> resetConnections();
+
+  Future<bool> configureUsageCollection(UsageCollectionParams params);
+
+  Future<UsageBatch?> readUsageBatch();
+
+  Future<bool> ackUsageBatch(UsageBatchAck ack);
 }
 
 abstract class CoreHandlerInterface with CoreInterface {
@@ -370,5 +376,34 @@ abstract class CoreHandlerInterface with CoreInterface {
   @override
   Future<int> getMemory() async {
     return await _invokeMethod<int>(method: CoreMethod.getMemory) ?? 0;
+  }
+
+  @override
+  Future<bool> configureUsageCollection(UsageCollectionParams params) async {
+    return await _invokeMethod<bool>(
+          method: CoreMethod.configureUsageCollection,
+          arguments: params.toJson(),
+          timeout: const Duration(seconds: 5),
+        ) ??
+        false;
+  }
+
+  @override
+  Future<UsageBatch?> readUsageBatch() async {
+    final data = await _invokeMethod<Map<String, dynamic>>(
+      method: CoreMethod.readUsageBatch,
+      timeout: const Duration(seconds: 5),
+    );
+    return data == null ? null : UsageBatch.fromJson(data);
+  }
+
+  @override
+  Future<bool> ackUsageBatch(UsageBatchAck ack) async {
+    return await _invokeMethod<bool>(
+          method: CoreMethod.ackUsageBatch,
+          arguments: ack.toJson(),
+          timeout: const Duration(seconds: 5),
+        ) ??
+        false;
   }
 }

@@ -36,6 +36,9 @@ enum CoreMethod {
   setupConfig,
   clearEffect,
   updateDns,
+  configureUsageCollection,
+  readUsageBatch,
+  ackUsageBatch,
 }
 
 class CoreMethodCall {

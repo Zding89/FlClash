@@ -63,6 +63,11 @@ class AppPath {
     return join(mHomeDirPath, 'database.sqlite');
   }
 
+  Future<String> get usageDatabasePath async {
+    final mHomeDirPath = await homeDirPath;
+    return join(mHomeDirPath, 'usage.sqlite');
+  }
+
   Future<String> get backupFilePath async {
     final mHomeDirPath = await homeDirPath;
     return join(mHomeDirPath, 'backup.zip');

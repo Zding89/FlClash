@@ -78,6 +78,31 @@ class _RecordingCoreHandler extends CoreHandlerInterface {
         'rule': ['MATCH,DIRECT'],
       },
       CoreMethod.getMemory => 2048,
+      CoreMethod.configureUsageCollection || CoreMethod.ackUsageBatch => true,
+      CoreMethod.readUsageBatch => {
+        'sessionId': 'usage-session',
+        'sequence': 3,
+        'degraded': true,
+        'degradedStartMinute': 1723636800000,
+        'degradedEndMinute': 1723636860000,
+        'buckets': [
+          {
+            'minute': 1723636800000,
+            'profileId': 42,
+            'profileLabel': 'Work',
+            'route': 'proxy',
+            'node': 'Node A',
+            'process': 'Safari',
+            'processPath': '/Applications/Safari.app/Contents/MacOS/Safari',
+            'domain': 'example.com',
+            'host': 'api.example.com',
+            'destinationIP': '1.1.1.1',
+            'upload': 12,
+            'download': 34,
+            'connections': 1,
+          },
+        ],
+      },
       _ => '',
     };
     return result as T;
@@ -155,6 +180,17 @@ void main() {
     await handler.sideLoadExternalProvider(providerName: 'provider', data: 'x');
     await handler.asyncTestDelay('https://example.com', 'DIRECT');
     await handler.clearEffect(42);
+    await handler.configureUsageCollection(
+      const UsageCollectionParams(
+        enabled: true,
+        profileId: 42,
+        profileLabel: 'Work',
+        revision: 7,
+      ),
+    );
+    await handler.ackUsageBatch(
+      const UsageBatchAck(sessionId: 'usage-session', sequence: 3),
+    );
 
     for (final method in [
       CoreMethod.initClash,
@@ -162,10 +198,31 @@ void main() {
       CoreMethod.changeProxy,
       CoreMethod.sideLoadExternalProvider,
       CoreMethod.asyncTestDelay,
+      CoreMethod.configureUsageCollection,
+      CoreMethod.ackUsageBatch,
     ]) {
       expect(handler.calls[method], isA<Map>());
     }
     expect(handler.calls[CoreMethod.clearEffect], 42);
+    expect(
+      (handler.calls[CoreMethod.configureUsageCollection] as Map)['revision'],
+      7,
+    );
+  });
+
+  test('usage batch contract keeps session sequence and dimensions', () async {
+    final handler = _RecordingCoreHandler();
+
+    final batch = await handler.readUsageBatch();
+
+    expect(batch?.sessionId, 'usage-session');
+    expect(batch?.sequence, 3);
+    expect(batch?.degraded, isTrue);
+    expect(batch?.degradedStartMinute, 1723636800000);
+    expect(batch?.degradedEndMinute, 1723636860000);
+    expect(batch?.buckets.single.route, UsageRoute.proxy);
+    expect(batch?.buckets.single.domain, 'example.com');
+    expect(batch?.buckets.single.destinationIP, '1.1.1.1');
   });
 
   test('event contract accepts batches and legacy single events', () async {

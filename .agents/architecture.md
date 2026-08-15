@@ -58,14 +58,16 @@ callers must not try to reuse a closed platform implementation.
 
 Application exit is centralized in `SystemAction` and `SystemExitCoordinator`:
 
-1. Optionally save config and clean up DNS, system proxy, and tray resources in parallel.
-2. Close the desktop window.
-3. Call terminal `CoreController.close()`.
-4. Exit the application exactly once.
+1. Attempt pre-close work, including freezing and persisting the final usage batch.
+2. Optionally save config and clean up DNS, system proxy, and tray resources in parallel.
+3. Close the desktop window.
+4. Call terminal `CoreController.close()`.
+5. Exit the application exactly once.
 
-The coordinator is idempotent, continues later cleanup steps after an earlier error, preserves the first error for the
-caller, and uses a three-second watchdog as an emergency application-exit path. `Application.dispose()` and
-`CoreManager.onCrash()` do not independently destroy Core; this avoids competing shutdown owners.
+The coordinator is idempotent, continues later cleanup steps after any earlier error, preserves the first error for the
+caller, and starts a three-second watchdog before pre-close work so usage persistence cannot prevent terminal exit.
+`Application.dispose()` and `CoreManager.onCrash()` do not independently destroy Core; this avoids competing shutdown
+owners.
 
 ### Desktop Lifecycle
 

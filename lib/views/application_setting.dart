@@ -1,5 +1,6 @@
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/providers/config.dart';
+import 'package:fl_clash/providers/usage.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,6 +45,127 @@ class UsageItem extends ConsumerWidget {
             .read(appSettingProvider.notifier)
             .update((state) => state.copyWith(onlyStatisticsProxy: value));
       },
+    );
+  }
+}
+
+class UsageRecordingItem extends ConsumerWidget {
+  const UsageRecordingItem({super.key});
+
+  Future<bool> _confirmEnable(BuildContext context) async {
+    final appLocalizations = context.appLocalizations;
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => CommonDialog(
+            title: appLocalizations.usagePrivacyTitle,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(appLocalizations.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(appLocalizations.enableUsageRecording),
+              ),
+            ],
+            child: Text(appLocalizations.usagePrivacyDesc),
+          ),
+        ) ??
+        false;
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final appLocalizations = context.appLocalizations;
+    final enabledState = ref.watch(usageEnabledProvider);
+    final runtimeState = ref.watch(usageRuntimeProvider);
+    final issues = ref.watch(usageIssuesProvider);
+    final hasDegradedData =
+        ref.watch(usageHasAnyDegradedDataProvider).value ?? false;
+    final enabled = enabledState.value ?? false;
+    final loading = enabledState.isLoading || runtimeState.isLoading;
+    final subtitle = issues.contains(UsageIssue.persistence)
+        ? appLocalizations.usagePersistenceIssue
+        : hasDegradedData
+        ? appLocalizations.usageDegradedIssue
+        : appLocalizations.usageRecordingDesc;
+    return ListItem.toggle(
+      title: Text(appLocalizations.usageRecording),
+      subtitle: Text(subtitle),
+      value: enabled,
+      onChanged: loading
+          ? null
+          : (value) async {
+              if (value) {
+                final hasConsent = await ref
+                    .read(usageStoreProvider)
+                    .hasConsent();
+                if (!context.mounted) {
+                  return;
+                }
+                if (!hasConsent && !await _confirmEnable(context)) {
+                  return;
+                }
+              }
+              if (!context.mounted) {
+                return;
+              }
+              try {
+                await ref.read(usageRuntimeProvider.notifier).setEnabled(value);
+              } catch (error) {
+                if (context.mounted) {
+                  context.showNotifier(error.toString());
+                }
+              }
+            },
+    );
+  }
+}
+
+class ClearUsageDataItem extends ConsumerWidget {
+  const ClearUsageDataItem({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final appLocalizations = context.appLocalizations;
+    final loading = ref.watch(usageRuntimeProvider).isLoading;
+    return ListItem(
+      leading: const Icon(Icons.delete_outline),
+      title: Text(appLocalizations.clearUsageData),
+      subtitle: Text(appLocalizations.clearUsageDataDesc),
+      trailing: TextButton(
+        onPressed: loading
+            ? null
+            : () async {
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => CommonDialog(
+                    title: appLocalizations.clearUsageData,
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: Text(appLocalizations.cancel),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: Text(appLocalizations.confirm),
+                      ),
+                    ],
+                    child: Text(appLocalizations.clearUsageDataConfirm),
+                  ),
+                );
+                if (confirmed == true) {
+                  try {
+                    await ref.read(usageRuntimeProvider.notifier).clear();
+                  } catch (error) {
+                    if (context.mounted) {
+                      context.showNotifier(error.toString());
+                    }
+                  }
+                }
+              },
+        child: Text(appLocalizations.clearUsageData),
+      ),
     );
   }
 }
@@ -263,6 +385,10 @@ class ApplicationSettingView extends StatelessWidget {
       const OpenLogsItem(),
       const CloseConnectionsItem(),
       const UsageItem(),
+      if (system.isMacOS) ...[
+        const UsageRecordingItem(),
+        const ClearUsageDataItem(),
+      ],
       if (system.isAndroid) const CrashlyticsItem(),
       const AutoCheckUpdateItem(),
     ];

@@ -112,6 +112,9 @@ const (
 	setupConfigMethod              CoreMethod = "setupConfig"
 	getConfigMethod                CoreMethod = "getConfig"
 	clearEffectMethod              CoreMethod = "clearEffect"
+	configureUsageCollectionMethod CoreMethod = "configureUsageCollection"
+	readUsageBatchMethod           CoreMethod = "readUsageBatch"
+	ackUsageBatchMethod            CoreMethod = "ackUsageBatch"
 )
 
 type CoreMethod string

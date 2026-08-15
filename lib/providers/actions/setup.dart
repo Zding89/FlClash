@@ -403,6 +403,7 @@ class SetupAction extends _$SetupAction {
     final yamlString = vm2.a;
     final yamlMd5 = vm2.b;
     if (yamlMd5 == globalState.lastConfigMd5 && force == false) {
+      await _syncUsageProfile(profile);
       return _SetupTaskResult.completed;
     }
     if (system.isAndroid) {
@@ -421,6 +422,7 @@ class SetupAction extends _$SetupAction {
         if (message.isNotEmpty && !message.endsWith('is empty')) {
           throw message;
         }
+        await _syncUsageProfile(profile);
         globalState.lastConfigMd5 = yamlMd5;
         ref.read(checkIpNumProvider.notifier).add();
         await onUpdated?.call();
@@ -429,5 +431,24 @@ class SetupAction extends _$SetupAction {
       tag: !silence ? LoadingTag.proxies : null,
     );
     return _SetupTaskResult.completed;
+  }
+
+  Future<void> _syncUsageProfile(Profile? profile) async {
+    if (!ref.read(usagePlatformSupportedProvider)) {
+      return;
+    }
+    try {
+      await ref
+          .read(usageRuntimeProvider.notifier)
+          .syncProfile(
+            profileId: profile?.id,
+            profileLabel: profile?.label ?? '',
+          );
+    } catch (error) {
+      commonPrint.log(
+        'Failed to sync the applied usage profile: $error',
+        logLevel: LogLevel.warning,
+      );
+    }
   }
 }

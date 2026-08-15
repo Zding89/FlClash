@@ -1,4 +1,5 @@
 import 'package:fl_clash/enum/enum.dart';
+import 'package:fl_clash/common/system.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/views/views.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +18,15 @@ class Navigation {
         label: PageLabel.dashboard,
         builder: (_) =>
             const DashboardView(key: GlobalObjectKey(PageLabel.dashboard)),
+      ),
+      NavigationItem(
+        icon: const Icon(Icons.query_stats),
+        label: PageLabel.usage,
+        description: 'usageDesc',
+        builder: (_) => const UsageView(key: GlobalObjectKey(PageLabel.usage)),
+        modes: system.isMacOS
+            ? [NavigationItemMode.mobile, NavigationItemMode.desktop]
+            : [],
       ),
       NavigationItem(
         icon: const Icon(Icons.article),

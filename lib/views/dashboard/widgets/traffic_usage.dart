@@ -1,7 +1,9 @@
 import 'dart:math';
 
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/providers/app.dart';
+import 'package:fl_clash/providers/usage.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:flutter/material.dart';
@@ -59,12 +61,29 @@ class TrafficUsage extends StatelessWidget {
             label: appLocalizations.trafficUsage,
             iconData: Icons.data_saver_off,
           ),
-          onPressed: () {},
+          onPressed: system.isMacOS
+              ? () {
+                  globalState.container
+                      .read(currentPageLabelProvider.notifier)
+                      .toPage(PageLabel.usage);
+                }
+              : null,
           child: Consumer(
             builder: (_, ref, _) {
               final totalTraffic = ref.watch(totalTrafficProvider);
-              final upTotalTrafficValue = totalTraffic.up;
-              final downTotalTrafficValue = totalTraffic.down;
+              final usageSupported = ref.watch(usagePlatformSupportedProvider);
+              final enabled = usageSupported
+                  ? ref.watch(usageEnabledProvider).value ?? false
+                  : false;
+              final todayUsage = usageSupported && enabled
+                  ? ref.watch(todayProxyUsageProvider).value
+                  : null;
+              final upTotalTrafficValue = enabled
+                  ? todayUsage?.upload ?? 0
+                  : totalTraffic.up;
+              final downTotalTrafficValue = enabled
+                  ? todayUsage?.download ?? 0
+                  : totalTraffic.down;
               return Padding(
                 padding: baseInfoEdgeInsets.copyWith(top: 0),
                 child: Column(
@@ -72,6 +91,14 @@ class TrafficUsage extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.end,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      enabled
+                          ? appLocalizations.todayProxyUsage
+                          : appLocalizations.currentSessionUsage,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.textTheme.labelSmall?.toLighter,
+                    ),
                     Flexible(
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 12),

@@ -134,6 +134,411 @@ class AppLocalizations {
     );
   }
 
+  /// `Usage`
+  String get usage {
+    return Intl.message('Usage', name: 'usage', desc: '', args: []);
+  }
+
+  /// `Local traffic usage by time, node, app, domain, and profile`
+  String get usageDesc {
+    return Intl.message(
+      'Local traffic usage by time, node, app, domain, and profile',
+      name: 'usageDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Usage recording`
+  String get usageRecording {
+    return Intl.message(
+      'Usage recording',
+      name: 'usageRecording',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Store minute-level traffic, app, and domain statistics on this Mac for 90 days`
+  String get usageRecordingDesc {
+    return Intl.message(
+      'Store minute-level traffic, app, and domain statistics on this Mac for 90 days',
+      name: 'usageRecordingDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Enable local usage recording?`
+  String get usagePrivacyTitle {
+    return Intl.message(
+      'Enable local usage recording?',
+      name: 'usagePrivacyTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `FlClash will store traffic amounts, process paths, domains, target IPs, nodes, and profile snapshots locally on this Mac. Minute-level details are retained for 90 days, are not included in configuration or WebDAV backups, and cannot be backfilled. The figures are local measurements, not billing data.`
+  String get usagePrivacyDesc {
+    return Intl.message(
+      'FlClash will store traffic amounts, process paths, domains, target IPs, nodes, and profile snapshots locally on this Mac. Minute-level details are retained for 90 days, are not included in configuration or WebDAV backups, and cannot be backfilled. The figures are local measurements, not billing data.',
+      name: 'usagePrivacyDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Enable recording`
+  String get enableUsageRecording {
+    return Intl.message(
+      'Enable recording',
+      name: 'enableUsageRecording',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Clear usage data`
+  String get clearUsageData {
+    return Intl.message(
+      'Clear usage data',
+      name: 'clearUsageData',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Delete all locally stored usage statistics without changing the recording switch`
+  String get clearUsageDataDesc {
+    return Intl.message(
+      'Delete all locally stored usage statistics without changing the recording switch',
+      name: 'clearUsageDataDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `All usage buckets and processed batch records will be permanently deleted. Continue?`
+  String get clearUsageDataConfirm {
+    return Intl.message(
+      'All usage buckets and processed batch records will be permanently deleted. Continue?',
+      name: 'clearUsageDataConfirm',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Usage recording is off`
+  String get usageNotEnabled {
+    return Intl.message(
+      'Usage recording is off',
+      name: 'usageNotEnabled',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Turn it on manually in Application settings to start local statistics. Historical traffic cannot be recovered.`
+  String get usageNotEnabledDesc {
+    return Intl.message(
+      'Turn it on manually in Application settings to start local statistics. Historical traffic cannot be recovered.',
+      name: 'usageNotEnabledDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Go to settings`
+  String get goToSettings {
+    return Intl.message(
+      'Go to settings',
+      name: 'goToSettings',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Today's proxy usage`
+  String get todayProxyUsage {
+    return Intl.message(
+      'Today\'s proxy usage',
+      name: 'todayProxyUsage',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Current session · recording off`
+  String get currentSessionUsage {
+    return Intl.message(
+      'Current session · recording off',
+      name: 'currentSessionUsage',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Overview`
+  String get usageOverview {
+    return Intl.message('Overview', name: 'usageOverview', desc: '', args: []);
+  }
+
+  /// `Nodes`
+  String get usageNodes {
+    return Intl.message('Nodes', name: 'usageNodes', desc: '', args: []);
+  }
+
+  /// `Apps`
+  String get usageApplications {
+    return Intl.message('Apps', name: 'usageApplications', desc: '', args: []);
+  }
+
+  /// `Domains`
+  String get usageDomains {
+    return Intl.message('Domains', name: 'usageDomains', desc: '', args: []);
+  }
+
+  /// `Profiles`
+  String get usageProfiles {
+    return Intl.message('Profiles', name: 'usageProfiles', desc: '', args: []);
+  }
+
+  /// `Today`
+  String get usageToday {
+    return Intl.message('Today', name: 'usageToday', desc: '', args: []);
+  }
+
+  /// `24 hours`
+  String get last24Hours {
+    return Intl.message('24 hours', name: 'last24Hours', desc: '', args: []);
+  }
+
+  /// `7 days`
+  String get last7Days {
+    return Intl.message('7 days', name: 'last7Days', desc: '', args: []);
+  }
+
+  /// `30 days`
+  String get last30Days {
+    return Intl.message('30 days', name: 'last30Days', desc: '', args: []);
+  }
+
+  /// `All`
+  String get allTraffic {
+    return Intl.message('All', name: 'allTraffic', desc: '', args: []);
+  }
+
+  /// `Proxy`
+  String get proxyTraffic {
+    return Intl.message('Proxy', name: 'proxyTraffic', desc: '', args: []);
+  }
+
+  /// `Direct`
+  String get directTraffic {
+    return Intl.message('Direct', name: 'directTraffic', desc: '', args: []);
+  }
+
+  /// `Reset filters`
+  String get resetFilters {
+    return Intl.message(
+      'Reset filters',
+      name: 'resetFilters',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Export CSV`
+  String get exportCsv {
+    return Intl.message('Export CSV', name: 'exportCsv', desc: '', args: []);
+  }
+
+  /// `No usage data for the current filters`
+  String get noUsageData {
+    return Intl.message(
+      'No usage data for the current filters',
+      name: 'noUsageData',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Total`
+  String get usageTotal {
+    return Intl.message('Total', name: 'usageTotal', desc: '', args: []);
+  }
+
+  /// `Connections`
+  String get usageConnections {
+    return Intl.message(
+      'Connections',
+      name: 'usageConnections',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Time trend`
+  String get timeTrend {
+    return Intl.message('Time trend', name: 'timeTrend', desc: '', args: []);
+  }
+
+  /// `24-hour distribution`
+  String get hourlyDistribution {
+    return Intl.message(
+      '24-hour distribution',
+      name: 'hourlyDistribution',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Top nodes`
+  String get topNodes {
+    return Intl.message('Top nodes', name: 'topNodes', desc: '', args: []);
+  }
+
+  /// `Top apps`
+  String get topApplications {
+    return Intl.message(
+      'Top apps',
+      name: 'topApplications',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Top domains`
+  String get topDomains {
+    return Intl.message('Top domains', name: 'topDomains', desc: '', args: []);
+  }
+
+  /// `Top profiles`
+  String get topProfiles {
+    return Intl.message(
+      'Top profiles',
+      name: 'topProfiles',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Unknown node`
+  String get unknownNode {
+    return Intl.message(
+      'Unknown node',
+      name: 'unknownNode',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Unknown app`
+  String get unknownApplication {
+    return Intl.message(
+      'Unknown app',
+      name: 'unknownApplication',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Unknown domain or IP`
+  String get unknownDomain {
+    return Intl.message(
+      'Unknown domain or IP',
+      name: 'unknownDomain',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Unknown profile`
+  String get unknownProfile {
+    return Intl.message(
+      'Unknown profile',
+      name: 'unknownProfile',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Process recognition is off. App usage will be grouped as unknown where FlClash cannot identify it.`
+  String get processRecognitionOff {
+    return Intl.message(
+      'Process recognition is off. App usage will be grouped as unknown where FlClash cannot identify it.',
+      name: 'processRecognitionOff',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Process recognition settings`
+  String get openProcessSettings {
+    return Intl.message(
+      'Process recognition settings',
+      name: 'openProcessSettings',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Total`
+  String get sortByTotal {
+    return Intl.message('Total', name: 'sortByTotal', desc: '', args: []);
+  }
+
+  /// `Upload`
+  String get sortByUpload {
+    return Intl.message('Upload', name: 'sortByUpload', desc: '', args: []);
+  }
+
+  /// `Download`
+  String get sortByDownload {
+    return Intl.message('Download', name: 'sortByDownload', desc: '', args: []);
+  }
+
+  /// `Connections`
+  String get sortByConnections {
+    return Intl.message(
+      'Connections',
+      name: 'sortByConnections',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Recorded locally; not billing-grade data`
+  String get localUsageNotice {
+    return Intl.message(
+      'Recorded locally; not billing-grade data',
+      name: 'localUsageNotice',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Identification coverage`
+  String get identificationCoverage {
+    return Intl.message(
+      'Identification coverage',
+      name: 'identificationCoverage',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Hosts and target IPs`
+  String get domainTargets {
+    return Intl.message(
+      'Hosts and target IPs',
+      name: 'domainTargets',
+      desc: '',
+      args: [],
+    );
+  }
+
   /// `Network speed`
   String get networkSpeed {
     return Intl.message(
@@ -4521,6 +4926,31 @@ class AppLocalizations {
       name: 'entriesCount',
       desc: '',
       args: [count],
+    );
+  }
+
+  /// `Load more`
+  String get loadMore {
+    return Intl.message('Load more', name: 'loadMore', desc: '', args: []);
+  }
+
+  /// `Usage data could not be saved. Recording will retry automatically; do not turn it off or quit until this warning clears.`
+  String get usagePersistenceIssue {
+    return Intl.message(
+      'Usage data could not be saved. Recording will retry automatically; do not turn it off or quit until this warning clears.',
+      name: 'usagePersistenceIssue',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Usage detail was compressed because the pending queue reached its safety limit. Totals are retained, but some app, domain, node, subscription, or minute details are unavailable.`
+  String get usageDegradedIssue {
+    return Intl.message(
+      'Usage detail was compressed because the pending queue reached its safety limit. Totals are retained, but some app, domain, node, subscription, or minute details are unavailable.',
+      name: 'usageDegradedIssue',
+      desc: '',
+      args: [],
     );
   }
 }
