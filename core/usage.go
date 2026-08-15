@@ -3,23 +3,42 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"net/netip"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/metacubex/mihomo/component/process"
 	C "github.com/metacubex/mihomo/constant"
+	"github.com/metacubex/mihomo/tunnel"
 	"github.com/metacubex/mihomo/tunnel/statistic"
 	"golang.org/x/net/publicsuffix"
 )
 
 const (
-	usageSampleInterval     = time.Second
-	usageInactiveGrace      = 2 * time.Second
-	usageBatchMaxBucketNum  = 2000
-	usagePendingMaxBuckets  = 20000
-	usageOverflowMaxBuckets = 4320
+	usageSampleInterval       = time.Second
+	usageInactiveGrace        = 2 * time.Second
+	usageBatchMaxBucketNum    = 2000
+	usagePendingMaxBuckets    = 20000
+	usageOverflowMaxBuckets   = 4320
+	usageProcessLookupDelay   = 10 * time.Millisecond
+	usageProcessLookupQueue   = 64
+	usageProcessLookupWorkers = 2
 )
+
+type usageProcessResolver func(string, netip.Addr, int) (string, string, error)
+
+type usageProcessLookupJob struct {
+	collector *usageCollector
+	id        string
+	network   string
+	ip        netip.Addr
+	port      int
+	resolver  usageProcessResolver
+}
+
+var usageProcessLookups = make(chan usageProcessLookupJob, usageProcessLookupQueue)
 
 type UsageCollectionParams struct {
 	Enabled      bool   `json:"enabled"`
@@ -116,26 +135,28 @@ type usageSample struct {
 }
 
 type usageCollector struct {
-	mu               sync.Mutex
-	collectMu        sync.Mutex
-	enabled          bool
-	configured       bool
-	configRevision   int64
-	profile          usageProfileContext
-	tracked          map[string]*usageTrackedConnection
-	samples          []usageSample
-	pending          map[usageBucketKey]*UsageBucket
-	overflow         map[usageOverflowKey]*UsageBucket
-	overflowFallback map[string]*UsageBucket
-	inFlight         *UsageBatch
-	session          string
-	sequence         int64
-	degradedStart    int64
-	degradedEnd      int64
-	maxPending       int
-	now              func() time.Time
-	isActive         func(string) bool
-	rangeConnections func(func(statistic.Tracker) bool)
+	mu                   sync.Mutex
+	collectMu            sync.Mutex
+	enabled              bool
+	configured           bool
+	configRevision       int64
+	profile              usageProfileContext
+	tracked              map[string]*usageTrackedConnection
+	samples              []usageSample
+	pending              map[usageBucketKey]*UsageBucket
+	overflow             map[usageOverflowKey]*UsageBucket
+	overflowFallback     map[string]*UsageBucket
+	inFlight             *UsageBatch
+	session              string
+	sequence             int64
+	degradedStart        int64
+	degradedEnd          int64
+	maxPending           int
+	now                  func() time.Time
+	isActive             func(string) bool
+	rangeConnections     func(func(statistic.Tracker) bool)
+	processResolver      usageProcessResolver
+	processLookupEnabled func() bool
 }
 
 func newUsageCollector() *usageCollector {
@@ -150,7 +171,52 @@ func newUsageCollector() *usageCollector {
 			return statistic.DefaultManager.Get(id) != nil
 		},
 		rangeConnections: statistic.DefaultManager.Range,
+		processResolver:  newUsageProcessResolver(),
+		processLookupEnabled: func() bool {
+			return tunnel.FindProcessMode() == process.FindProcessAlways
+		},
 	}
+}
+
+func runUsageProcessLookupWorker() {
+	for job := range usageProcessLookups {
+		time.Sleep(usageProcessLookupDelay)
+		processName, processPath, err := job.resolver(job.network, job.ip, job.port)
+		if err != nil || processPath == "" {
+			continue
+		}
+		job.collector.applyProcessLookup(job.id, processName, processPath)
+	}
+}
+
+func (c *usageCollector) enqueueProcessLookup(id string, metadata *C.Metadata) {
+	if c.processResolver == nil || !c.processLookupEnabled() || metadata == nil || metadata.ProcessPath != "" ||
+		!metadata.SrcIP.IsValid() || metadata.SrcPort == 0 {
+		return
+	}
+	job := usageProcessLookupJob{
+		collector: c,
+		id:        id,
+		network:   metadata.NetWork.String(),
+		ip:        metadata.SrcIP,
+		port:      int(metadata.SrcPort),
+		resolver:  c.processResolver,
+	}
+	select {
+	case usageProcessLookups <- job:
+	default:
+	}
+}
+
+func (c *usageCollector) applyProcessLookup(id, processName, processPath string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	tracked, exists := c.tracked[id]
+	if !exists || tracked.dimensions.processPath != "" {
+		return
+	}
+	tracked.dimensions.process = processName
+	tracked.dimensions.processPath = processPath
 }
 
 func newUsageSessionID() string {
@@ -309,12 +375,13 @@ func (c *usageCollector) trackInternal(tracker statistic.Tracker, baseline bool)
 		return
 	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if !c.enabled {
+		c.mu.Unlock()
 		return
 	}
 	id := tracker.ID()
 	if _, exists := c.tracked[id]; exists {
+		c.mu.Unlock()
 		return
 	}
 	tracked := &usageTrackedConnection{
@@ -329,6 +396,8 @@ func (c *usageCollector) trackInternal(tracker statistic.Tracker, baseline bool)
 		tracked.seenActive = true
 	}
 	c.tracked[id] = tracked
+	c.mu.Unlock()
+	c.enqueueProcessLookup(id, info.Metadata)
 }
 
 func usageKey(minute int64, dimensions usageDimensions) (usageBucketKey, *UsageBucket) {
@@ -633,5 +702,8 @@ func handleAckUsageBatch(ack UsageBatchAck) bool {
 }
 
 func init() {
+	for worker := 0; worker < usageProcessLookupWorkers; worker++ {
+		go runUsageProcessLookupWorker()
+	}
 	go usageStats.run()
 }

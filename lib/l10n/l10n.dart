@@ -299,9 +299,24 @@ class AppLocalizations {
     return Intl.message('Domains', name: 'usageDomains', desc: '', args: []);
   }
 
-  /// `Profiles`
+  /// `Config profiles`
   String get usageProfiles {
-    return Intl.message('Profiles', name: 'usageProfiles', desc: '', args: []);
+    return Intl.message(
+      'Config profiles',
+      name: 'usageProfiles',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Grouped by the FlClash configuration profile active when each connection began. This is not provider quota or billing usage.`
+  String get usageProfilesDesc {
+    return Intl.message(
+      'Grouped by the FlClash configuration profile active when each connection began. This is not provider quota or billing usage.',
+      name: 'usageProfilesDesc',
+      desc: '',
+      args: [],
+    );
   }
 
   /// `Today`
@@ -414,10 +429,10 @@ class AppLocalizations {
     return Intl.message('Top domains', name: 'topDomains', desc: '', args: []);
   }
 
-  /// `Top profiles`
+  /// `Top config profiles`
   String get topProfiles {
     return Intl.message(
-      'Top profiles',
+      'Top config profiles',
       name: 'topProfiles',
       desc: '',
       args: [],
@@ -454,10 +469,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Unknown profile`
+  /// `Unknown config profile`
   String get unknownProfile {
     return Intl.message(
-      'Unknown profile',
+      'Unknown config profile',
       name: 'unknownProfile',
       desc: '',
       args: [],
@@ -469,6 +484,16 @@ class AppLocalizations {
     return Intl.message(
       'Process recognition is off. App usage will be grouped as unknown where FlClash cannot identify it.',
       name: 'processRecognitionOff',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Process recognition is enabled, but no app was identified in this time range. Previously recorded unknown traffic cannot be backfilled.`
+  String get processRecognitionUnavailable {
+    return Intl.message(
+      'Process recognition is enabled, but no app was identified in this time range. Previously recorded unknown traffic cannot be backfilled.',
+      name: 'processRecognitionUnavailable',
       desc: '',
       args: [],
     );

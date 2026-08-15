@@ -567,6 +567,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "processRecognitionOff": MessageLookupByLibrary.simpleMessage(
       "プロセス識別がオフです。識別できないアプリの使用量は不明として集計されます。",
     ),
+    "processRecognitionUnavailable": MessageLookupByLibrary.simpleMessage(
+      "プロセス識別は有効ですが、この期間ではアプリを識別できませんでした。過去の不明な通信量は補完できません。",
+    ),
     "profile": MessageLookupByLibrary.simpleMessage("プロファイル"),
     "profileAutoUpdateIntervalInvalidValidationDesc":
         MessageLookupByLibrary.simpleMessage("有効な間隔形式を入力してください"),
@@ -867,7 +870,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "topApplications": MessageLookupByLibrary.simpleMessage("上位アプリ"),
     "topDomains": MessageLookupByLibrary.simpleMessage("上位ドメイン"),
     "topNodes": MessageLookupByLibrary.simpleMessage("上位ノード"),
-    "topProfiles": MessageLookupByLibrary.simpleMessage("上位プロファイル"),
+    "topProfiles": MessageLookupByLibrary.simpleMessage("上位の設定プロファイル"),
     "tproxyPort": MessageLookupByLibrary.simpleMessage("Tproxyポート"),
     "trafficUsage": MessageLookupByLibrary.simpleMessage("トラフィック使用量"),
     "tun": MessageLookupByLibrary.simpleMessage("TUN"),
@@ -884,7 +887,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "unknownDomain": MessageLookupByLibrary.simpleMessage("不明なドメインまたは IP"),
     "unknownNetworkError": MessageLookupByLibrary.simpleMessage("不明なネットワークエラー"),
     "unknownNode": MessageLookupByLibrary.simpleMessage("不明なノード"),
-    "unknownProfile": MessageLookupByLibrary.simpleMessage("不明なプロファイル"),
+    "unknownProfile": MessageLookupByLibrary.simpleMessage("不明な設定プロファイル"),
     "unnamed": MessageLookupByLibrary.simpleMessage("無題"),
     "update": MessageLookupByLibrary.simpleMessage("更新"),
     "upload": MessageLookupByLibrary.simpleMessage("アップロード"),
@@ -916,7 +919,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "usagePrivacyTitle": MessageLookupByLibrary.simpleMessage(
       "ローカル使用量記録を有効にしますか？",
     ),
-    "usageProfiles": MessageLookupByLibrary.simpleMessage("プロファイル"),
+    "usageProfiles": MessageLookupByLibrary.simpleMessage("設定プロファイル"),
+    "usageProfilesDesc": MessageLookupByLibrary.simpleMessage(
+      "各接続の開始時に有効だった FlClash 設定プロファイル別に集計します。プロバイダーの容量や請求通信量ではありません。",
+    ),
     "usageRecording": MessageLookupByLibrary.simpleMessage("使用量の記録"),
     "usageRecordingDesc": MessageLookupByLibrary.simpleMessage(
       "この Mac に分単位の通信量・アプリ・ドメイン統計を90日間保存します",

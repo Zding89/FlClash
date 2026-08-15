@@ -171,6 +171,82 @@ func TestUsageCollectorKeepsUnknownMetadataAndIPFallback(t *testing.T) {
 	}
 }
 
+func TestUsageCollectorRetriesMissingDarwinProcess(t *testing.T) {
+	collector := newUsageCollector()
+	collector.isActive = func(string) bool { return true }
+	collector.processLookupEnabled = func() bool { return true }
+	resolved := make(chan struct{}, 1)
+	collector.processResolver = func(network string, ip netip.Addr, port int) (string, string, error) {
+		if network != "tcp" || ip.String() != "127.0.0.1" || port != 54321 {
+			t.Fatalf("unexpected lookup tuple: %s %s %d", network, ip, port)
+		}
+		resolved <- struct{}{}
+		return "Safari", "/Applications/Safari.app/Contents/MacOS/Safari", nil
+	}
+	collector.configure(UsageCollectionParams{Enabled: true, Revision: 1})
+	tracker := newFakeUsageTracker("retry", C.Chain{"Node A"}, "example.com")
+	tracker.info.Metadata.Process = ""
+	tracker.info.Metadata.ProcessPath = ""
+	tracker.info.Metadata.NetWork = C.TCP
+	tracker.info.Metadata.SrcIP = netip.MustParseAddr("127.0.0.1")
+	tracker.info.Metadata.SrcPort = 54321
+	collector.track(tracker)
+
+	select {
+	case <-resolved:
+	case <-time.After(time.Second):
+		t.Fatal("process lookup was not attempted")
+	}
+	deadline := time.Now().Add(time.Second)
+	for {
+		collector.mu.Lock()
+		processPath := collector.tracked[tracker.ID()].dimensions.processPath
+		collector.mu.Unlock()
+		if processPath != "" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("resolved process was not applied")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	tracker.info.DownloadTotal.Add(10)
+	batch := collector.readBatch()
+	if batch == nil || len(batch.Buckets) != 1 {
+		t.Fatalf("unexpected batch: %#v", batch)
+	}
+	bucket := batch.Buckets[0]
+	if bucket.Process != "Safari" || bucket.ProcessPath != "/Applications/Safari.app/Contents/MacOS/Safari" {
+		t.Fatalf("retry did not update process dimensions: %#v", bucket)
+	}
+}
+
+func TestUsageCollectorDoesNotOverrideDisabledProcessLookup(t *testing.T) {
+	collector := newUsageCollector()
+	collector.isActive = func(string) bool { return true }
+	collector.processLookupEnabled = func() bool { return false }
+	called := make(chan struct{}, 1)
+	collector.processResolver = func(string, netip.Addr, int) (string, string, error) {
+		called <- struct{}{}
+		return "Safari", "/Applications/Safari.app/Contents/MacOS/Safari", nil
+	}
+	collector.configure(UsageCollectionParams{Enabled: true, Revision: 1})
+	tracker := newFakeUsageTracker("disabled", C.Chain{"Node A"}, "example.com")
+	tracker.info.Metadata.Process = ""
+	tracker.info.Metadata.ProcessPath = ""
+	tracker.info.Metadata.NetWork = C.TCP
+	tracker.info.Metadata.SrcIP = netip.MustParseAddr("127.0.0.1")
+	tracker.info.Metadata.SrcPort = 54321
+	collector.track(tracker)
+
+	select {
+	case <-called:
+		t.Fatal("disabled process recognition triggered a fallback lookup")
+	case <-time.After(usageProcessLookupDelay * 2):
+	}
+}
+
 func TestUsageCollectorPauseDropsNewDataAndReenableStartsSession(t *testing.T) {
 	collector := newUsageCollector()
 	collector.isActive = func(string) bool { return true }

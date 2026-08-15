@@ -15,6 +15,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+const _usageTwoColumnMinWidth = 940.0;
+
 class UsageView extends ConsumerStatefulWidget {
   const UsageView({super.key});
 
@@ -439,7 +441,7 @@ class _OverviewView extends ConsumerWidget {
         final l10n = context.appLocalizations;
         return LayoutBuilder(
           builder: (context, constraints) {
-            final wide = constraints.maxWidth >= 900;
+            final wide = constraints.maxWidth >= _usageTwoColumnMinWidth;
             final chartWidgets = [
               Expanded(
                 child: _ChartCard(
@@ -1133,6 +1135,72 @@ class _RankingView extends ConsumerWidget {
     };
   }
 
+  Widget _rankingCard(
+    BuildContext context,
+    WidgetRef ref,
+    UsageRankingItem item,
+    int index,
+    int maximum,
+  ) {
+    return CommonCard(
+      onPressed: () => _showUsageDetail(context, ref, dimension, item),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 32,
+              child: Text(
+                '${index + 1}',
+                style: context.textTheme.titleSmall?.toBold,
+              ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _usageLabel(context, dimension, item),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.textTheme.bodyLarge?.toBold,
+                  ),
+                  const SizedBox(height: 7),
+                  LinearProgressIndicator(
+                    value: _metricValue(item) / maximum,
+                    minHeight: 4,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  const SizedBox(height: 7),
+                  Wrap(
+                    spacing: 16,
+                    children: [
+                      Text(
+                        '${context.appLocalizations.upload} ${_traffic(item.upload)}',
+                      ),
+                      Text(
+                        '${context.appLocalizations.download} ${_traffic(item.download)}',
+                      ),
+                      Text(
+                        '${context.appLocalizations.usageConnections} ${item.connections}',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              _traffic(item.total),
+              style: context.textTheme.titleSmall?.toBold,
+            ),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rows = ref.watch(
@@ -1237,81 +1305,70 @@ class _RankingView extends ConsumerWidget {
                         ],
                       ),
                     ),
+                  if (dimension == UsageDimension.application &&
+                      !processOff &&
+                      coverage?.value == 0)
+                    _UsageInfoNotice(
+                      text: context
+                          .appLocalizations
+                          .processRecognitionUnavailable,
+                    ),
+                  if (dimension == UsageDimension.profile)
+                    _UsageInfoNotice(
+                      text: context.appLocalizations.usageProfilesDesc,
+                    ),
                   Expanded(
-                    child: ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                      itemCount: visibleItems.length + (hasMore ? 1 : 0),
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        if (index == visibleItems.length) {
-                          return Center(
-                            child: OutlinedButton.icon(
-                              onPressed: onLoadMore,
-                              icon: const Icon(Icons.expand_more),
-                              label: Text(context.appLocalizations.loadMore),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final columns =
+                            constraints.maxWidth >= _usageTwoColumnMinWidth
+                            ? 2
+                            : 1;
+                        return CustomScrollView(
+                          slivers: [
+                            SliverPadding(
+                              padding: EdgeInsets.fromLTRB(
+                                16,
+                                0,
+                                16,
+                                hasMore ? 8 : 24,
+                              ),
+                              sliver: SliverGrid(
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, index) => _rankingCard(
+                                    context,
+                                    ref,
+                                    visibleItems[index],
+                                    index,
+                                    maximum,
+                                  ),
+                                  childCount: visibleItems.length,
+                                ),
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: columns,
+                                      mainAxisExtent: 136,
+                                      crossAxisSpacing: 8,
+                                      mainAxisSpacing: 8,
+                                    ),
+                              ),
                             ),
-                          );
-                        }
-                        final item = visibleItems[index];
-                        return CommonCard(
-                          onPressed: () =>
-                              _showUsageDetail(context, ref, dimension, item),
-                          child: Padding(
-                            padding: const EdgeInsets.all(14),
-                            child: Row(
-                              children: [
-                                SizedBox(
-                                  width: 32,
-                                  child: Text(
-                                    '${index + 1}',
-                                    style: context.textTheme.titleSmall?.toBold,
+                            if (hasMore)
+                              SliverPadding(
+                                padding: const EdgeInsets.only(bottom: 24),
+                                sliver: SliverToBoxAdapter(
+                                  child: Center(
+                                    child: OutlinedButton.icon(
+                                      onPressed: onLoadMore,
+                                      icon: const Icon(Icons.expand_more),
+                                      label: Text(
+                                        context.appLocalizations.loadMore,
+                                      ),
+                                    ),
                                   ),
                                 ),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        _usageLabel(context, dimension, item),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style:
-                                            context.textTheme.bodyLarge?.toBold,
-                                      ),
-                                      const SizedBox(height: 7),
-                                      LinearProgressIndicator(
-                                        value: _metricValue(item) / maximum,
-                                        minHeight: 4,
-                                        borderRadius: BorderRadius.circular(2),
-                                      ),
-                                      const SizedBox(height: 7),
-                                      Wrap(
-                                        spacing: 16,
-                                        children: [
-                                          Text(
-                                            '${context.appLocalizations.upload} ${_traffic(item.upload)}',
-                                          ),
-                                          Text(
-                                            '${context.appLocalizations.download} ${_traffic(item.download)}',
-                                          ),
-                                          Text(
-                                            '${context.appLocalizations.usageConnections} ${item.connections}',
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  _traffic(item.total),
-                                  style: context.textTheme.titleSmall?.toBold,
-                                ),
-                                const Icon(Icons.chevron_right),
-                              ],
-                            ),
-                          ),
+                              ),
+                          ],
                         );
                       },
                     ),
@@ -1322,6 +1379,33 @@ class _RankingView extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _UsageInfoNotice extends StatelessWidget {
+  final String text;
+
+  const _UsageInfoNotice({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.info_outline,
+            size: 18,
+            color: context.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text, style: context.textTheme.bodySmall?.toLighter),
+          ),
+        ],
+      ),
     );
   }
 }

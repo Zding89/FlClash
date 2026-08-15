@@ -717,6 +717,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "processRecognitionOff": MessageLookupByLibrary.simpleMessage(
       "Process recognition is off. App usage will be grouped as unknown where FlClash cannot identify it.",
     ),
+    "processRecognitionUnavailable": MessageLookupByLibrary.simpleMessage(
+      "Process recognition is enabled, but no app was identified in this time range. Previously recorded unknown traffic cannot be backfilled.",
+    ),
     "profile": MessageLookupByLibrary.simpleMessage("Profile"),
     "profileAutoUpdateIntervalInvalidValidationDesc":
         MessageLookupByLibrary.simpleMessage(
@@ -1069,7 +1072,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "topApplications": MessageLookupByLibrary.simpleMessage("Top apps"),
     "topDomains": MessageLookupByLibrary.simpleMessage("Top domains"),
     "topNodes": MessageLookupByLibrary.simpleMessage("Top nodes"),
-    "topProfiles": MessageLookupByLibrary.simpleMessage("Top profiles"),
+    "topProfiles": MessageLookupByLibrary.simpleMessage("Top config profiles"),
     "tproxyPort": MessageLookupByLibrary.simpleMessage("Tproxy Port"),
     "trafficUsage": MessageLookupByLibrary.simpleMessage("Traffic usage"),
     "tun": MessageLookupByLibrary.simpleMessage("TUN"),
@@ -1092,7 +1095,9 @@ class MessageLookup extends MessageLookupByLibrary {
       "Unknown network error",
     ),
     "unknownNode": MessageLookupByLibrary.simpleMessage("Unknown node"),
-    "unknownProfile": MessageLookupByLibrary.simpleMessage("Unknown profile"),
+    "unknownProfile": MessageLookupByLibrary.simpleMessage(
+      "Unknown config profile",
+    ),
     "unnamed": MessageLookupByLibrary.simpleMessage("Unnamed"),
     "update": MessageLookupByLibrary.simpleMessage("Update"),
     "upload": MessageLookupByLibrary.simpleMessage("Upload"),
@@ -1128,7 +1133,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "usagePrivacyTitle": MessageLookupByLibrary.simpleMessage(
       "Enable local usage recording?",
     ),
-    "usageProfiles": MessageLookupByLibrary.simpleMessage("Profiles"),
+    "usageProfiles": MessageLookupByLibrary.simpleMessage("Config profiles"),
+    "usageProfilesDesc": MessageLookupByLibrary.simpleMessage(
+      "Grouped by the FlClash configuration profile active when each connection began. This is not provider quota or billing usage.",
+    ),
     "usageRecording": MessageLookupByLibrary.simpleMessage("Usage recording"),
     "usageRecordingDesc": MessageLookupByLibrary.simpleMessage(
       "Store minute-level traffic, app, and domain statistics on this Mac for 90 days",

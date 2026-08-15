@@ -76,6 +76,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Safari'), findsOneWidget);
+
+    await tester.tap(find.text('Config profiles').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Work'), findsOneWidget);
+    expect(
+      find.textContaining('not provider quota or billing usage'),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -142,6 +151,8 @@ void main() {
       600,
       scrollable: find.byType(Scrollable).last,
     );
+    await tester.ensureVisible(find.text('Load more'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Load more'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
@@ -298,6 +309,92 @@ void main() {
         .map((indicator) => indicator.value)
         .toList();
     expect(values, [1, 0.5]);
+    expect(
+      tester.getTopLeft(find.text('Upload first')).dy,
+      tester.getTopLeft(find.text('Total first')).dy,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('uses one ranking column in a narrow Mac window', (tester) async {
+    tester.view.physicalSize = const Size(620, 820);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await database.setEnabled(true);
+    await database.ingest(
+      UsageBatch(
+        sessionId: 'session-narrow-ranking',
+        sequence: 1,
+        buckets: [
+          UsageBucketData(
+            minute: DateTime.now().toUtc().millisecondsSinceEpoch,
+            route: UsageRoute.proxy,
+            node: 'Narrow first',
+            download: 20,
+          ),
+          UsageBucketData(
+            minute: DateTime.now().toUtc().millisecondsSinceEpoch,
+            route: UsageRoute.proxy,
+            node: 'Narrow second',
+            download: 10,
+          ),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const _TestApp(child: UsageView()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Nodes').first);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getTopLeft(find.text('Narrow first')).dy,
+      isNot(tester.getTopLeft(find.text('Narrow second')).dy),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('explains zero app recognition coverage', (tester) async {
+    tester.view.physicalSize = const Size(1000, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await database.setEnabled(true);
+    await database.ingest(
+      UsageBatch(
+        sessionId: 'session-unknown-app',
+        sequence: 1,
+        buckets: [
+          UsageBucketData(
+            minute: DateTime.now().toUtc().millisecondsSinceEpoch,
+            route: UsageRoute.proxy,
+            download: 10,
+          ),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const _TestApp(child: UsageView()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Apps').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Identification coverage 0.0%'), findsOneWidget);
+    expect(
+      find.textContaining('no app was identified in this time range'),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 }

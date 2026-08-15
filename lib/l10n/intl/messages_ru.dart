@@ -754,6 +754,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "processRecognitionOff": MessageLookupByLibrary.simpleMessage(
       "Распознавание процессов выключено. Неопознанный трафик приложений будет отнесён к неизвестному.",
     ),
+    "processRecognitionUnavailable": MessageLookupByLibrary.simpleMessage(
+      "Распознавание процессов включено, но за выбранный период приложения не определены. Ранее записанный неизвестный трафик восстановить нельзя.",
+    ),
     "profile": MessageLookupByLibrary.simpleMessage("Профиль"),
     "profileAutoUpdateIntervalInvalidValidationDesc":
         MessageLookupByLibrary.simpleMessage(
@@ -1130,7 +1133,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "topDomains": MessageLookupByLibrary.simpleMessage("Лучшие домены"),
     "topNodes": MessageLookupByLibrary.simpleMessage("Лучшие узлы"),
-    "topProfiles": MessageLookupByLibrary.simpleMessage("Лучшие профили"),
+    "topProfiles": MessageLookupByLibrary.simpleMessage(
+      "Лучшие профили конфигурации",
+    ),
     "tproxyPort": MessageLookupByLibrary.simpleMessage("Tproxy-порт"),
     "trafficUsage": MessageLookupByLibrary.simpleMessage(
       "Использование трафика",
@@ -1160,7 +1165,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "unknownNode": MessageLookupByLibrary.simpleMessage("Неизвестный узел"),
     "unknownProfile": MessageLookupByLibrary.simpleMessage(
-      "Неизвестный профиль",
+      "Неизвестный профиль конфигурации",
     ),
     "unnamed": MessageLookupByLibrary.simpleMessage("Без имени"),
     "update": MessageLookupByLibrary.simpleMessage("Обновить"),
@@ -1197,7 +1202,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "usagePrivacyTitle": MessageLookupByLibrary.simpleMessage(
       "Включить локальную запись расхода?",
     ),
-    "usageProfiles": MessageLookupByLibrary.simpleMessage("Профили"),
+    "usageProfiles": MessageLookupByLibrary.simpleMessage(
+      "Профили конфигурации",
+    ),
+    "usageProfilesDesc": MessageLookupByLibrary.simpleMessage(
+      "Группировка по профилю конфигурации FlClash, активному в момент установления соединения. Это не квота провайдера и не биллинговый трафик.",
+    ),
     "usageRecording": MessageLookupByLibrary.simpleMessage("Запись расхода"),
     "usageRecordingDesc": MessageLookupByLibrary.simpleMessage(
       "Хранить на этом Mac поминутную статистику трафика, приложений и доменов в течение 90 дней",

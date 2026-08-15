@@ -495,6 +495,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "processRecognitionOff": MessageLookupByLibrary.simpleMessage(
       "进程识别已关闭；FlClash 无法识别的应用用量会归入“未知应用”。",
     ),
+    "processRecognitionUnavailable": MessageLookupByLibrary.simpleMessage(
+      "进程识别已开启，但当前时间范围内没有识别到应用；此前记录的未知流量无法回填。",
+    ),
     "profile": MessageLookupByLibrary.simpleMessage("配置"),
     "profileAutoUpdateIntervalInvalidValidationDesc":
         MessageLookupByLibrary.simpleMessage("请输入有效间隔时间格式"),
@@ -751,7 +754,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "topApplications": MessageLookupByLibrary.simpleMessage("应用 Top 5"),
     "topDomains": MessageLookupByLibrary.simpleMessage("域名 Top 5"),
     "topNodes": MessageLookupByLibrary.simpleMessage("节点 Top 5"),
-    "topProfiles": MessageLookupByLibrary.simpleMessage("订阅 Top 5"),
+    "topProfiles": MessageLookupByLibrary.simpleMessage("配置档案 Top 5"),
     "tproxyPort": MessageLookupByLibrary.simpleMessage("Tproxy端口"),
     "trafficUsage": MessageLookupByLibrary.simpleMessage("流量统计"),
     "tun": MessageLookupByLibrary.simpleMessage("虚拟网卡"),
@@ -766,7 +769,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "unknownDomain": MessageLookupByLibrary.simpleMessage("未知域名或 IP"),
     "unknownNetworkError": MessageLookupByLibrary.simpleMessage("未知网络错误"),
     "unknownNode": MessageLookupByLibrary.simpleMessage("未知节点"),
-    "unknownProfile": MessageLookupByLibrary.simpleMessage("未知订阅"),
+    "unknownProfile": MessageLookupByLibrary.simpleMessage("未知配置档案"),
     "unnamed": MessageLookupByLibrary.simpleMessage("未命名"),
     "update": MessageLookupByLibrary.simpleMessage("更新"),
     "upload": MessageLookupByLibrary.simpleMessage("上传"),
@@ -794,7 +797,10 @@ class MessageLookup extends MessageLookupByLibrary {
       "FlClash 会在这台 Mac 本机保存流量、进程路径、域名、目标 IP、节点和配置档案快照。分钟级明细保留 90 天，不会进入配置备份或 WebDAV 备份，且无法回填历史数据。统计为本机测量值，不等同于账单数据。",
     ),
     "usagePrivacyTitle": MessageLookupByLibrary.simpleMessage("开启本机用量记录？"),
-    "usageProfiles": MessageLookupByLibrary.simpleMessage("订阅"),
+    "usageProfiles": MessageLookupByLibrary.simpleMessage("配置档案"),
+    "usageProfilesDesc": MessageLookupByLibrary.simpleMessage(
+      "按连接建立时正在使用的 FlClash 配置档案归类；不代表服务商套餐余量或计费流量。",
+    ),
     "usageRecording": MessageLookupByLibrary.simpleMessage("用量记录"),
     "usageRecordingDesc": MessageLookupByLibrary.simpleMessage(
       "在这台 Mac 本机保存分钟级流量、应用和域名统计，明细保留 90 天",

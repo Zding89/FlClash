@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:fl_clash/database/usage_database.dart';
 import 'package:fl_clash/enum/enum.dart';
@@ -513,6 +514,14 @@ void main() {
 
   test('cleans details and ingest markers older than 90 days', () async {
     await database.ingest(batch().copyWith(degraded: true));
+    await (database.update(database.usageIngestSessions)..where(
+          (table) => table.sessionId.equals('session-a'),
+        ))
+        .write(
+          UsageIngestSessionsCompanion(
+            updatedAt: Value(DateTime.utc(2026, 8, 14, 10)),
+          ),
+        );
 
     await database.cleanup(now: DateTime.utc(2026, 11, 13, 10));
 
