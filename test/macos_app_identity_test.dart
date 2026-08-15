@@ -41,6 +41,12 @@ void main() {
     final dmgConfig = read('macos/packaging/dmg/make_config.yaml');
     final distributeOptions = read('distribute_options.yaml');
 
+    expect(
+      infoPlist,
+      contains(
+        '<key>CFBundleDisplayName</key>\n\t<string>\$(PRODUCT_NAME)</string>',
+      ),
+    );
     expect(infoPlist, contains('<string>clash-usage</string>'));
     expect(infoPlist, contains('<string>clashmeta-usage</string>'));
     expect(infoPlist, contains('<string>flclash-usage</string>'));
