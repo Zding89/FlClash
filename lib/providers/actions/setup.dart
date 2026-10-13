@@ -514,7 +514,10 @@ class SetupAction extends _$SetupAction {
         : const LocalPolicyDocument();
     final initialSignature = system.isMacOS
         ? policyDigest(
-            await ref.read(workbenchControllerProvider).backend.readState(),
+            await ref
+                .read(workbenchControllerProvider)
+                .backend
+                .readActivationState(),
           )
         : null;
     final String? approved = _approvedProfileYaml;
@@ -564,7 +567,7 @@ class SetupAction extends _$SetupAction {
                   await ref
                       .read(workbenchControllerProvider)
                       .backend
-                      .readState(),
+                      .readActivationState(),
                 )) {
           throw StateError('configuration_version_conflict');
         }

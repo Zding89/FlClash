@@ -433,6 +433,64 @@ class FlutterConfigurationBackend
     _lastActivated = await readState();
   }
 
+  Future<String> _profilesSignature({bool activation = false}) async {
+    final entries = List<Profile>.from(ref.read(profilesProvider));
+    if (activation) entries.sort((a, b) => a.id.compareTo(b.id));
+    return policyDigest({
+      'profiles': entries.map((profile) {
+        final value = profile.toJson();
+        if (!activation) return value;
+        return {
+          for (final key in [
+            'id',
+            'label',
+            'url',
+            'overwriteType',
+            'scriptId',
+            'selectedMap',
+            'subscriptionInfo',
+          ])
+            key: value[key],
+        };
+      }).toList(),
+      'sources': {
+        for (final profile in entries)
+          '${profile.id}': await profiles.loader.fingerprint(profile),
+      },
+    });
+  }
+
+  Future<Map<String, Object?>> readActivationState() async {
+    final config = ref.read(configProvider);
+    final value = configJson(config);
+    final setup = await ref.read(
+      setupStateProvider(config.currentProfileId).future,
+    );
+    return {
+      'config': {
+        for (final key in [
+          'currentProfileId',
+          'patchClashConfig',
+          'networkProps',
+          'overrideDns',
+        ])
+          key: value[key],
+        'testUrl': config.appSettingProps.testUrl,
+      },
+      'policies': (await store.readPolicies()).toJson(),
+      'profilesSignature': await _profilesSignature(activation: true),
+      'setup': {
+        'overwriteType': setup.overwriteType.name,
+        'rules': setup.rules.map((rule) => rule.toJson()).toList(),
+        'proxyGroups': setup.proxyGroups
+            .map((group) => group.toJson())
+            .toList(),
+        'addedRules': setup.addedRules.map((rule) => rule.toJson()).toList(),
+        'script': await setup.script?.content,
+      },
+    };
+  }
+
   @override
   Future<Map<String, Object?>> readState() async {
     final document = await store.readPolicies();
@@ -443,16 +501,7 @@ class FlutterConfigurationBackend
       'config': configJson(ref.read(configProvider)),
       'policies': document.toJson(),
       'ai': ai.toJson(),
-      'profilesSignature': policyDigest({
-        'profiles': ref
-            .read(profilesProvider)
-            .map((profile) => profile.toJson())
-            .toList(),
-        'sources': {
-          for (final profile in ref.read(profilesProvider))
-            '${profile.id}': await profiles.loader.fingerprint(profile),
-        },
-      }),
+      'profilesSignature': await _profilesSignature(),
     };
     _lastActivated ??= policyObject(
       jsonDecode(jsonEncode(snapshot)),
