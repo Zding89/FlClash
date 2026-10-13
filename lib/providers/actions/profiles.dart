@@ -2,15 +2,20 @@ part of '../action.dart';
 
 @Riverpod(keepAlive: true)
 class ProfilesAction extends _$ProfilesAction {
+  final Map<int, int> _updateEpochs = {};
   @override
   void build() {}
 
   void updateCurrentSelectedMap(String groupName, String proxyName) {
+    final originalName = ref
+        .read(setupActionProvider.notifier)
+        .originalSelection(groupName, proxyName);
+    if (originalName == null) return;
     final currentProfile = ref.read(currentProfileProvider);
     if (currentProfile != null &&
-        currentProfile.selectedMap[groupName] != proxyName) {
+        currentProfile.selectedMap[groupName] != originalName) {
       final selectedMap = Map<String, String>.from(currentProfile.selectedMap)
-        ..[groupName] = proxyName;
+        ..[groupName] = originalName;
       ref
           .read(profilesProvider.notifier)
           .put(currentProfile.copyWith(selectedMap: selectedMap));
@@ -44,8 +49,11 @@ class ProfilesAction extends _$ProfilesAction {
       }
       try {
         await updateProfile(profile);
-      } catch (e) {
-        commonPrint.log(e.toString(), logLevel: LogLevel.warning);
+      } catch (_) {
+        commonPrint.log(
+          'Subscription update failed (${profile.id})',
+          logLevel: LogLevel.warning,
+        );
       }
     }
   }
@@ -67,21 +75,85 @@ class ProfilesAction extends _$ProfilesAction {
     Profile profile, {
     bool showLoading = false,
   }) async {
+    var metadataChanged = false;
+    bool Function()? stillCurrent;
     try {
       if (showLoading) {
         ref.read(isUpdatingProvider(profile.updatingKey).notifier).value = true;
       }
       ref.read(profilesProvider.notifier).put(profile);
-      final newProfile = await profile.update();
-      ref.read(profilesProvider.notifier).put(newProfile);
-      if (profile.id == ref.read(currentProfileIdProvider)) {
+      final epoch = (_updateEpochs[profile.id] ?? 0) + 1;
+      _updateEpochs[profile.id] = epoch;
+      bool isCurrent() =>
+          _updateEpochs[profile.id] == epoch &&
+          ref.read(profilesProvider).getProfile(profile.id)?.url == profile.url;
+      stillCurrent = isCurrent;
+      final fetch = system.isMacOS
+          ? ref.read(workbenchControllerProvider).fetchSourceResponse
+          : request.getBoundedFileResponse;
+      final newProfile = await profile.update(
+        fetch: fetch,
+        isCurrent: isCurrent,
+        validateSource: system.isMacOS
+            ? (bytes) => ref
+                  .read(workbenchControllerProvider)
+                  .validateSourceUpdate(profile, bytes, isCurrent: isCurrent)
+            : null,
+        onMetadata: (metadata) async {
+          if (!isCurrent()) return;
+          final latest = ref.read(profilesProvider).getProfile(profile.id)!;
+          metadataChanged =
+              latest.subscriptionInfo != metadata.subscriptionInfo;
+          ref
+              .read(profilesProvider.notifier)
+              .put(
+                latest.copyWith(subscriptionInfo: metadata.subscriptionInfo),
+              );
+          if (system.isMacOS) {
+            await ref
+                .read(workbenchControllerProvider)
+                .refreshSourceMetadata(metadata, isCurrent: isCurrent);
+          }
+        },
+      );
+      if (!isCurrent()) return;
+      final latest = ref.read(profilesProvider).getProfile(profile.id)!;
+      ref
+          .read(profilesProvider.notifier)
+          .put(
+            latest.copyWith(
+              label: latest.label.isEmpty ? newProfile.label : latest.label,
+              subscriptionInfo: newProfile.subscriptionInfo,
+              lastUpdateDate: newProfile.lastUpdateDate,
+            ),
+          );
+      if (await _affectsCurrentProfile(profile.id)) {
         ref
             .read(setupActionProvider.notifier)
             .applyProfileDebounce(silence: true);
       }
+    } catch (_) {
+      if (metadataChanged &&
+          stillCurrent?.call() == true &&
+          await _affectsCurrentProfile(profile.id)) {
+        try {
+          await ref
+              .read(setupActionProvider.notifier)
+              .applyProfile(force: true, silence: true);
+        } catch (_) {}
+      }
+      rethrow;
     } finally {
       ref.read(isUpdatingProvider(profile.updatingKey).notifier).value = false;
     }
+  }
+
+  Future<bool> _affectsCurrentProfile(int id) async {
+    if (id == ref.read(currentProfileIdProvider)) return true;
+    if (!system.isMacOS) return false;
+    final document = await ref.read(workbenchDatabaseProvider).readPolicies();
+    return document.integrationEnabled &&
+        document.activeIntegration?.sourceProfileIds.contains(id) == true;
   }
 
   Future<void> addProfileFormFile() async {
@@ -110,7 +182,11 @@ class ProfilesAction extends _$ProfilesAction {
     final profile = await globalState.loadingRun(
       tag: LoadingTag.profiles,
       () async {
-        return Profile.normal(url: url).update();
+        return Profile.normal(url: url).update(
+          fetch: system.isMacOS
+              ? ref.read(workbenchControllerProvider).fetchSourceResponse
+              : request.getBoundedFileResponse,
+        );
       },
       title: currentAppLocalizations.addProfile,
     );

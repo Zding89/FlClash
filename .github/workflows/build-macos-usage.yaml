@@ -2,6 +2,9 @@ name: Build FlClash Usage for macOS
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - 'codex/macos-usage-cloud-build'
 
 permissions:
   contents: read
@@ -12,6 +15,7 @@ concurrency:
 
 env:
   FLUTTER_VERSION: '3.44.4'
+  FLUTTER_SWIFT_PACKAGE_MANAGER: 'true'
 
 jobs:
   build:
@@ -30,6 +34,17 @@ jobs:
           go-version: '1.26.4'
           cache-dependency-path: core/go.sum
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.3'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '11.21.0'
+          run_install: false
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -39,20 +54,45 @@ jobs:
 
       - name: Verify build environment
         run: |
+          test "$(uname -m)" = arm64
           xcodebuild -version
           flutter --version
           go version
+          node --version
+          pnpm --version
+
+      - name: Build and test AI agent host
+        working-directory: packages/ai_agent_host
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm build
+          pnpm test
+
+      - name: Prepare isolated macOS script test runtime
+        working-directory: packages/ai_agent_host
+        run: node scripts/package.mjs --arch arm64 --resources /private/tmp/flclash-ai-host-node22-arm64/Resources
 
       - name: Install Flutter dependencies
         run: flutter pub get
 
-      - name: Verify macOS app identity
-        run: flutter test --no-pub --reporter expanded test/macos_app_identity_test.dart test/setup_test.dart
+      - name: Analyze Flutter application
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test Flutter application
+        run: flutter test --no-pub --reporter expanded
+
+      - name: Validate Go core wrapper
+        working-directory: core
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          go test .
+          go vet .
 
       - name: Build macOS DMG
         run: dart setup.dart macos --env stable -v
 
-      - name: Verify built application identity
+      - name: Verify built application and packaged AI runtime
         shell: bash
         run: |
           app_path='build/macos/Build/Products/Release/FlClash Usage.app'
@@ -61,6 +101,19 @@ jobs:
           display_name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$app_path/Contents/Info.plist")
           test "$bundle_id" = 'com.zding.flclash.usage'
           test "$display_name" = 'FlClash Usage'
+          executable_name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app_path/Contents/Info.plist")
+          /usr/bin/lipo -verify_arch arm64 "$app_path/Contents/MacOS/$executable_name"
+          resources="$app_path/Contents/Resources"
+          test -x "$resources/ai/node"
+          test -s "$resources/ai/host.mjs"
+          test -s "$resources/ai/script_runner.mjs"
+          test -s "$resources/ai/manifest.json"
+          test -s "$resources/ai/NODE-LICENSE"
+          /usr/bin/lipo -verify_arch arm64 "$resources/ai/node"
+          test "$("$resources/ai/node" --version)" = 'v22.23.3'
+          /usr/bin/codesign --verify --strict --verbose=2 "$resources/ai/node"
+          /usr/bin/codesign --verify --deep --strict --verbose=2 "$app_path"
+          node packages/ai_agent_host/scripts/verify.mjs --resources "$resources"
           find dist -maxdepth 2 -type f -print
 
       - name: Upload installer

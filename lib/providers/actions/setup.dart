@@ -16,6 +16,11 @@ class SetupAction extends _$SetupAction {
   final _listenerScheduler = SerialTaskScheduler();
   _RunRequest? _latestRunRequest;
   DateTime? _startTime;
+  String? _approvedProfileYaml;
+  String? _approvedProfileSignature;
+  Map<String, String> _selectionAliases = {};
+  Set<String> _policyGroups = {};
+  bool _integratedSelection = false;
 
   bool get _isRunning => _startTime != null && _startTime!.isBeforeNow;
 
@@ -27,7 +32,40 @@ class SetupAction extends _$SetupAction {
     final testUrl = ref.read(
       appSettingProvider.select((state) => state.testUrl),
     );
-    return SetupParams(selectedMap: selectedMap, testUrl: testUrl);
+    return SetupParams(
+      selectedMap: {
+        if (!_integratedSelection)
+          for (final entry in selectedMap.entries)
+            if (!_policyGroups.contains(entry.key))
+              entry.key: _selectionAliases[entry.value] ?? entry.value,
+      },
+      testUrl: testUrl,
+    );
+  }
+
+  String? originalSelection(String groupName, String proxyName) {
+    if (_integratedSelection || _policyGroups.contains(groupName)) return null;
+    for (final entry in _selectionAliases.entries) {
+      if (entry.value == proxyName) return entry.key;
+    }
+    return proxyName;
+  }
+
+  void _readSelectionAliases(String yaml, LocalPolicyDocument document) {
+    final raw = normalizePolicyYaml(loadYaml(yaml)) as Map;
+    final extension = raw['flclash-local-policy'];
+    _selectionAliases = extension is Map && extension['enabled'] == true
+        ? Map<String, String>.from(
+            raw['flclash-selection-aliases'] as Map? ?? {},
+          )
+        : {};
+    _policyGroups = extension is Map
+        ? (extension['policies'] as List? ?? [])
+              .map((entry) => (entry as Map)['groupName'])
+              .whereType<String>()
+              .toSet()
+        : {};
+    _integratedSelection = document.integrationEnabled;
   }
 
   void fullSetup() {
@@ -225,15 +263,32 @@ class SetupAction extends _$SetupAction {
     bool silence = false,
     bool force = false,
     Future<void> Function()? preloadInvoke,
-  }) {
-    return _runSetup(
-      force: force,
-      silence: silence,
-      preloadInvoke: preloadInvoke,
-    );
+    String? approvedProfileYaml,
+    bool requireTunAuthorization = false,
+  }) async {
+    if (approvedProfileYaml != null) {
+      final document = await ref.read(workbenchDatabaseProvider).readPolicies();
+      _approvedProfileYaml = approvedProfileYaml;
+      _approvedProfileSignature = _profileSignature(document);
+    }
+    try {
+      await _runSetup(
+        force: force,
+        silence: silence,
+        preloadInvoke: preloadInvoke,
+        requireTunAuthorization: requireTunAuthorization,
+      );
+    } finally {
+      if (approvedProfileYaml != null &&
+          _approvedProfileYaml == approvedProfileYaml) {
+        _approvedProfileYaml = null;
+        _approvedProfileSignature = null;
+      }
+    }
   }
 
   Future<void> _runSetup({
+    bool requireTunAuthorization = false,
     bool silence = false,
     bool force = false,
     Future<void> Function()? preloadInvoke,
@@ -243,6 +298,7 @@ class SetupAction extends _$SetupAction {
         force: force,
         silence: silence,
         preloadInvoke: preloadInvoke,
+        requireTunAuthorization: requireTunAuthorization,
         onUpdated: () async {
           await ref.read(proxiesActionProvider.notifier).updateGroups();
           await ref.read(providersProvider.notifier).syncProviders();
@@ -269,9 +325,19 @@ class SetupAction extends _$SetupAction {
   Future<VM2<String, String>> getProfile({
     required SetupState setupState,
     required PatchClashConfig patchConfig,
+    LocalPolicyDocument? policyDocument,
+    NetworkProps? networkProps,
+    bool? dnsOverride,
+    bool preview = false,
+    bool allowScriptExecution = false,
   }) async {
     final profileId = setupState.profileId;
-    if (profileId == null) return const VM2('', '');
+    final document = system.isMacOS
+        ? policyDocument ??
+              await ref.read(workbenchDatabaseProvider).readPolicies()
+        : const LocalPolicyDocument();
+    final integrated = document.integrationEnabled;
+    if (profileId == null && !integrated) return const VM2('', '');
     final defaultUA = globalState.packageInfo.ua;
     final networkVM2 = ref.read(
       networkSettingProvider.select(
@@ -279,18 +345,27 @@ class SetupAction extends _$SetupAction {
       ),
     );
     final overrideDns = ref.read(overrideDnsProvider);
-    final appendSystemDns = networkVM2.a;
-    final routeMode = networkVM2.b;
-    final configMap = await coreController.getConfig(profileId);
+    final appendSystemDns = networkProps?.appendSystemDns ?? networkVM2.a;
+    final routeMode = networkProps?.routeMode ?? networkVM2.b;
+    final configMap = integrated
+        ? <String, dynamic>{
+            'rules': <String>['MATCH,REJECT'],
+            'dns': patchConfig.dns.toJson(),
+          }
+        : await coreController.getConfig(profileId!);
     String? scriptContent;
     final List<Rule> addedRules = [];
     final List<ProxyGroup> proxyGroups = [];
     final List<Rule> rules = [];
-    if (setupState.overwriteType == OverwriteType.script) {
+    if (!integrated && setupState.overwriteType == OverwriteType.script) {
+      if (preview && setupState.script != null && !allowScriptExecution) {
+        throw StateError('script_preview_requires_authorization');
+      }
       scriptContent = await setupState.script?.content;
-    } else if (setupState.overwriteType == OverwriteType.standard) {
+    } else if (!integrated &&
+        setupState.overwriteType == OverwriteType.standard) {
       addedRules.addAll(setupState.addedRules);
-    } else {
+    } else if (!integrated) {
       proxyGroups.addAll(setupState.proxyGroups);
       rules.addAll(setupState.rules);
     }
@@ -302,22 +377,53 @@ class SetupAction extends _$SetupAction {
       rawConfig = await handleEvaluate(scriptContent!, rawConfig);
     }
     final directory = await appPath.profilesPath;
-    final res = makeRealProfileTask(
+    final res = await makeRealProfileTask(
       MakeRealProfileState(
         rules: rules,
         proxyGroups: proxyGroups,
         profilesPath: directory,
-        profileId: profileId,
+        profileId: profileId ?? 0,
         rawConfig: rawConfig,
         realPatchConfig: realPatchConfig,
-        overrideDns: overrideDns,
+        overrideDns: dnsOverride ?? overrideDns,
         appendSystemDns: appendSystemDns,
         addedRules: addedRules,
         defaultUA: defaultUA,
       ),
     );
-    return res;
+    if (!system.isMacOS ||
+        (!integrated &&
+            !document.policiesEnabled &&
+            !document.budgetsEnabled)) {
+      return res;
+    }
+    final raw = policyObject(
+      normalizePolicyYaml(loadYaml(res.a)),
+      'generatedConfig',
+    );
+    final compiled = await ref
+        .read(workbenchControllerProvider)
+        .profiles
+        .compile(
+          document: document,
+          profiles: ref.read(profilesProvider),
+          profileId: profileId,
+          baseConfig: raw,
+          persistCache: !preview,
+          enforceCandidateReferences: preview,
+        );
+    final output = await encodeYamlTask(compiled.config);
+    return VM2(output, await encodeMD5Task(output));
   }
+
+  String _profileSignature(LocalPolicyDocument document) => policyDigest({
+    'config': configJson(ref.read(configProvider)),
+    'policies': document.toJson(),
+    'profiles': ref
+        .read(profilesProvider)
+        .map((profile) => profile.toJson())
+        .toList(),
+  });
 
   Future<String> getProfileWithId(int profileId) async {
     try {
@@ -374,11 +480,13 @@ class SetupAction extends _$SetupAction {
   }
 
   Future<_SetupTaskResult> _setupConfig({
+    bool requireTunAuthorization = false,
     bool force = false,
     bool silence = false,
     Future<void> Function()? preloadInvoke,
     FutureOr Function()? onUpdated,
   }) async {
+    await configurationWriteBarrier.wait();
     var profile = ref.read(currentProfileProvider);
     final nextProfile = await profile?.checkAndUpdateAndCopy();
     if (nextProfile != null) {
@@ -392,14 +500,40 @@ class SetupAction extends _$SetupAction {
       return _SetupTaskResult.handoffToCoreRestart;
     }
     final effectiveTunEnable = _getEffectiveTunEnable(patchConfig.tun.enable);
+    if (requireTunAuthorization &&
+        patchConfig.tun.enable &&
+        !effectiveTunEnable) {
+      throw StateError('configuration_tun_authorization_failed');
+    }
     final realPatchConfig = patchConfig.copyWith.tun(
       enable: effectiveTunEnable,
     );
     final setupState = await ref.read(setupStateProvider(profile?.id).future);
-    final vm2 = await getProfile(
-      setupState: setupState,
-      patchConfig: realPatchConfig,
-    );
+    final document = system.isMacOS
+        ? await ref.read(workbenchDatabaseProvider).readPolicies()
+        : const LocalPolicyDocument();
+    final initialSignature = system.isMacOS
+        ? policyDigest(
+            await ref.read(workbenchControllerProvider).backend.readState(),
+          )
+        : null;
+    final String? approved = _approvedProfileYaml;
+    final VM2<String, String> vm2;
+    if (approved != null) {
+      if (_approvedProfileSignature != _profileSignature(document)) {
+        throw StateError('configuration_version_conflict');
+      }
+      if (patchConfig.tun.enable && !effectiveTunEnable) {
+        throw StateError('configuration_tun_authorization_failed');
+      }
+      vm2 = VM2(approved, await encodeMD5Task(approved));
+    } else {
+      vm2 = await getProfile(
+        setupState: setupState,
+        patchConfig: realPatchConfig,
+        policyDocument: document,
+      );
+    }
     final yamlString = vm2.a;
     final yamlMd5 = vm2.b;
     if (yamlMd5 == globalState.lastConfigMd5 && force == false) {
@@ -411,26 +545,111 @@ class SetupAction extends _$SetupAction {
       final sharedState = ref.read(sharedStateProvider);
       await preferences.saveShareState(sharedState);
     }
-    await globalState.loadingRun(
+    final applied = await globalState.loadingRun<bool>(
       () async {
         final configFilePath = await appPath.configFilePath;
-        await File(configFilePath).safeWriteAsString(yamlString);
-        final message = await coreController.setupConfig(
-          params: _setupParams,
-          preloadInvoke: preloadInvoke,
+        final configFile = File(configFilePath);
+        final previous = await configFile.exists()
+            ? await configFile.readAsString()
+            : null;
+        final output = await _activationYaml(
+          yamlString,
+          documentRevision: document.revision,
         );
-        if (message.isNotEmpty && !message.endsWith('is empty')) {
-          throw message;
+        final validation = await coreController.validateConfigWithData(output);
+        if (validation.isNotEmpty) throw validation;
+        if (initialSignature != null &&
+            initialSignature !=
+                policyDigest(
+                  await ref
+                      .read(workbenchControllerProvider)
+                      .backend
+                      .readState(),
+                )) {
+          throw StateError('configuration_version_conflict');
+        }
+        final staging = File('$configFilePath.pending');
+        await staging.writeAsString(output, flush: true);
+        await staging.rename(configFilePath);
+        final previousAliases = _selectionAliases;
+        final previousGroups = _policyGroups;
+        final previousIntegrated = _integratedSelection;
+        _readSelectionAliases(output, document);
+        try {
+          final message = await coreController.setupConfig(
+            params: _setupParams,
+            preloadInvoke: preloadInvoke,
+          );
+          if (message.isNotEmpty && !message.endsWith('is empty')) {
+            throw message;
+          }
+        } catch (_) {
+          _selectionAliases = previousAliases;
+          _policyGroups = previousGroups;
+          _integratedSelection = previousIntegrated;
+          if (previous != null) {
+            await staging.writeAsString(
+              await _activationYaml(previous),
+              flush: true,
+            );
+            await staging.rename(configFilePath);
+            final rollbackMessage = await coreController.setupConfig(
+              params: _setupParams,
+            );
+            if (rollbackMessage.isNotEmpty &&
+                !rollbackMessage.endsWith('is empty')) {
+              commonPrint.log(
+                'Configuration rollback failed',
+                logLevel: LogLevel.error,
+              );
+            }
+          } else if (await configFile.exists()) {
+            await configFile.delete();
+          }
+          rethrow;
+        } finally {
+          if (await staging.exists()) await staging.delete();
         }
         await _syncUsageProfile(profile);
         globalState.lastConfigMd5 = yamlMd5;
+        if (system.isMacOS) {
+          await ref
+              .read(workbenchControllerProvider)
+              .backend
+              .synchronizeActivatedState();
+        }
         ref.read(checkIpNumProvider.notifier).add();
         await onUpdated?.call();
+        return true;
       },
       silence: true,
       tag: !silence ? LoadingTag.proxies : null,
     );
+    if (applied != true) {
+      throw StateError('configuration_apply_failed');
+    }
     return _SetupTaskResult.completed;
+  }
+
+  Future<String> _activationYaml(String value, {int? documentRevision}) async {
+    if (!system.isMacOS || !value.contains('flclash-local-policy')) {
+      return value;
+    }
+    final parsed = policyObject(
+      normalizePolicyYaml(loadYaml(value)),
+      'compiledConfig',
+    );
+    final local = policyObject(parsed['flclash-local-policy'], 'localPolicy');
+    final status = await coreController.getLocalPolicyStatus();
+    final lastRevision = status['revision'] is num
+        ? (status['revision'] as num).toInt()
+        : 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    local['documentRevision'] =
+        documentRevision ?? local['documentRevision'] ?? local['revision'];
+    local['revision'] = now > lastRevision ? now : lastRevision + 1;
+    parsed['flclash-local-policy'] = local;
+    return encodeYamlTask(parsed);
   }
 
   Future<void> _syncUsageProfile(Profile? profile) async {

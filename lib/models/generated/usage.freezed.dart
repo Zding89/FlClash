@@ -553,7 +553,7 @@ as int,
 /// @nodoc
 mixin _$UsageBucketData {
 
- int get minute; int? get profileId; String get profileLabel; UsageRoute get route; String get node; String get process; String get processPath; String get domain; String get host; String get destinationIP; int get upload; int get download; int get connections;
+ int get minute; int? get profileId; String get profileLabel; UsageRoute get route; String get node; String get sourceId; String get nodeId; String get policyId; String get process; String get processPath; String get domain; String get host; String get destinationIP; int get upload; int get download; int get connections;
 /// Create a copy of UsageBucketData
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -566,16 +566,16 @@ $UsageBucketDataCopyWith<UsageBucketData> get copyWith => _$UsageBucketDataCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UsageBucketData&&(identical(other.minute, minute) || other.minute == minute)&&(identical(other.profileId, profileId) || other.profileId == profileId)&&(identical(other.profileLabel, profileLabel) || other.profileLabel == profileLabel)&&(identical(other.route, route) || other.route == route)&&(identical(other.node, node) || other.node == node)&&(identical(other.process, process) || other.process == process)&&(identical(other.processPath, processPath) || other.processPath == processPath)&&(identical(other.domain, domain) || other.domain == domain)&&(identical(other.host, host) || other.host == host)&&(identical(other.destinationIP, destinationIP) || other.destinationIP == destinationIP)&&(identical(other.upload, upload) || other.upload == upload)&&(identical(other.download, download) || other.download == download)&&(identical(other.connections, connections) || other.connections == connections));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UsageBucketData&&(identical(other.minute, minute) || other.minute == minute)&&(identical(other.profileId, profileId) || other.profileId == profileId)&&(identical(other.profileLabel, profileLabel) || other.profileLabel == profileLabel)&&(identical(other.route, route) || other.route == route)&&(identical(other.node, node) || other.node == node)&&(identical(other.sourceId, sourceId) || other.sourceId == sourceId)&&(identical(other.nodeId, nodeId) || other.nodeId == nodeId)&&(identical(other.policyId, policyId) || other.policyId == policyId)&&(identical(other.process, process) || other.process == process)&&(identical(other.processPath, processPath) || other.processPath == processPath)&&(identical(other.domain, domain) || other.domain == domain)&&(identical(other.host, host) || other.host == host)&&(identical(other.destinationIP, destinationIP) || other.destinationIP == destinationIP)&&(identical(other.upload, upload) || other.upload == upload)&&(identical(other.download, download) || other.download == download)&&(identical(other.connections, connections) || other.connections == connections));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,minute,profileId,profileLabel,route,node,process,processPath,domain,host,destinationIP,upload,download,connections);
+int get hashCode => Object.hash(runtimeType,minute,profileId,profileLabel,route,node,sourceId,nodeId,policyId,process,processPath,domain,host,destinationIP,upload,download,connections);
 
 @override
 String toString() {
-  return 'UsageBucketData(minute: $minute, profileId: $profileId, profileLabel: $profileLabel, route: $route, node: $node, process: $process, processPath: $processPath, domain: $domain, host: $host, destinationIP: $destinationIP, upload: $upload, download: $download, connections: $connections)';
+  return 'UsageBucketData(minute: $minute, profileId: $profileId, profileLabel: $profileLabel, route: $route, node: $node, sourceId: $sourceId, nodeId: $nodeId, policyId: $policyId, process: $process, processPath: $processPath, domain: $domain, host: $host, destinationIP: $destinationIP, upload: $upload, download: $download, connections: $connections)';
 }
 
 
@@ -586,7 +586,7 @@ abstract mixin class $UsageBucketDataCopyWith<$Res>  {
   factory $UsageBucketDataCopyWith(UsageBucketData value, $Res Function(UsageBucketData) _then) = _$UsageBucketDataCopyWithImpl;
 @useResult
 $Res call({
- int minute, int? profileId, String profileLabel, UsageRoute route, String node, String process, String processPath, String domain, String host, String destinationIP, int upload, int download, int connections
+ int minute, int? profileId, String profileLabel, UsageRoute route, String node, String sourceId, String nodeId, String policyId, String process, String processPath, String domain, String host, String destinationIP, int upload, int download, int connections
 });
 
 
@@ -603,13 +603,16 @@ class _$UsageBucketDataCopyWithImpl<$Res>
 
 /// Create a copy of UsageBucketData
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? minute = null,Object? profileId = freezed,Object? profileLabel = null,Object? route = null,Object? node = null,Object? process = null,Object? processPath = null,Object? domain = null,Object? host = null,Object? destinationIP = null,Object? upload = null,Object? download = null,Object? connections = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? minute = null,Object? profileId = freezed,Object? profileLabel = null,Object? route = null,Object? node = null,Object? sourceId = null,Object? nodeId = null,Object? policyId = null,Object? process = null,Object? processPath = null,Object? domain = null,Object? host = null,Object? destinationIP = null,Object? upload = null,Object? download = null,Object? connections = null,}) {
   return _then(_self.copyWith(
 minute: null == minute ? _self.minute : minute // ignore: cast_nullable_to_non_nullable
 as int,profileId: freezed == profileId ? _self.profileId : profileId // ignore: cast_nullable_to_non_nullable
 as int?,profileLabel: null == profileLabel ? _self.profileLabel : profileLabel // ignore: cast_nullable_to_non_nullable
 as String,route: null == route ? _self.route : route // ignore: cast_nullable_to_non_nullable
 as UsageRoute,node: null == node ? _self.node : node // ignore: cast_nullable_to_non_nullable
+as String,sourceId: null == sourceId ? _self.sourceId : sourceId // ignore: cast_nullable_to_non_nullable
+as String,nodeId: null == nodeId ? _self.nodeId : nodeId // ignore: cast_nullable_to_non_nullable
+as String,policyId: null == policyId ? _self.policyId : policyId // ignore: cast_nullable_to_non_nullable
 as String,process: null == process ? _self.process : process // ignore: cast_nullable_to_non_nullable
 as String,processPath: null == processPath ? _self.processPath : processPath // ignore: cast_nullable_to_non_nullable
 as String,domain: null == domain ? _self.domain : domain // ignore: cast_nullable_to_non_nullable
@@ -703,10 +706,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int minute,  int? profileId,  String profileLabel,  UsageRoute route,  String node,  String process,  String processPath,  String domain,  String host,  String destinationIP,  int upload,  int download,  int connections)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int minute,  int? profileId,  String profileLabel,  UsageRoute route,  String node,  String sourceId,  String nodeId,  String policyId,  String process,  String processPath,  String domain,  String host,  String destinationIP,  int upload,  int download,  int connections)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _UsageBucketData() when $default != null:
-return $default(_that.minute,_that.profileId,_that.profileLabel,_that.route,_that.node,_that.process,_that.processPath,_that.domain,_that.host,_that.destinationIP,_that.upload,_that.download,_that.connections);case _:
+return $default(_that.minute,_that.profileId,_that.profileLabel,_that.route,_that.node,_that.sourceId,_that.nodeId,_that.policyId,_that.process,_that.processPath,_that.domain,_that.host,_that.destinationIP,_that.upload,_that.download,_that.connections);case _:
   return orElse();
 
 }
@@ -724,10 +727,10 @@ return $default(_that.minute,_that.profileId,_that.profileLabel,_that.route,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int minute,  int? profileId,  String profileLabel,  UsageRoute route,  String node,  String process,  String processPath,  String domain,  String host,  String destinationIP,  int upload,  int download,  int connections)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int minute,  int? profileId,  String profileLabel,  UsageRoute route,  String node,  String sourceId,  String nodeId,  String policyId,  String process,  String processPath,  String domain,  String host,  String destinationIP,  int upload,  int download,  int connections)  $default,) {final _that = this;
 switch (_that) {
 case _UsageBucketData():
-return $default(_that.minute,_that.profileId,_that.profileLabel,_that.route,_that.node,_that.process,_that.processPath,_that.domain,_that.host,_that.destinationIP,_that.upload,_that.download,_that.connections);case _:
+return $default(_that.minute,_that.profileId,_that.profileLabel,_that.route,_that.node,_that.sourceId,_that.nodeId,_that.policyId,_that.process,_that.processPath,_that.domain,_that.host,_that.destinationIP,_that.upload,_that.download,_that.connections);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -744,10 +747,10 @@ return $default(_that.minute,_that.profileId,_that.profileLabel,_that.route,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int minute,  int? profileId,  String profileLabel,  UsageRoute route,  String node,  String process,  String processPath,  String domain,  String host,  String destinationIP,  int upload,  int download,  int connections)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int minute,  int? profileId,  String profileLabel,  UsageRoute route,  String node,  String sourceId,  String nodeId,  String policyId,  String process,  String processPath,  String domain,  String host,  String destinationIP,  int upload,  int download,  int connections)?  $default,) {final _that = this;
 switch (_that) {
 case _UsageBucketData() when $default != null:
-return $default(_that.minute,_that.profileId,_that.profileLabel,_that.route,_that.node,_that.process,_that.processPath,_that.domain,_that.host,_that.destinationIP,_that.upload,_that.download,_that.connections);case _:
+return $default(_that.minute,_that.profileId,_that.profileLabel,_that.route,_that.node,_that.sourceId,_that.nodeId,_that.policyId,_that.process,_that.processPath,_that.domain,_that.host,_that.destinationIP,_that.upload,_that.download,_that.connections);case _:
   return null;
 
 }
@@ -759,7 +762,7 @@ return $default(_that.minute,_that.profileId,_that.profileLabel,_that.route,_tha
 @JsonSerializable()
 
 class _UsageBucketData implements UsageBucketData {
-  const _UsageBucketData({required this.minute, this.profileId, this.profileLabel = '', this.route = UsageRoute.unknown, this.node = '', this.process = '', this.processPath = '', this.domain = '', this.host = '', this.destinationIP = '', this.upload = 0, this.download = 0, this.connections = 0});
+  const _UsageBucketData({required this.minute, this.profileId, this.profileLabel = '', this.route = UsageRoute.unknown, this.node = '', this.sourceId = '', this.nodeId = '', this.policyId = '', this.process = '', this.processPath = '', this.domain = '', this.host = '', this.destinationIP = '', this.upload = 0, this.download = 0, this.connections = 0});
   factory _UsageBucketData.fromJson(Map<String, dynamic> json) => _$UsageBucketDataFromJson(json);
 
 @override final  int minute;
@@ -767,6 +770,9 @@ class _UsageBucketData implements UsageBucketData {
 @override@JsonKey() final  String profileLabel;
 @override@JsonKey() final  UsageRoute route;
 @override@JsonKey() final  String node;
+@override@JsonKey() final  String sourceId;
+@override@JsonKey() final  String nodeId;
+@override@JsonKey() final  String policyId;
 @override@JsonKey() final  String process;
 @override@JsonKey() final  String processPath;
 @override@JsonKey() final  String domain;
@@ -789,16 +795,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UsageBucketData&&(identical(other.minute, minute) || other.minute == minute)&&(identical(other.profileId, profileId) || other.profileId == profileId)&&(identical(other.profileLabel, profileLabel) || other.profileLabel == profileLabel)&&(identical(other.route, route) || other.route == route)&&(identical(other.node, node) || other.node == node)&&(identical(other.process, process) || other.process == process)&&(identical(other.processPath, processPath) || other.processPath == processPath)&&(identical(other.domain, domain) || other.domain == domain)&&(identical(other.host, host) || other.host == host)&&(identical(other.destinationIP, destinationIP) || other.destinationIP == destinationIP)&&(identical(other.upload, upload) || other.upload == upload)&&(identical(other.download, download) || other.download == download)&&(identical(other.connections, connections) || other.connections == connections));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UsageBucketData&&(identical(other.minute, minute) || other.minute == minute)&&(identical(other.profileId, profileId) || other.profileId == profileId)&&(identical(other.profileLabel, profileLabel) || other.profileLabel == profileLabel)&&(identical(other.route, route) || other.route == route)&&(identical(other.node, node) || other.node == node)&&(identical(other.sourceId, sourceId) || other.sourceId == sourceId)&&(identical(other.nodeId, nodeId) || other.nodeId == nodeId)&&(identical(other.policyId, policyId) || other.policyId == policyId)&&(identical(other.process, process) || other.process == process)&&(identical(other.processPath, processPath) || other.processPath == processPath)&&(identical(other.domain, domain) || other.domain == domain)&&(identical(other.host, host) || other.host == host)&&(identical(other.destinationIP, destinationIP) || other.destinationIP == destinationIP)&&(identical(other.upload, upload) || other.upload == upload)&&(identical(other.download, download) || other.download == download)&&(identical(other.connections, connections) || other.connections == connections));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,minute,profileId,profileLabel,route,node,process,processPath,domain,host,destinationIP,upload,download,connections);
+int get hashCode => Object.hash(runtimeType,minute,profileId,profileLabel,route,node,sourceId,nodeId,policyId,process,processPath,domain,host,destinationIP,upload,download,connections);
 
 @override
 String toString() {
-  return 'UsageBucketData(minute: $minute, profileId: $profileId, profileLabel: $profileLabel, route: $route, node: $node, process: $process, processPath: $processPath, domain: $domain, host: $host, destinationIP: $destinationIP, upload: $upload, download: $download, connections: $connections)';
+  return 'UsageBucketData(minute: $minute, profileId: $profileId, profileLabel: $profileLabel, route: $route, node: $node, sourceId: $sourceId, nodeId: $nodeId, policyId: $policyId, process: $process, processPath: $processPath, domain: $domain, host: $host, destinationIP: $destinationIP, upload: $upload, download: $download, connections: $connections)';
 }
 
 
@@ -809,7 +815,7 @@ abstract mixin class _$UsageBucketDataCopyWith<$Res> implements $UsageBucketData
   factory _$UsageBucketDataCopyWith(_UsageBucketData value, $Res Function(_UsageBucketData) _then) = __$UsageBucketDataCopyWithImpl;
 @override @useResult
 $Res call({
- int minute, int? profileId, String profileLabel, UsageRoute route, String node, String process, String processPath, String domain, String host, String destinationIP, int upload, int download, int connections
+ int minute, int? profileId, String profileLabel, UsageRoute route, String node, String sourceId, String nodeId, String policyId, String process, String processPath, String domain, String host, String destinationIP, int upload, int download, int connections
 });
 
 
@@ -826,13 +832,16 @@ class __$UsageBucketDataCopyWithImpl<$Res>
 
 /// Create a copy of UsageBucketData
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? minute = null,Object? profileId = freezed,Object? profileLabel = null,Object? route = null,Object? node = null,Object? process = null,Object? processPath = null,Object? domain = null,Object? host = null,Object? destinationIP = null,Object? upload = null,Object? download = null,Object? connections = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? minute = null,Object? profileId = freezed,Object? profileLabel = null,Object? route = null,Object? node = null,Object? sourceId = null,Object? nodeId = null,Object? policyId = null,Object? process = null,Object? processPath = null,Object? domain = null,Object? host = null,Object? destinationIP = null,Object? upload = null,Object? download = null,Object? connections = null,}) {
   return _then(_UsageBucketData(
 minute: null == minute ? _self.minute : minute // ignore: cast_nullable_to_non_nullable
 as int,profileId: freezed == profileId ? _self.profileId : profileId // ignore: cast_nullable_to_non_nullable
 as int?,profileLabel: null == profileLabel ? _self.profileLabel : profileLabel // ignore: cast_nullable_to_non_nullable
 as String,route: null == route ? _self.route : route // ignore: cast_nullable_to_non_nullable
 as UsageRoute,node: null == node ? _self.node : node // ignore: cast_nullable_to_non_nullable
+as String,sourceId: null == sourceId ? _self.sourceId : sourceId // ignore: cast_nullable_to_non_nullable
+as String,nodeId: null == nodeId ? _self.nodeId : nodeId // ignore: cast_nullable_to_non_nullable
+as String,policyId: null == policyId ? _self.policyId : policyId // ignore: cast_nullable_to_non_nullable
 as String,process: null == process ? _self.process : process // ignore: cast_nullable_to_non_nullable
 as String,processPath: null == processPath ? _self.processPath : processPath // ignore: cast_nullable_to_non_nullable
 as String,domain: null == domain ? _self.domain : domain // ignore: cast_nullable_to_non_nullable

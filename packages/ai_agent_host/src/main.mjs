@@ -1,0 +1,12 @@
+import { AgentHost } from './host.mjs';
+import { JsonLineReader, JsonLineWriter } from './protocol.mjs';
+const terminal = () => { host.close(); process.exitCode = 1; process.stdin.destroy(); };
+const writer = new JsonLineWriter(process.stdout, terminal);
+const host = new AgentHost(frame => writer.send(frame));
+const reader = new JsonLineReader(frame => host.receive(frame), terminal);
+process.stdin.on('data', chunk => reader.push(chunk));
+process.stdin.on('end', () => host.close());
+process.stdin.on('error', terminal);
+process.on('SIGTERM', () => { host.close(); process.exit(0); });
+process.on('uncaughtException', terminal);
+process.on('unhandledRejection', terminal);

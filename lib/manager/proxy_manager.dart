@@ -1,4 +1,5 @@
 import 'package:fl_clash/common/proxy.dart';
+import 'package:fl_clash/configuration/barrier.dart';
 import 'package:fl_clash/common/print.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
@@ -48,7 +49,7 @@ class _ProxyManagerState extends ConsumerState<ProxyManager> {
   void initState() {
     super.initState();
     ref.listenManual(proxyStateProvider, (prev, next) {
-      if (prev != next) {
+      if (prev != next && !configurationWriteBarrier.active) {
         _scheduleUpdateProxy(next);
       }
     }, fireImmediately: true);

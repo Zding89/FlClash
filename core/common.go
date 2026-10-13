@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/metacubex/mihomo/adapter"
 	"github.com/metacubex/mihomo/adapter/inbound"
@@ -181,9 +182,15 @@ func readFile(path string) ([]byte, error) {
 	return data, err
 }
 
-func updateConfig(params *UpdateParams) {
+func updateConfig(params *UpdateParams) error {
 	runLock.Lock()
 	defer runLock.Unlock()
+	if e := activeLocalPolicy.Load(); e != nil && len(e.policies) > 0 && params.Mode != nil && *params.Mode != tunnel.Rule {
+		return errors.New("local policy requires rule mode")
+	}
+	if activeLocalPolicy.Load() != nil && params.ExternalController != nil && *params.ExternalController != "" {
+		return errors.New("local policy requires all external controllers to be disabled")
+	}
 	general := currentConfig.General
 	if params.MixedPort != nil {
 		general.MixedPort = *params.MixedPort
@@ -257,25 +264,65 @@ func updateConfig(params *UpdateParams) {
 	if updater.GeoAutoUpdate() {
 		updater.RegisterGeoUpdaterWithCancel()
 	}
+	return nil
 }
 
 func applyConfig(params *SetupParams) error {
 	runtime.GC()
 	runLock.Lock()
 	defer runLock.Unlock()
-	var err error
-	constant.DefaultTestURL = params.TestURL
-	currentConfig, err = executor.ParseWithPath(filepath.Join(constant.Path.HomeDir(), "config.yaml"))
-	if err != nil {
-		currentConfig, _ = config.ParseRawConfig(config.DefaultRawConfig())
+	if !isInit.Load() {
+		return errors.New("not initialized")
 	}
+	constant.DefaultTestURL = params.TestURL
+	path := filepath.Join(constant.Path.HomeDir(), "config.yaml")
+	data, readErr := readFile(path)
+	var localConfig *LocalPolicyConfig
+	var err error
+	if readErr == nil {
+		localConfig, err = parseLocalPolicyConfig(data)
+		if err != nil && b.Contains(data, []byte("flclash-local-policy")) {
+			return err
+		}
+	}
+	parsedConfig, err := executor.ParseWithPath(path)
+	if err != nil {
+		if (localConfig != nil && localConfig.Enabled) || activeLocalPolicy.Load() != nil {
+			return err
+		}
+		parsedConfig, _ = config.ParseRawConfig(config.DefaultRawConfig())
+	}
+	parseErr := err
+	if localConfig != nil && localConfig.Enabled && localBudgetStore == nil {
+		localBudgetStore = newLocalBudgetLedger(filepath.Join(constant.Path.HomeDir(), "local-policy-budget.json"))
+	}
+	if old := activeLocalPolicy.Load(); old != nil && localConfig != nil && localConfig.Revision < old.config.Revision {
+		return errors.New("stale local policy revision")
+	}
+	localEngine, err := prepareLocalPolicy(localConfig, parsedConfig, localBudgetStore)
+	if err != nil {
+		return err
+	}
+	if old := activeLocalPolicy.Load(); old != nil {
+		old.stop()
+	}
+	if localEngine != nil {
+		localBudgetStore.configure(localConfig.Budgets, time.Now())
+		localBudgetStore.save(false)
+		localEngine.install(parsedConfig)
+	}
+	currentConfig = parsedConfig
 	hub.ApplyConfig(currentConfig)
+	activeLocalPolicy.Store(localEngine)
+	if localEngine != nil {
+		localEngine.start()
+	}
 	patchSelectGroup(params.SelectedMap)
 	updateListeners()
 	if updater.GeoAutoUpdate() {
 		updater.RegisterGeoUpdaterWithCancel()
 	}
-	return err
+	return parseErr
 }
 
 func UnmarshalJson(data []byte, v any) error {

@@ -1,0 +1,14 @@
+name: ai_security
+description: macOS Keychain transport for FlClash AI credentials.
+version: 0.1.0
+environment:
+  sdk: '>=3.8.0 <4.0.0'
+  flutter: '>=3.3.0'
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+  plugin:
+    platforms:
+      macos:
+        pluginClass: AiSecurityPlugin

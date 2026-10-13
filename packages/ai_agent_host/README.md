@@ -1,0 +1,19 @@
+# Pi Agent host
+
+The app launches the packaged `Contents/Resources/ai/node` with `host.mjs`. API keys travel only in the private child stdin prompt frame and are cleared when the run settles. No coding-agent package, filesystem tool, shell tool, MCP loader, extension loader, credential environment variable, or persistent session backend is installed in the runtime.
+
+Install using `pnpm install --frozen-lockfile --ignore-scripts`. Build using `node scripts/build.mjs`; test using `node --test test/*.test.mjs`. Package using `node scripts/package.mjs --arch arm64 --resources /absolute/App.app/Contents/Resources` (or x64). Node 22.23.3 archives are verified against SHA256 values from https://nodejs.org/dist/v22.23.3/SHASUMS256.txt. Sign the copied Node executable together with the app before distribution. Runtime minimum follows Node 22: macOS 11.0; x64 and signing/clean-machine operation require separate verification.
+
+SDK: https://github.com/earendil-works/pi/tree/main/packages/agent and https://github.com/earendil-works/pi/tree/main/packages/ai. Versions are pinned to 1.2.0. Only the three relevant API implementations are bundled, rather than provider catalog entrypoints. The runtime never fetches models or switches providers automatically.
+
+Protocol is JSON-lines UTF-8, version 1. Every frame has `sessionId`, positive monotonically increasing `generation`, `requestId`, `type`, `data`. Identifiers permit 1–96 ASCII letters, digits, underscore and hyphen. Individual frames are capped at 1 MiB, queued writes at 4 MiB, output at 4 MiB per run, history at 100 text messages, tools at 128, pending tools at 32. Invalid input terminates the host. One prompt runs at once, at most 20 model turns. Provider SDK request retries are limited to two; streamed failures and tool writes are never replayed. The total run watchdog is three times the configured 5–300 second request timeout.
+
+`prompt.data`: `settings` (`provider`, `model`, optional `baseUrl`, `api`, `timeoutSeconds`, `maxTokens`, optional loopback-only `proxyUrl`), transient `key`, `user`, optional text `messages` (`role`: user|assistant; `content`: string), and `tools` (`name`, `description`, JSON Schema `parameters`). Presets: glm-cn, glm-coding-cn, glm-global, glm-coding-global, kimi-cn, kimi-global, kimi-coding, deepseek, openai, anthropic, xai; plus custom.
+
+Events: `text` with `text`; `status` with `status` and `turn`; `error` with sanitized `code`; `done` with `cancelled` and `failed`; `toolRequest` with separate tool `requestId`, `toolCallId`, `name`, `arguments`. Flutter replies with `toolResult`, using that tool requestId as envelope requestId and `data` containing `toolCallId`, `isError`, object `value`. Trusted Flutter commands own validation and approval. `cancel` and `close` use the active prompt identity. Old-session, old-generation and unmatched tool responses are discarded.
+
+No live provider claims: six vendors require real API-key, streaming and structured-tool compatibility tests. GLM/Kimi billing endpoints remain separate. Custom HTTP permits loopback only; other endpoints require HTTPS without URL credentials or query parameters.
+
+Proxy requests use a per-run Undici dispatcher, never global proxy environment state. Only loopback HTTP(S) proxy endpoints without credentials, query, fragment, or paths are accepted; model HTTP redirects are rejected. Flutter must check `AgentToolRequest.isCurrent()` after asynchronous approval and immediately before a command mutation. Prompt failures throw `AgentRuntimeException` and also emit sanitized error events. Event subscriptions are single-consumer; pausing cancels the active run to prevent unbounded consumer buffers.
+
+Node 22.23.3 is selected over Node 24 because its official macOS deployment target is 11.0, preserving app compatibility: https://github.com/nodejs/node/blob/v22.23.3/BUILDING.md. Pi 1.2.0 and Undici 8.11.2 both require Node >=22.19.0.

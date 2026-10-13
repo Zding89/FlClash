@@ -1,3 +1,4 @@
+import 'package:fl_clash/views/ai/settings.dart';
 import 'dart:io';
 
 import 'package:fl_clash/common/common.dart';
@@ -79,6 +80,12 @@ class _ToolViewState extends ConsumerState<ToolsView> {
         const _ConfigItem(),
         const _AdvancedConfigItem(),
         const _SettingItem(),
+        if (system.isMacOS)
+          ListItem.open(
+            leading: const Icon(Icons.auto_awesome),
+            title: Text(context.appLocalizations.aiSettingsTitle),
+            widget: const AiSettingsView(),
+          ),
       ],
     );
   }

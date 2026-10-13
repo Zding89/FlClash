@@ -543,6 +543,110 @@ void main() {
       );
     });
 
+    for (final previouslyDenied in [false, true]) {
+      test(
+        previouslyDenied
+            ? 'required TUN rejects a previously denied authorization before profile generation'
+            : 'required TUN rejects a denied authorization before profile generation',
+        () async {
+          var profileReads = 0;
+          late _AuthorizationSetupAction setupAction;
+          late _RestartRecordingCoreAction coreAction;
+          final container = ProviderContainer(
+            overrides: [
+              currentProfileProvider.overrideWithValue(null),
+              setupStateProvider(null).overrideWith((_) async {
+                profileReads++;
+                throw StateError('unexpected_profile_generation');
+              }),
+              setupActionProvider.overrideWith(() {
+                setupAction = _AuthorizationSetupAction([AuthorizeCode.error]);
+                return setupAction;
+              }),
+              coreActionProvider.overrideWith(() {
+                coreAction = _RestartRecordingCoreAction();
+                return coreAction;
+              }),
+            ],
+          );
+          addTearDown(container.dispose);
+          container
+              .read(patchClashConfigProvider.notifier)
+              .update((state) => state.copyWith.tun(enable: true));
+          container.read(setupActionProvider);
+          container.read(coreActionProvider);
+          if (previouslyDenied) {
+            await setupAction.requestAdmin(true);
+          }
+          await expectLater(
+            setupAction.applyProfile(
+              force: true,
+              requireTunAuthorization: true,
+            ),
+            throwsA(
+              isA<StateError>().having(
+                (error) => error.message,
+                'message',
+                'configuration_tun_authorization_failed',
+              ),
+            ),
+          );
+          expect(setupAction.authorizationRequestCount, 1);
+          expect(
+            container.read(authorizedTunEnableProvider),
+            TunAuthorizationState.unauthorized,
+          );
+          expect(container.read(patchClashConfigProvider).tun.enable, true);
+          expect(profileReads, 0);
+          expect(coreAction.restartCount, 0);
+        },
+      );
+    }
+
+    test(
+      'required TUN hands newly granted authorization to core restart',
+      () async {
+        var profileReads = 0;
+        late _AuthorizationSetupAction setupAction;
+        late _RestartRecordingCoreAction coreAction;
+        final container = ProviderContainer(
+          overrides: [
+            currentProfileProvider.overrideWithValue(null),
+            setupStateProvider(null).overrideWith((_) async {
+              profileReads++;
+              throw StateError('unexpected_profile_generation');
+            }),
+            setupActionProvider.overrideWith(() {
+              setupAction = _AuthorizationSetupAction([AuthorizeCode.success]);
+              return setupAction;
+            }),
+            coreActionProvider.overrideWith(() {
+              coreAction = _RestartRecordingCoreAction();
+              return coreAction;
+            }),
+          ],
+        );
+        addTearDown(container.dispose);
+        container
+            .read(patchClashConfigProvider.notifier)
+            .update((state) => state.copyWith.tun(enable: true));
+        container.read(setupActionProvider);
+        container.read(coreActionProvider);
+        await setupAction.applyProfile(
+          force: true,
+          requireTunAuthorization: true,
+        );
+        expect(setupAction.authorizationRequestCount, 1);
+        expect(
+          container.read(authorizedTunEnableProvider),
+          TunAuthorizationState.authorized,
+        );
+        expect(container.read(patchClashConfigProvider).tun.enable, true);
+        expect(coreAction.restartCount, 1);
+        expect(profileReads, 0);
+      },
+    );
+
     test('requests admin authorization once per app lifecycle', () async {
       late _AuthorizationSetupAction setupAction;
       final container = ProviderContainer(
@@ -655,6 +759,8 @@ class _TestSetupAction extends SetupAction {
   @override
   Future<void> applyProfile({
     bool silence = false,
+    String? approvedProfileYaml,
+    bool requireTunAuthorization = false,
     bool force = false,
     Future<void> Function()? preloadInvoke,
   }) async {
@@ -709,7 +815,12 @@ class _RaceSetupAction extends SetupAction {
   Completer<bool>? stopCompleter;
 
   @override
-  void applyProfileDebounce({bool silence = false, bool force = false}) {
+  void applyProfileDebounce({
+    bool silence = false,
+    String? approvedProfileYaml,
+    bool requireTunAuthorization = false,
+    bool force = false,
+  }) {
     applyProfileDebounceCount++;
   }
 
@@ -737,6 +848,8 @@ class _InitializingSetupAction extends _RaceSetupAction {
   @override
   Future<void> applyProfile({
     bool silence = false,
+    String? approvedProfileYaml,
+    bool requireTunAuthorization = false,
     bool force = false,
     Future<void> Function()? preloadInvoke,
   }) async {

@@ -107,6 +107,40 @@ class $UsageBucketsTable extends UsageBuckets
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _sourceIdMeta = const VerificationMeta(
+    'sourceId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceId = GeneratedColumn<String>(
+    'source_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _nodeIdMeta = const VerificationMeta('nodeId');
+  @override
+  late final GeneratedColumn<String> nodeId = GeneratedColumn<String>(
+    'node_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _policyIdMeta = const VerificationMeta(
+    'policyId',
+  );
+  @override
+  late final GeneratedColumn<String> policyId = GeneratedColumn<String>(
+    'policy_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _processMeta = const VerificationMeta(
     'process',
   );
@@ -220,6 +254,9 @@ class $UsageBucketsTable extends UsageBuckets
     profileLabel,
     route,
     node,
+    sourceId,
+    nodeId,
+    policyId,
     process,
     processPath,
     domain,
@@ -306,6 +343,24 @@ class $UsageBucketsTable extends UsageBuckets
       context.handle(
         _nodeMeta,
         node.isAcceptableOrUnknown(data['node']!, _nodeMeta),
+      );
+    }
+    if (data.containsKey('source_id')) {
+      context.handle(
+        _sourceIdMeta,
+        sourceId.isAcceptableOrUnknown(data['source_id']!, _sourceIdMeta),
+      );
+    }
+    if (data.containsKey('node_id')) {
+      context.handle(
+        _nodeIdMeta,
+        nodeId.isAcceptableOrUnknown(data['node_id']!, _nodeIdMeta),
+      );
+    }
+    if (data.containsKey('policy_id')) {
+      context.handle(
+        _policyIdMeta,
+        policyId.isAcceptableOrUnknown(data['policy_id']!, _policyIdMeta),
       );
     }
     if (data.containsKey('process')) {
@@ -416,6 +471,18 @@ class $UsageBucketsTable extends UsageBuckets
         DriftSqlType.string,
         data['${effectivePrefix}node'],
       )!,
+      sourceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_id'],
+      )!,
+      nodeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}node_id'],
+      )!,
+      policyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}policy_id'],
+      )!,
       process: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}process'],
@@ -471,6 +538,9 @@ class UsageBucket extends DataClass implements Insertable<UsageBucket> {
   final String profileLabel;
   final String route;
   final String node;
+  final String sourceId;
+  final String nodeId;
+  final String policyId;
   final String process;
   final String processPath;
   final String domain;
@@ -490,6 +560,9 @@ class UsageBucket extends DataClass implements Insertable<UsageBucket> {
     required this.profileLabel,
     required this.route,
     required this.node,
+    required this.sourceId,
+    required this.nodeId,
+    required this.policyId,
     required this.process,
     required this.processPath,
     required this.domain,
@@ -514,6 +587,9 @@ class UsageBucket extends DataClass implements Insertable<UsageBucket> {
     map['profile_label'] = Variable<String>(profileLabel);
     map['route'] = Variable<String>(route);
     map['node'] = Variable<String>(node);
+    map['source_id'] = Variable<String>(sourceId);
+    map['node_id'] = Variable<String>(nodeId);
+    map['policy_id'] = Variable<String>(policyId);
     map['process'] = Variable<String>(process);
     map['process_path'] = Variable<String>(processPath);
     map['domain'] = Variable<String>(domain);
@@ -539,6 +615,9 @@ class UsageBucket extends DataClass implements Insertable<UsageBucket> {
       profileLabel: Value(profileLabel),
       route: Value(route),
       node: Value(node),
+      sourceId: Value(sourceId),
+      nodeId: Value(nodeId),
+      policyId: Value(policyId),
       process: Value(process),
       processPath: Value(processPath),
       domain: Value(domain),
@@ -566,6 +645,9 @@ class UsageBucket extends DataClass implements Insertable<UsageBucket> {
       profileLabel: serializer.fromJson<String>(json['profileLabel']),
       route: serializer.fromJson<String>(json['route']),
       node: serializer.fromJson<String>(json['node']),
+      sourceId: serializer.fromJson<String>(json['sourceId']),
+      nodeId: serializer.fromJson<String>(json['nodeId']),
+      policyId: serializer.fromJson<String>(json['policyId']),
       process: serializer.fromJson<String>(json['process']),
       processPath: serializer.fromJson<String>(json['processPath']),
       domain: serializer.fromJson<String>(json['domain']),
@@ -590,6 +672,9 @@ class UsageBucket extends DataClass implements Insertable<UsageBucket> {
       'profileLabel': serializer.toJson<String>(profileLabel),
       'route': serializer.toJson<String>(route),
       'node': serializer.toJson<String>(node),
+      'sourceId': serializer.toJson<String>(sourceId),
+      'nodeId': serializer.toJson<String>(nodeId),
+      'policyId': serializer.toJson<String>(policyId),
       'process': serializer.toJson<String>(process),
       'processPath': serializer.toJson<String>(processPath),
       'domain': serializer.toJson<String>(domain),
@@ -612,6 +697,9 @@ class UsageBucket extends DataClass implements Insertable<UsageBucket> {
     String? profileLabel,
     String? route,
     String? node,
+    String? sourceId,
+    String? nodeId,
+    String? policyId,
     String? process,
     String? processPath,
     String? domain,
@@ -631,6 +719,9 @@ class UsageBucket extends DataClass implements Insertable<UsageBucket> {
     profileLabel: profileLabel ?? this.profileLabel,
     route: route ?? this.route,
     node: node ?? this.node,
+    sourceId: sourceId ?? this.sourceId,
+    nodeId: nodeId ?? this.nodeId,
+    policyId: policyId ?? this.policyId,
     process: process ?? this.process,
     processPath: processPath ?? this.processPath,
     domain: domain ?? this.domain,
@@ -656,6 +747,9 @@ class UsageBucket extends DataClass implements Insertable<UsageBucket> {
           : this.profileLabel,
       route: data.route.present ? data.route.value : this.route,
       node: data.node.present ? data.node.value : this.node,
+      sourceId: data.sourceId.present ? data.sourceId.value : this.sourceId,
+      nodeId: data.nodeId.present ? data.nodeId.value : this.nodeId,
+      policyId: data.policyId.present ? data.policyId.value : this.policyId,
       process: data.process.present ? data.process.value : this.process,
       processPath: data.processPath.present
           ? data.processPath.value
@@ -686,6 +780,9 @@ class UsageBucket extends DataClass implements Insertable<UsageBucket> {
           ..write('profileLabel: $profileLabel, ')
           ..write('route: $route, ')
           ..write('node: $node, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('nodeId: $nodeId, ')
+          ..write('policyId: $policyId, ')
           ..write('process: $process, ')
           ..write('processPath: $processPath, ')
           ..write('domain: $domain, ')
@@ -700,7 +797,7 @@ class UsageBucket extends DataClass implements Insertable<UsageBucket> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     minute,
     localDay,
     localHour,
@@ -710,6 +807,9 @@ class UsageBucket extends DataClass implements Insertable<UsageBucket> {
     profileLabel,
     route,
     node,
+    sourceId,
+    nodeId,
+    policyId,
     process,
     processPath,
     domain,
@@ -719,7 +819,7 @@ class UsageBucket extends DataClass implements Insertable<UsageBucket> {
     upload,
     download,
     connections,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -733,6 +833,9 @@ class UsageBucket extends DataClass implements Insertable<UsageBucket> {
           other.profileLabel == this.profileLabel &&
           other.route == this.route &&
           other.node == this.node &&
+          other.sourceId == this.sourceId &&
+          other.nodeId == this.nodeId &&
+          other.policyId == this.policyId &&
           other.process == this.process &&
           other.processPath == this.processPath &&
           other.domain == this.domain &&
@@ -754,6 +857,9 @@ class UsageBucketsCompanion extends UpdateCompanion<UsageBucket> {
   final Value<String> profileLabel;
   final Value<String> route;
   final Value<String> node;
+  final Value<String> sourceId;
+  final Value<String> nodeId;
+  final Value<String> policyId;
   final Value<String> process;
   final Value<String> processPath;
   final Value<String> domain;
@@ -774,6 +880,9 @@ class UsageBucketsCompanion extends UpdateCompanion<UsageBucket> {
     this.profileLabel = const Value.absent(),
     this.route = const Value.absent(),
     this.node = const Value.absent(),
+    this.sourceId = const Value.absent(),
+    this.nodeId = const Value.absent(),
+    this.policyId = const Value.absent(),
     this.process = const Value.absent(),
     this.processPath = const Value.absent(),
     this.domain = const Value.absent(),
@@ -795,6 +904,9 @@ class UsageBucketsCompanion extends UpdateCompanion<UsageBucket> {
     this.profileLabel = const Value.absent(),
     required String route,
     this.node = const Value.absent(),
+    this.sourceId = const Value.absent(),
+    this.nodeId = const Value.absent(),
+    this.policyId = const Value.absent(),
     this.process = const Value.absent(),
     this.processPath = const Value.absent(),
     this.domain = const Value.absent(),
@@ -818,6 +930,9 @@ class UsageBucketsCompanion extends UpdateCompanion<UsageBucket> {
     Expression<String>? profileLabel,
     Expression<String>? route,
     Expression<String>? node,
+    Expression<String>? sourceId,
+    Expression<String>? nodeId,
+    Expression<String>? policyId,
     Expression<String>? process,
     Expression<String>? processPath,
     Expression<String>? domain,
@@ -839,6 +954,9 @@ class UsageBucketsCompanion extends UpdateCompanion<UsageBucket> {
       if (profileLabel != null) 'profile_label': profileLabel,
       if (route != null) 'route': route,
       if (node != null) 'node': node,
+      if (sourceId != null) 'source_id': sourceId,
+      if (nodeId != null) 'node_id': nodeId,
+      if (policyId != null) 'policy_id': policyId,
       if (process != null) 'process': process,
       if (processPath != null) 'process_path': processPath,
       if (domain != null) 'domain': domain,
@@ -862,6 +980,9 @@ class UsageBucketsCompanion extends UpdateCompanion<UsageBucket> {
     Value<String>? profileLabel,
     Value<String>? route,
     Value<String>? node,
+    Value<String>? sourceId,
+    Value<String>? nodeId,
+    Value<String>? policyId,
     Value<String>? process,
     Value<String>? processPath,
     Value<String>? domain,
@@ -883,6 +1004,9 @@ class UsageBucketsCompanion extends UpdateCompanion<UsageBucket> {
       profileLabel: profileLabel ?? this.profileLabel,
       route: route ?? this.route,
       node: node ?? this.node,
+      sourceId: sourceId ?? this.sourceId,
+      nodeId: nodeId ?? this.nodeId,
+      policyId: policyId ?? this.policyId,
       process: process ?? this.process,
       processPath: processPath ?? this.processPath,
       domain: domain ?? this.domain,
@@ -925,6 +1049,15 @@ class UsageBucketsCompanion extends UpdateCompanion<UsageBucket> {
     }
     if (node.present) {
       map['node'] = Variable<String>(node.value);
+    }
+    if (sourceId.present) {
+      map['source_id'] = Variable<String>(sourceId.value);
+    }
+    if (nodeId.present) {
+      map['node_id'] = Variable<String>(nodeId.value);
+    }
+    if (policyId.present) {
+      map['policy_id'] = Variable<String>(policyId.value);
     }
     if (process.present) {
       map['process'] = Variable<String>(process.value);
@@ -971,6 +1104,9 @@ class UsageBucketsCompanion extends UpdateCompanion<UsageBucket> {
           ..write('profileLabel: $profileLabel, ')
           ..write('route: $route, ')
           ..write('node: $node, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('nodeId: $nodeId, ')
+          ..write('policyId: $policyId, ')
           ..write('process: $process, ')
           ..write('processPath: $processPath, ')
           ..write('domain: $domain, ')
@@ -2971,6 +3107,10 @@ abstract class _$UsageDatabase extends GeneratedDatabase {
     'usage_bucket_domain_key_minute',
     'CREATE INDEX usage_bucket_domain_key_minute ON usage_buckets (domain_key, minute)',
   );
+  late final Index usageBucketSourceMinute = Index(
+    'usage_bucket_source_minute',
+    'CREATE INDEX usage_bucket_source_minute ON usage_buckets (source_id, minute)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2988,6 +3128,7 @@ abstract class _$UsageDatabase extends GeneratedDatabase {
     usageBucketNodeMinute,
     usageBucketProcessPathMinute,
     usageBucketDomainKeyMinute,
+    usageBucketSourceMinute,
   ];
 }
 
@@ -3002,6 +3143,9 @@ typedef $$UsageBucketsTableCreateCompanionBuilder =
       Value<String> profileLabel,
       required String route,
       Value<String> node,
+      Value<String> sourceId,
+      Value<String> nodeId,
+      Value<String> policyId,
       Value<String> process,
       Value<String> processPath,
       Value<String> domain,
@@ -3024,6 +3168,9 @@ typedef $$UsageBucketsTableUpdateCompanionBuilder =
       Value<String> profileLabel,
       Value<String> route,
       Value<String> node,
+      Value<String> sourceId,
+      Value<String> nodeId,
+      Value<String> policyId,
       Value<String> process,
       Value<String> processPath,
       Value<String> domain,
@@ -3087,6 +3234,21 @@ class $$UsageBucketsTableFilterComposer
 
   ColumnFilters<String> get node => $composableBuilder(
     column: $table.node,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get nodeId => $composableBuilder(
+    column: $table.nodeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get policyId => $composableBuilder(
+    column: $table.policyId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3190,6 +3352,21 @@ class $$UsageBucketsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get nodeId => $composableBuilder(
+    column: $table.nodeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get policyId => $composableBuilder(
+    column: $table.policyId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get process => $composableBuilder(
     column: $table.process,
     builder: (column) => ColumnOrderings(column),
@@ -3276,6 +3453,15 @@ class $$UsageBucketsTableAnnotationComposer
   GeneratedColumn<String> get node =>
       $composableBuilder(column: $table.node, builder: (column) => column);
 
+  GeneratedColumn<String> get sourceId =>
+      $composableBuilder(column: $table.sourceId, builder: (column) => column);
+
+  GeneratedColumn<String> get nodeId =>
+      $composableBuilder(column: $table.nodeId, builder: (column) => column);
+
+  GeneratedColumn<String> get policyId =>
+      $composableBuilder(column: $table.policyId, builder: (column) => column);
+
   GeneratedColumn<String> get process =>
       $composableBuilder(column: $table.process, builder: (column) => column);
 
@@ -3350,6 +3536,9 @@ class $$UsageBucketsTableTableManager
                 Value<String> profileLabel = const Value.absent(),
                 Value<String> route = const Value.absent(),
                 Value<String> node = const Value.absent(),
+                Value<String> sourceId = const Value.absent(),
+                Value<String> nodeId = const Value.absent(),
+                Value<String> policyId = const Value.absent(),
                 Value<String> process = const Value.absent(),
                 Value<String> processPath = const Value.absent(),
                 Value<String> domain = const Value.absent(),
@@ -3370,6 +3559,9 @@ class $$UsageBucketsTableTableManager
                 profileLabel: profileLabel,
                 route: route,
                 node: node,
+                sourceId: sourceId,
+                nodeId: nodeId,
+                policyId: policyId,
                 process: process,
                 processPath: processPath,
                 domain: domain,
@@ -3392,6 +3584,9 @@ class $$UsageBucketsTableTableManager
                 Value<String> profileLabel = const Value.absent(),
                 required String route,
                 Value<String> node = const Value.absent(),
+                Value<String> sourceId = const Value.absent(),
+                Value<String> nodeId = const Value.absent(),
+                Value<String> policyId = const Value.absent(),
                 Value<String> process = const Value.absent(),
                 Value<String> processPath = const Value.absent(),
                 Value<String> domain = const Value.absent(),
@@ -3412,6 +3607,9 @@ class $$UsageBucketsTableTableManager
                 profileLabel: profileLabel,
                 route: route,
                 node: node,
+                sourceId: sourceId,
+                nodeId: nodeId,
+                policyId: policyId,
                 process: process,
                 processPath: processPath,
                 domain: domain,

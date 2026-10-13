@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/core/core.dart';
+import 'package:fl_clash/configuration/barrier.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/action.dart';
@@ -44,7 +45,7 @@ class _CoreContainerState extends ConsumerState<CoreManager>
       ref.read(usageRuntimeProvider);
     }
     ref.listenManual(currentProfileIdProvider, (prev, next) {
-      if (prev != next) {
+      if (prev != next && !configurationWriteBarrier.active) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           ref.read(setupActionProvider.notifier).fullSetup();
         });
@@ -63,7 +64,7 @@ class _CoreContainerState extends ConsumerState<CoreManager>
       });
     }
     ref.listenManual(updateParamsProvider, (prev, next) {
-      if (prev != next) {
+      if (prev != next && !configurationWriteBarrier.active) {
         ref.read(setupActionProvider.notifier).updateConfigDebounce();
       }
     });

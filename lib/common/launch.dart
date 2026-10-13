@@ -40,9 +40,9 @@ class AutoLaunch {
     }
     if (await isEnable == isAutoLaunch) return;
     if (isAutoLaunch == true) {
-      enable();
+      if (!await enable()) throw StateError('autolaunch_failed');
     } else {
-      disable();
+      if (!await disable()) throw StateError('autolaunch_failed');
     }
   }
 }

@@ -23,6 +23,7 @@ part 'generated/usage_database.g.dart';
   name: 'usage_bucket_domain_key_minute',
   columns: {#domainKey, #minute},
 )
+@TableIndex(name: 'usage_bucket_source_minute', columns: {#sourceId, #minute})
 class UsageBuckets extends Table {
   IntColumn get minute => integer()();
 
@@ -41,6 +42,12 @@ class UsageBuckets extends Table {
   TextColumn get route => text()();
 
   TextColumn get node => text().withDefault(const Constant(''))();
+
+  TextColumn get sourceId => text().withDefault(const Constant(''))();
+
+  TextColumn get nodeId => text().withDefault(const Constant(''))();
+
+  TextColumn get policyId => text().withDefault(const Constant(''))();
 
   TextColumn get process => text().withDefault(const Constant(''))();
 
@@ -164,7 +171,7 @@ class UsageDatabase extends _$UsageDatabase {
   UsageFilter? _overviewFilter;
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -212,6 +219,14 @@ class UsageDatabase extends _$UsageDatabase {
       }
       if (from < 4) {
         await _rebuildDomainKeys();
+      }
+      if (from < 5) {
+        await migrator.addColumn(usageBuckets, usageBuckets.sourceId);
+        await migrator.addColumn(usageBuckets, usageBuckets.nodeId);
+        await migrator.addColumn(usageBuckets, usageBuckets.policyId);
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS usage_bucket_source_minute ON usage_buckets (source_id, minute)',
+        );
       }
     },
   );
@@ -281,8 +296,8 @@ class UsageDatabase extends _$UsageDatabase {
             '(minute, local_day, local_hour, local_day_start, bucket_key, '
             'profile_id, profile_label, route, node, process, process_path, '
             'domain, host, destination_ip, domain_key, upload, download, '
-            'connections) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '
-            '?, ?, ?, ?) ON CONFLICT(minute, bucket_key) DO UPDATE SET '
+            'connections, source_id, node_id, policy_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '
+            '?, ?, ?, ?, ?, ?, ?) ON CONFLICT(minute, bucket_key) DO UPDATE SET '
             'upload = usage_buckets.upload + excluded.upload, '
             'download = usage_buckets.download + excluded.download, '
             'connections = usage_buckets.connections + excluded.connections',
@@ -305,6 +320,9 @@ class UsageDatabase extends _$UsageDatabase {
               bucket.upload,
               bucket.download,
               bucket.connections,
+              bucket.sourceId,
+              bucket.nodeId,
+              bucket.policyId,
             ],
           );
 
@@ -411,6 +429,25 @@ class UsageDatabase extends _$UsageDatabase {
     });
   }
 
+  Future<Map<String, int>> sourceTotals({
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final rows = await customSelect(
+      'SELECT source_id, SUM(upload + download) AS bytes FROM usage_buckets WHERE minute >= ? AND minute < ? AND source_id != ? GROUP BY source_id',
+      variables: [
+        Variable.withInt(start.millisecondsSinceEpoch),
+        Variable.withInt(end.millisecondsSinceEpoch),
+        Variable.withString(''),
+      ],
+      readsFrom: {usageBuckets},
+    ).get();
+    return {
+      for (final row in rows)
+        row.read<String>('source_id'): row.read<int>('bytes'),
+    };
+  }
+
   String _bucketKey(UsageBucketData bucket) {
     return sha256
         .convert(
@@ -425,6 +462,9 @@ class UsageDatabase extends _$UsageDatabase {
               bucket.domain,
               bucket.host,
               bucket.destinationIP,
+              bucket.sourceId,
+              bucket.nodeId,
+              bucket.policyId,
             ]),
           ),
         )

@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	N "github.com/metacubex/mihomo/common/net"
 	"github.com/metacubex/mihomo/component/process"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/tunnel"
@@ -53,6 +54,9 @@ type UsageBatchAck struct {
 }
 
 type UsageBucket struct {
+	SourceID      string `json:"sourceId,omitempty"`
+	NodeID        string `json:"nodeId,omitempty"`
+	PolicyID      string `json:"policyId,omitempty"`
 	Minute        int64  `json:"minute"`
 	ProfileID     *int64 `json:"profileId"`
 	ProfileLabel  string `json:"profileLabel"`
@@ -83,6 +87,9 @@ type usageProfileContext struct {
 }
 
 type usageDimensions struct {
+	sourceID      string
+	nodeID        string
+	policyID      string
 	profile       usageProfileContext
 	profileID     int64
 	hasProfileID  bool
@@ -107,6 +114,9 @@ type usageTrackedConnection struct {
 }
 
 type usageBucketKey struct {
+	sourceID      string
+	nodeID        string
+	policyID      string
 	minute        int64
 	profileID     int64
 	hasProfileID  bool
@@ -389,6 +399,12 @@ func (c *usageCollector) trackInternal(tracker statistic.Tracker, baseline bool)
 		dimensions:   usageConnectionDimensions(c.profile, info),
 		registeredAt: c.now(),
 	}
+	if identity, ok := N.FindUpstream[interface{ LocalPolicyIdentity() LocalPolicyIdentity }](tracker, nil); ok {
+		value := identity.LocalPolicyIdentity()
+		tracked.dimensions.sourceID = value.SourceID
+		tracked.dimensions.nodeID = value.NodeID
+		tracked.dimensions.policyID = value.PolicyID
+	}
 	if baseline {
 		tracked.lastUpload = info.UploadTotal.Load()
 		tracked.lastDownload = info.DownloadTotal.Load()
@@ -402,6 +418,9 @@ func (c *usageCollector) trackInternal(tracker statistic.Tracker, baseline bool)
 
 func usageKey(minute int64, dimensions usageDimensions) (usageBucketKey, *UsageBucket) {
 	key := usageBucketKey{
+		sourceID:      dimensions.sourceID,
+		nodeID:        dimensions.nodeID,
+		policyID:      dimensions.policyID,
 		minute:        minute,
 		profileID:     dimensions.profileID,
 		hasProfileID:  dimensions.hasProfileID,
@@ -415,6 +434,9 @@ func usageKey(minute int64, dimensions usageDimensions) (usageBucketKey, *UsageB
 		destinationIP: dimensions.destinationIP,
 	}
 	bucket := &UsageBucket{
+		SourceID:      dimensions.sourceID,
+		NodeID:        dimensions.nodeID,
+		PolicyID:      dimensions.policyID,
 		Minute:        minute,
 		ProfileID:     cloneProfileID(dimensions.profile.id),
 		ProfileLabel:  dimensions.profileLabel,
@@ -580,6 +602,15 @@ func usageBucketLess(a, b UsageBucket) bool {
 	}
 	if a.Route != b.Route {
 		return a.Route < b.Route
+	}
+	if a.SourceID != b.SourceID {
+		return a.SourceID < b.SourceID
+	}
+	if a.NodeID != b.NodeID {
+		return a.NodeID < b.NodeID
+	}
+	if a.PolicyID != b.PolicyID {
+		return a.PolicyID < b.PolicyID
 	}
 	if a.Node != b.Node {
 		return a.Node < b.Node

@@ -1,0 +1,42 @@
+import { createHash } from 'node:crypto';
+import { chmod, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { spawn, spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+process.chdir(root);
+const args = process.argv.slice(2);
+const arch = args[args.indexOf('--arch') + 1];
+const resourceArg = args[args.indexOf('--resources') + 1];
+if (!['arm64', 'x64'].includes(arch) || !args.includes('--resources') || !resourceArg) throw new Error('Use --arch arm64|x64 --resources /absolute/Resources');
+const resources = path.resolve(resourceArg);
+const version = '22.23.3';
+const hashes = { arm64: '23b25245dcfb9af7262f8ff142e9e2e0af025368117329e7a7458a51e5922f53', x64: '8a677b0219178efd6eb0e475457c4afb452b521a92f6e67845a73bd85727f2a8' };
+const filename = `node-v${version}-darwin-${arch}.tar.gz`;
+const cache = path.join(root, '.cache');
+const archive = path.join(cache, filename);
+await mkdir(cache, { recursive: true });
+let data;
+try { data = await readFile(archive); } catch {
+  const temporary = archive + '.part';
+  const status = await new Promise((resolve, reject) => {
+    const downloader = spawn('/usr/bin/curl', ['--fail', '--location', '--silent', '--show-error', '--proto', '=https', '--tlsv1.2', '--retry', '2', '--max-time', '180', '--output', temporary, `https://nodejs.org/dist/v${version}/${filename}`], { stdio: 'inherit' });
+    downloader.once('error', reject); downloader.once('close', resolve);
+  });
+  if (status !== 0) throw new Error('Node download failed');
+  data = await readFile(temporary);
+  if (data.length > 100 * 1024 * 1024) throw new Error('Node archive too large');
+}
+if (createHash('sha256').update(data).digest('hex') !== hashes[arch]) throw new Error('Node SHA256 mismatch');
+await writeFile(archive, data);
+const extraction = spawnSync('/usr/bin/tar', ['-xzf', archive, '-C', cache, `${filename.slice(0, -7)}/bin/node`, `${filename.slice(0, -7)}/LICENSE`], { stdio: 'inherit' });
+if (extraction.status !== 0) throw new Error('Node extraction failed');
+await import('./build.mjs');
+const target = path.join(resources, 'ai');
+await mkdir(target, { recursive: true });
+await copyFile(path.join(cache, filename.slice(0, -7), 'bin/node'), path.join(target, 'node'));
+await copyFile(path.join(cache, filename.slice(0, -7), 'LICENSE'), path.join(target, 'NODE-LICENSE'));
+await chmod(path.join(target, 'node'), 0o755);
+await copyFile(path.join(root, 'dist/host.mjs'), path.join(target, 'host.mjs'));
+await copyFile(path.resolve(root, '../../scripts/script_runner.mjs'), path.join(target, 'script_runner.mjs'));
+await writeFile(path.join(target, 'manifest.json'), JSON.stringify({ version: 1, nodeVersion: version, arch, nodeArchiveSha256: hashes[arch], piVersion: '1.2.0', hostSha256: createHash('sha256').update(await readFile(path.join(target, 'host.mjs'))).digest('hex') }));

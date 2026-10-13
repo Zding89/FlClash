@@ -39,6 +39,9 @@ enum CoreMethod {
   configureUsageCollection,
   readUsageBatch,
   ackUsageBatch,
+  getLocalPolicyStatus,
+  simulateLocalPolicies,
+  refreshLocalPolicySource,
 }
 
 class CoreMethodCall {

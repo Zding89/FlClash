@@ -90,6 +90,29 @@ func handleMethodCall(call *MethodCall, response MethodResponse) {
 		}
 	}()
 	switch call.Method {
+	case refreshLocalPolicySourceMethod:
+		input, err := decodeLocalPolicySourceRefresh(call.Arguments)
+		if err != nil {
+			response.success("local_policy_source_invalid")
+			return
+		}
+		response.success(handleRefreshLocalPolicySource(input))
+		return
+	case simulateLocalPoliciesMethod:
+		input := LocalPolicySimulationInput{}
+		if !decodeMethodArguments(call, response, &input) {
+			return
+		}
+		result, err := simulateLocalPolicies(input)
+		if err != nil {
+			response.failure("local_policy_simulation_invalid", err.Error(), nil)
+			return
+		}
+		response.success(result)
+		return
+	case getLocalPolicyStatusMethod:
+		response.success(handleGetLocalPolicyStatus())
+		return
 	case initClashMethod:
 		params := InitParams{}
 		if !decodeMethodArguments(call, response, &params) {

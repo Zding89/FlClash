@@ -1,0 +1,629 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:fl_clash/database/workbench_database.dart';
+import 'package:fl_clash/policy/models.dart';
+
+abstract interface class ConfigurationBackend {
+  Future<Map<String, Object?>> readState();
+  Future<Map<String, Object?>> validate(Map<String, Object?> candidate);
+  bool isHighRisk(Map<String, Object?> before, Map<String, Object?> after);
+  Future<void> persist(Map<String, Object?> candidate);
+  Future<void> activate(Map<String, Object?> candidate);
+}
+
+abstract interface class ApprovedConfigurationValidator {
+  Future<Map<String, Object?>> validateApproved(Map<String, Object?> candidate);
+}
+
+abstract interface class ConfigurationRecoveryBackend {
+  Future<void> restore(Map<String, Object?> before, Map<String, Object?> after);
+}
+
+abstract interface class ConfigurationCommitBackend {
+  Future<void> beginCommit(
+    String id,
+    Map<String, Object?> before,
+    Map<String, Object?> after,
+    Map<String, Object?> validation,
+  );
+  Future<void> activateCommit(
+    String id,
+    Map<String, Object?> after,
+    Map<String, Object?> validation,
+  );
+  Future<void> restoreCommit(
+    String id,
+    Map<String, Object?> before,
+    Map<String, Object?> after,
+  );
+  Future<void> endCommit(String id);
+}
+
+bool configurationRestoredMatches(
+  Object? before,
+  Object? after,
+  Object? current,
+) {
+  if (policyDigest(before) == policyDigest(after)) return true;
+  if (before is Map && after is Map && current is Map) {
+    return {...before.keys, ...after.keys}.every(
+      (key) =>
+          configurationRestoredMatches(before[key], after[key], current[key]),
+    );
+  }
+  return policyDigest(before) == policyDigest(current);
+}
+
+final class ConfigurationChangeException implements Exception {
+  final String code;
+
+  const ConfigurationChangeException(this.code);
+
+  @override
+  String toString() => code;
+}
+
+final class ConfigurationDifference {
+  final String path;
+  final Object? before;
+  final Object? after;
+
+  const ConfigurationDifference({
+    required this.path,
+    required this.before,
+    required this.after,
+  });
+
+  Map<String, Object?> toJson() => {
+    'path': path,
+    'before': before,
+    'after': after,
+  };
+}
+
+List<ConfigurationDifference> configurationDifferences(
+  Object? before,
+  Object? after, [
+  String path = '',
+]) {
+  final differences = <ConfigurationDifference>[];
+  if (before is Map && after is Map) {
+    final keys = {...before.keys, ...after.keys};
+    for (final key in keys) {
+      differences.addAll(
+        configurationDifferences(
+          before[key],
+          after[key],
+          path.isEmpty ? '$key' : '$path.$key',
+        ),
+      );
+    }
+  } else if (policyDigest(before) != policyDigest(after)) {
+    final sensitive = RegExp(
+      r'(password|secret|token|credential|api.?key|authorization)',
+      caseSensitive: false,
+    ).hasMatch(path);
+    differences.add(
+      ConfigurationDifference(
+        path: path,
+        before: sensitive ? null : before,
+        after: sensitive ? null : after,
+      ),
+    );
+  }
+  return differences;
+}
+
+final class ConfigurationProposal {
+  final String id;
+  final String summary;
+  final bool highRisk;
+  final int expiresAt;
+  final List<ConfigurationDifference> differences;
+  final Map<String, Object?> validation;
+
+  const ConfigurationProposal({
+    required this.id,
+    required this.summary,
+    required this.highRisk,
+    required this.expiresAt,
+    required this.differences,
+    required this.validation,
+  });
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'summary': summary,
+    'highRisk': highRisk,
+    'expiresAt': expiresAt,
+    'differences': differences.map((entry) => entry.toJson()).toList(),
+    'validation': validation,
+  };
+}
+
+typedef ConfigurationApproval =
+    Future<bool> Function(ConfigurationProposal proposal);
+
+final class ConfigurationChangeQueue {
+  Future<void> _tail = Future<void>.value();
+  int _pending = 0;
+
+  Future<T> run<T>(Future<T> Function() action) {
+    if (_pending >= 16) {
+      return Future.error(
+        const ConfigurationChangeException('configuration_queue_full'),
+      );
+    }
+    _pending++;
+    final result = _tail.then((_) => action());
+    _tail = result
+        .then<void>((_) {}, onError: (Object _, StackTrace _) {})
+        .whenComplete(() => _pending--);
+    return result;
+  }
+}
+
+final _configurationQueues = Expando<ConfigurationChangeQueue>();
+
+final class ConfigurationChangeService {
+  final ConfigurationBackend backend;
+  final WorkbenchDatabase store;
+  final DateTime Function() clock;
+  final Duration proposalLifetime;
+  final ConfigurationChangeQueue _queue;
+  final Map<String, Map<String, Object?>> _prepared = {};
+
+  ConfigurationChangeService({
+    required this.backend,
+    required this.store,
+    DateTime Function()? clock,
+    this.proposalLifetime = const Duration(minutes: 10),
+    ConfigurationChangeQueue? queue,
+  }) : clock = clock ?? DateTime.now,
+       _queue =
+           queue ??
+           (_configurationQueues[store] ??= ConfigurationChangeQueue());
+
+  String _id() {
+    final random = Random.secure();
+    return List.generate(
+      16,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+  }
+
+  Future<T> _serial<T>(Future<T> Function() action) => _queue.run(action);
+
+  Future<ConfigurationProposal> propose({
+    required String category,
+    required String summary,
+    required Map<String, Object?> candidate,
+  }) => _serial(() async {
+    final before = await backend.readState();
+    final snapshot = policyObject(
+      jsonDecode(jsonEncode(candidate)),
+      'candidate',
+    );
+    final validation = await backend.validate(snapshot);
+    final differences = configurationDifferences(before, snapshot);
+    if (differences.isEmpty) {
+      throw const ConfigurationChangeException('configuration_unchanged');
+    }
+    final highRisk = backend.isHighRisk(before, snapshot);
+    final now = clock();
+    final id = _id();
+    final expiresAt = now.add(proposalLifetime).millisecondsSinceEpoch;
+    await store.saveChange(
+      id: id,
+      category: category,
+      summary: summary,
+      highRisk: highRisk,
+      fingerprint: policyDigest(before),
+      before: before,
+      after: snapshot,
+      createdAt: now.millisecondsSinceEpoch,
+      expiresAt: expiresAt,
+    );
+    return ConfigurationProposal(
+      id: id,
+      summary: summary,
+      highRisk: highRisk,
+      expiresAt: expiresAt,
+      differences: differences,
+      validation: validation,
+    );
+  });
+
+  Future<ConfigurationProposal> readProposal(String id) async {
+    final row = await store.readChange(id);
+    if (row == null) {
+      throw const ConfigurationChangeException(
+        'configuration_proposal_missing',
+      );
+    }
+    final before = policyObject(jsonDecode(row.beforePayload), 'before');
+    final after = policyObject(jsonDecode(row.afterPayload), 'after');
+    return ConfigurationProposal(
+      id: id,
+      summary: row.summary,
+      highRisk: row.highRisk,
+      expiresAt: row.expiresAt,
+      differences: configurationDifferences(before, after),
+      validation: policyObject(
+        _prepared[id]?['validation'] ??
+            (row.status == 'draft'
+                ? await backend.validate(after)
+                : <String, Object?>{}),
+        'validation',
+      ),
+    );
+  }
+
+  Future<ConfigurationProposal> prepareApprovedValidation({
+    required String id,
+    required ConfigurationApproval approve,
+    bool Function()? isCurrent,
+  }) async {
+    final row = await store.readChange(id);
+    if (row == null) {
+      throw const ConfigurationChangeException(
+        'configuration_proposal_missing',
+      );
+    }
+    if (row.status == 'applied') return readProposal(id);
+    if (row.status != 'draft') {
+      throw const ConfigurationChangeException(
+        'configuration_proposal_not_pending',
+      );
+    }
+    if (clock().millisecondsSinceEpoch >= row.expiresAt) {
+      throw const ConfigurationChangeException(
+        'configuration_proposal_expired',
+      );
+    }
+    final candidate = policyObject(jsonDecode(row.afterPayload), 'after');
+    final cached = _prepared[id];
+    if (cached != null &&
+        cached['fingerprint'] == row.fingerprint &&
+        cached['afterDigest'] == policyDigest(candidate)) {
+      if (policyDigest(await backend.readState()) != row.fingerprint) {
+        throw const ConfigurationChangeException(
+          'configuration_version_conflict',
+        );
+      }
+      return readProposal(id);
+    }
+    final validation = await backend.validate(candidate);
+    if (validation['requiresScriptExecutionApproval'] != true) {
+      return readProposal(id);
+    }
+    if (isCurrent?.call() == false) {
+      throw const ConfigurationChangeException('configuration_cancelled');
+    }
+    if (policyDigest(await backend.readState()) != row.fingerprint) {
+      throw const ConfigurationChangeException(
+        'configuration_version_conflict',
+      );
+    }
+    final proposal = await readProposal(id);
+    final execution = ConfigurationProposal(
+      id: proposal.id,
+      summary: proposal.summary,
+      highRisk: true,
+      expiresAt: proposal.expiresAt,
+      differences: proposal.differences,
+      validation: {
+        'executionOnly': true,
+        'requiresScriptExecutionApproval': true,
+      },
+    );
+    if (!await approve(execution)) {
+      throw const ConfigurationChangeException(
+        'configuration_script_execution_rejected',
+      );
+    }
+    if (isCurrent?.call() == false) {
+      throw const ConfigurationChangeException('configuration_cancelled');
+    }
+    if (policyDigest(await backend.readState()) != row.fingerprint) {
+      throw const ConfigurationChangeException(
+        'configuration_version_conflict',
+      );
+    }
+    return _serial(() async {
+      final latest = await store.readChange(id);
+      if (latest == null || latest.status != 'draft') {
+        throw const ConfigurationChangeException(
+          'configuration_proposal_not_pending',
+        );
+      }
+      if (clock().millisecondsSinceEpoch >= latest.expiresAt) {
+        throw const ConfigurationChangeException(
+          'configuration_proposal_expired',
+        );
+      }
+      if (isCurrent?.call() == false) {
+        throw const ConfigurationChangeException('configuration_cancelled');
+      }
+      if (policyDigest(await backend.readState()) != row.fingerprint) {
+        throw const ConfigurationChangeException(
+          'configuration_version_conflict',
+        );
+      }
+      final cached = _prepared[id];
+      if (cached != null &&
+          cached['fingerprint'] == row.fingerprint &&
+          cached['afterDigest'] == policyDigest(candidate)) {
+        return readProposal(id);
+      }
+      final validator = backend;
+      if (validator is! ApprovedConfigurationValidator) {
+        throw const ConfigurationChangeException(
+          'configuration_script_preview_unavailable',
+        );
+      }
+      final prepared = await (validator as ApprovedConfigurationValidator)
+          .validateApproved(candidate);
+      if (isCurrent?.call() == false) {
+        throw const ConfigurationChangeException('configuration_cancelled');
+      }
+      if (policyDigest(await backend.readState()) != row.fingerprint) {
+        throw const ConfigurationChangeException(
+          'configuration_version_conflict',
+        );
+      }
+      if (_prepared.length >= 4) _prepared.remove(_prepared.keys.first);
+      _prepared[id] = {
+        'fingerprint': row.fingerprint,
+        'afterDigest': policyDigest(candidate),
+        'validation': prepared,
+      };
+      return readProposal(id);
+    });
+  }
+
+  Future<Map<String, Object?>> commit({
+    required String id,
+    required ConfigurationApproval approve,
+    bool Function()? isCurrent,
+  }) async {
+    final initial = await store.readChange(id);
+    if (initial == null) {
+      throw const ConfigurationChangeException(
+        'configuration_proposal_missing',
+      );
+    }
+    if (initial.status == 'applied') {
+      return {'id': id, 'status': 'applied', 'replayed': true};
+    }
+    if (initial.status != 'draft') {
+      throw const ConfigurationChangeException(
+        'configuration_proposal_not_pending',
+      );
+    }
+    if (clock().millisecondsSinceEpoch >= initial.expiresAt) {
+      throw const ConfigurationChangeException(
+        'configuration_proposal_expired',
+      );
+    }
+    if (isCurrent?.call() == false) {
+      throw const ConfigurationChangeException('configuration_cancelled');
+    }
+    final approvalProposal = await readProposal(id);
+    final approvalDigest = policyDigest(approvalProposal.validation);
+    if (initial.highRisk && !await approve(approvalProposal)) {
+      await store.changeStatus(id, 'rejected');
+      _prepared.remove(id);
+      return {'id': id, 'status': 'rejected'};
+    }
+    if (isCurrent?.call() == false) {
+      throw const ConfigurationChangeException('configuration_cancelled');
+    }
+    return _serial(() async {
+      final row = await store.readChange(id);
+      if (row == null) {
+        throw const ConfigurationChangeException(
+          'configuration_proposal_missing',
+        );
+      }
+      if (row.status == 'applied') {
+        return {'id': id, 'status': 'applied', 'replayed': true};
+      }
+      if (row.status != 'draft') {
+        throw const ConfigurationChangeException(
+          'configuration_proposal_not_pending',
+        );
+      }
+      if (clock().millisecondsSinceEpoch >= row.expiresAt) {
+        throw const ConfigurationChangeException(
+          'configuration_proposal_expired',
+        );
+      }
+      final before = policyObject(jsonDecode(row.beforePayload), 'before');
+      final after = policyObject(jsonDecode(row.afterPayload), 'after');
+      if (policyDigest(await backend.readState()) != row.fingerprint) {
+        await store.changeStatus(id, 'superseded');
+        throw const ConfigurationChangeException(
+          'configuration_version_conflict',
+        );
+      }
+      final validation = await backend.validate(after);
+      final prepared = _prepared[id];
+      final matchesPrepared =
+          prepared != null &&
+          prepared['fingerprint'] == row.fingerprint &&
+          prepared['afterDigest'] == policyDigest(after);
+      if (validation['requiresScriptExecutionApproval'] == true &&
+          !matchesPrepared) {
+        throw const ConfigurationChangeException(
+          'configuration_script_authorization_required',
+        );
+      }
+      final commitValidation = matchesPrepared
+          ? policyObject(prepared['validation'], 'prepared validation')
+          : validation;
+      if (policyDigest(commitValidation) != approvalDigest) {
+        throw const ConfigurationChangeException(
+          'configuration_approval_changed',
+        );
+      }
+      if (isCurrent?.call() == false) {
+        throw const ConfigurationChangeException('configuration_cancelled');
+      }
+      if (policyDigest(await backend.readState()) != row.fingerprint) {
+        await store.changeStatus(id, 'superseded');
+        throw const ConfigurationChangeException(
+          'configuration_version_conflict',
+        );
+      }
+      final transaction = backend is ConfigurationCommitBackend
+          ? backend as ConfigurationCommitBackend
+          : null;
+      await transaction?.beginCommit(id, before, after, commitValidation);
+      try {
+        if (isCurrent?.call() == false) {
+          throw const ConfigurationChangeException('configuration_cancelled');
+        }
+        if (policyDigest(await backend.readState()) != row.fingerprint) {
+          await store.changeStatus(id, 'superseded');
+          throw const ConfigurationChangeException(
+            'configuration_version_conflict',
+          );
+        }
+        await store.changeStatus(id, 'committing');
+        try {
+          await backend.persist(after);
+          await store.changeStatus(id, 'persisted');
+          if (transaction != null) {
+            await transaction.activateCommit(id, after, commitValidation);
+          } else {
+            await backend.activate(after);
+          }
+          if (policyDigest(await backend.readState()) != policyDigest(after)) {
+            await store.changeStatus(id, 'superseded');
+            throw const ConfigurationChangeException(
+              'configuration_version_conflict',
+            );
+          }
+          await store.changeStatus(id, 'applied');
+          return {'id': id, 'status': 'applied'};
+        } catch (error) {
+          if (error is ConfigurationChangeException &&
+              error.code == 'configuration_version_conflict') {
+            rethrow;
+          }
+          try {
+            await store.changeStatus(id, 'restoring');
+            if (transaction != null) {
+              await transaction.restoreCommit(id, before, after);
+            } else if (backend is ConfigurationRecoveryBackend) {
+              await (backend as ConfigurationRecoveryBackend).restore(
+                before,
+                after,
+              );
+            } else {
+              final current = await backend.readState();
+              if (policyDigest(current) != policyDigest(after) &&
+                  policyDigest(current) != policyDigest(before)) {
+                await store.changeStatus(
+                  id,
+                  'superseded',
+                  error: 'configuration_changed_during_failure',
+                );
+                throw const ConfigurationChangeException(
+                  'configuration_changed_during_failure',
+                );
+              }
+              await backend.persist(before);
+              await backend.activate(before);
+            }
+            if (!configurationRestoredMatches(
+              before,
+              after,
+              await backend.readState(),
+            )) {
+              throw const ConfigurationChangeException(
+                'configuration_restore_verification_failed',
+              );
+            }
+            await store.changeStatus(id, 'restored', error: _safeError(error));
+          } catch (restoreError) {
+            final latest = await store.readChange(id);
+            if (latest?.status != 'superseded') {
+              await store.changeStatus(
+                id,
+                'recovery_required',
+                error: _safeError(restoreError),
+              );
+            }
+          }
+          throw ConfigurationChangeException(_safeError(error));
+        }
+      } finally {
+        _prepared.remove(id);
+        await transaction?.endCommit(id);
+      }
+    });
+  }
+
+  String _safeError(Object error) => error is ConfigurationChangeException
+      ? error.code
+      : 'configuration_apply_failed';
+
+  Future<ConfigurationProposal> proposeUndo(String id) async {
+    final row = await store.readChange(id);
+    if (row == null || row.status != 'applied') {
+      throw const ConfigurationChangeException('configuration_not_undoable');
+    }
+    final after = policyObject(jsonDecode(row.afterPayload), 'after');
+    if (policyDigest(await backend.readState()) != policyDigest(after)) {
+      throw const ConfigurationChangeException('configuration_undo_conflict');
+    }
+    return propose(
+      category: 'undo',
+      summary: row.summary,
+      candidate: policyObject(jsonDecode(row.beforePayload), 'before'),
+    );
+  }
+
+  Future<void> recoverInterrupted() => _serial(() async {
+    for (final row in await store.interruptedChanges()) {
+      if (row.category.startsWith('resource:')) continue;
+      try {
+        final before = policyObject(jsonDecode(row.beforePayload), 'before');
+        final after = policyObject(jsonDecode(row.afterPayload), 'after');
+        final current = await backend.readState();
+        if (backend is! ConfigurationRecoveryBackend &&
+            policyDigest(current) != policyDigest(before) &&
+            policyDigest(current) != policyDigest(after)) {
+          await store.changeStatus(
+            row.id,
+            'superseded',
+            error: 'configuration_recovery_conflict',
+          );
+          continue;
+        }
+        await store.changeStatus(row.id, 'restoring');
+        final recovery = backend;
+        if (recovery is ConfigurationRecoveryBackend) {
+          await (recovery as ConfigurationRecoveryBackend).restore(
+            before,
+            after,
+          );
+        } else {
+          await backend.persist(before);
+          await backend.activate(before);
+        }
+        await store.changeStatus(row.id, 'restored');
+      } catch (_) {
+        await store.changeStatus(
+          row.id,
+          'recovery_required',
+          error: 'configuration_recovery_failed',
+        );
+      }
+    }
+  });
+}

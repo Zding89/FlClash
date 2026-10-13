@@ -312,8 +312,12 @@ class GlobalState {
         );
       });
     };
+    if (system.isMacOS) {
+      final workbench = container.read(workbenchControllerProvider);
+      await workbench.resources.recoverInterrupted();
+      await workbench.changes.recoverInterrupted();
+    }
     container.read(systemActionProvider.notifier).updateTray();
-    container.read(profilesActionProvider.notifier).autoUpdateProfiles();
     container.read(commonActionProvider.notifier).autoCheckUpdate();
     autoLaunch?.updateStatus(container.read(appSettingProvider).autoLaunch);
     if (!container.read(appSettingProvider).silentLaunch) {
@@ -330,6 +334,9 @@ class GlobalState {
       await container.read(setupActionProvider.notifier).initStatus();
     }
     container.read(initProvider.notifier).value = true;
+    unawaited(
+      container.read(profilesActionProvider.notifier).autoUpdateProfiles(),
+    );
     permissions.check();
   }
 

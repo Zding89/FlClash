@@ -13,3 +13,5 @@ export 'proxies/proxies.dart';
 export 'resources.dart';
 export 'tools.dart';
 export 'usage/usage.dart';
+export 'ai/ai.dart';
+export 'policy/policy.dart';

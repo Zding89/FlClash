@@ -4,3 +4,4 @@ export 'config.dart';
 export 'database.dart';
 export 'state.dart';
 export 'usage.dart';
+export 'workbench.dart';

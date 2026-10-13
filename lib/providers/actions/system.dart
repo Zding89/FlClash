@@ -50,6 +50,7 @@ class SystemAction extends _$SystemAction {
   @protected
   Future<void> cleanupExitResources(bool needSave) async {
     await Future.wait([
+      if (system.isMacOS) ref.read(workbenchControllerProvider).closeAgent(),
       if (needSave) preferences.saveConfig(ref.read(configProvider)),
       if (macOS != null) macOS!.updateDns(true),
       if (proxy != null) proxy!.stopProxy(),

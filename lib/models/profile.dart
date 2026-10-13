@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart' show Response;
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/core/controller.dart';
 import 'package:fl_clash/enum/enum.dart';
@@ -18,6 +19,8 @@ abstract class SubscriptionInfo with _$SubscriptionInfo {
     @Default(0) int download,
     @Default(0) int total,
     @Default(0) int expire,
+    @Default({}) Set<String> knownFields,
+    DateTime? observedAt,
   }) = _SubscriptionInfo;
 
   factory SubscriptionInfo.fromJson(Map<String, Object?> json) =>
@@ -29,13 +32,20 @@ abstract class SubscriptionInfo with _$SubscriptionInfo {
     final Map<String, int?> map = {};
     for (final i in list) {
       final keyValue = i.trim().split('=');
-      map[keyValue[0]] = int.tryParse(keyValue[1]);
+      if (keyValue.length != 2) continue;
+      final key = keyValue.first.trim();
+      if (!{'upload', 'download', 'total', 'expire'}.contains(key)) continue;
+      final value = int.tryParse(keyValue.last.trim());
+      if (value == null || value < 0 || value > 9007199254740991) continue;
+      map[key] = value;
     }
     return SubscriptionInfo(
       upload: map['upload'] ?? 0,
       download: map['download'] ?? 0,
       total: map['total'] ?? 0,
       expire: map['expire'] ?? 0,
+      knownFields: map.keys.toSet(),
+      observedAt: DateTime.now(),
     );
   }
 }
@@ -197,31 +207,69 @@ extension ProfileExtension on Profile {
     return _getFile();
   }
 
-  Future<Profile> update() async {
-    final response = await request.getFileResponseForUrl(url);
+  Future<Profile> update({
+    Future<Response<Uint8List>> Function(String url)? fetch,
+    bool Function()? isCurrent,
+    Future<void> Function(Profile metadata)? onMetadata,
+    Future<void> Function(Uint8List bytes)? validateSource,
+  }) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        !{'http', 'https'}.contains(uri.scheme) ||
+        uri.host.isEmpty) {
+      throw const FormatException('Invalid subscription URL');
+    }
+    final response = await (fetch ?? request.getBoundedFileResponse)(url);
+    if (isCurrent?.call() == false) {
+      throw StateError('profile_update_superseded');
+    }
     final disposition = response.headers.value('content-disposition');
     final userinfo = response.headers.value('subscription-userinfo');
-    return copyWith(
+    var info = SubscriptionInfo.formHString(userinfo);
+    final previousInfo = subscriptionInfo;
+    if (info.expire <= 0 && previousInfo != null && previousInfo.expire > 0) {
+      info = info.copyWith(
+        expire: previousInfo.expire,
+        knownFields: {...info.knownFields, 'expire'},
+      );
+    }
+    final metadata = copyWith(
       label: label.takeFirstValid([
         utils.getFileNameForDisposition(disposition),
         id.toString(),
       ]),
-      subscriptionInfo: SubscriptionInfo.formHString(userinfo),
-    ).saveFile(response.data ?? Uint8List.fromList([]));
+      subscriptionInfo: info,
+    );
+    await onMetadata?.call(metadata);
+    final bytes = response.data ?? Uint8List.fromList([]);
+    await validateSource?.call(bytes);
+    return metadata.saveFile(bytes, isCurrent: isCurrent);
   }
 
-  Future<Profile> saveFile(Uint8List bytes) async {
+  Future<Profile> saveFile(
+    Uint8List bytes, {
+    bool Function()? isCurrent,
+  }) async {
     final path = await appPath.tempFilePath;
     final tempFile = File(path);
-    await tempFile.safeWriteAsBytes(bytes);
-    final message = await coreController.validateConfig(path);
-    if (message.isNotEmpty) {
-      throw message;
+    File? staging;
+    try {
+      await tempFile.safeWriteAsBytes(bytes);
+      final message = await coreController.validateConfig(path);
+      if (message.isNotEmpty) throw message;
+      final target = await appPath.getProfilePath('$id');
+      await File(target).parent.create(recursive: true);
+      staging = File('$target.${tempFile.uri.pathSegments.last}.pending');
+      await staging.writeAsBytes(bytes, flush: true);
+      if (isCurrent?.call() == false) {
+        throw StateError('profile_update_superseded');
+      }
+      staging.renameSync(target);
+      return copyWith(lastUpdateDate: DateTime.now());
+    } finally {
+      await tempFile.safeDelete();
+      if (staging != null && await staging.exists()) await staging.delete();
     }
-    final mFile = await file;
-    await tempFile.copy(mFile.path);
-    await tempFile.safeDelete();
-    return copyWith(lastUpdateDate: DateTime.now());
   }
 
   Future<Profile> saveFileWithPath(String path) async {

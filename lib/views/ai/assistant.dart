@@ -1,0 +1,447 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:fl_clash/ai/runtime.dart';
+import 'package:fl_clash/ai/settings.dart';
+import 'package:fl_clash/ai/tools.dart';
+import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/providers/config.dart';
+import 'package:fl_clash/providers/workbench.dart';
+import 'package:fl_clash/widgets/widgets.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'approval.dart';
+import 'errors.dart';
+import 'settings.dart';
+
+class AiAssistantView extends ConsumerStatefulWidget {
+  const AiAssistantView({super.key});
+
+  @override
+  ConsumerState<AiAssistantView> createState() => _AiAssistantViewState();
+}
+
+class _ConversationMessage {
+  _ConversationMessage(this.role, this.text);
+  final String role;
+  String text;
+}
+
+class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
+  final _input = TextEditingController();
+  final _scroll = ScrollController();
+  final _messages = <_ConversationMessage>[];
+  late final WorkbenchController _controller;
+  AgentRuntime? _runtime;
+  StreamSubscription<AgentRuntimeEvent>? _subscription;
+  bool _busy = false;
+  String? _error;
+  String? _status;
+  int _assistantIndex = -1;
+  int _responseBytes = 0;
+  int _epoch = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = ref.read(workbenchControllerProvider);
+  }
+
+  @override
+  void dispose() {
+    _epoch++;
+    _runtime?.cancel();
+    unawaited(_subscription?.cancel() ?? Future<void>.value());
+    unawaited(_controller.closeAgent());
+    _input.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _followOutput() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _scroll.hasClients) {
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      }
+    });
+  }
+
+  void _event(AgentRuntimeEvent event) {
+    if (!mounted || !_busy) return;
+    setState(() {
+      switch (event.type) {
+        case 'text':
+          final text = event.data['text'] as String;
+          _responseBytes += utf8.encode(text).length;
+          if (_responseBytes > 256 * 1024) {
+            _runtime?.cancel();
+            _error = context.appLocalizations.aiHistoryLimit;
+          } else if (_assistantIndex >= 0 &&
+              _assistantIndex < _messages.length) {
+            _messages[_assistantIndex].text += text;
+          }
+        case 'status':
+          _status = context.appLocalizations.aiThinking;
+        case 'error':
+          _error = aiErrorText(context, event.data['code']);
+        case 'done':
+          if (event.data['cancelled'] == true) {
+            _status = context.appLocalizations.aiCancelled;
+          } else {
+            _status = null;
+          }
+      }
+    });
+    _followOutput();
+  }
+
+  List<Map<String, Object?>> _history() {
+    final result = <Map<String, Object?>>[];
+    var bytes = 0;
+    for (final message in _messages.reversed) {
+      if (message.text.isEmpty) continue;
+      final size = utf8.encode(message.text).length;
+      if (bytes + size > 256 * 1024) break;
+      bytes += size;
+      result.insert(0, {'role': message.role, 'content': message.text});
+      if (result.length == 80) break;
+    }
+    return result;
+  }
+
+  Future<void> _send(AgentSettings settings) async {
+    final user = _input.text.trim();
+    final connection = settings.selected;
+    if (_busy || !settings.enabled || connection == null || user.isEmpty) {
+      return;
+    }
+    if (_messages.length >= 80) {
+      setState(() => _error = context.appLocalizations.aiHistoryLimit);
+      return;
+    }
+    final epoch = ++_epoch;
+    final controller = _controller;
+    final history = _history();
+    setState(() {
+      _busy = true;
+      _error = null;
+      _status = context.appLocalizations.aiThinking;
+    });
+    try {
+      final key = await controller.credentials.read(connection.credentialId);
+      if (!mounted || _epoch != epoch) return;
+      if (key == null || key.isEmpty) {
+        throw const AgentRuntimeException('keyMissing');
+      }
+      final runtime = controller.runtime;
+      if (!identical(runtime, _runtime)) {
+        await _subscription?.cancel();
+        _runtime = runtime;
+        _subscription = runtime.events.listen(_event);
+      }
+      if (!mounted || _epoch != epoch) return;
+      final tools = AgentTools(
+        controller: controller,
+        approve: (proposal) async {
+          if (!mounted || _epoch != epoch) return false;
+          return showAiConfigurationApproval(context, proposal);
+        },
+      );
+      setState(() {
+        _messages.add(_ConversationMessage('user', user));
+        _messages.add(_ConversationMessage('assistant', ''));
+        _assistantIndex = _messages.length - 1;
+        _responseBytes = 0;
+        _input.clear();
+      });
+      final mixedPort = ref.read(patchClashConfigProvider).mixedPort;
+      await runtime.prompt(
+        settings: connection.runtimeSettings(mixedPort: mixedPort),
+        key: key,
+        user: user,
+        messages: history,
+        tools: tools.definitions,
+        executeTool: (request) async {
+          if (!mounted || _epoch != epoch || !request.isCurrent()) {
+            return const AgentToolResult({'code': 'cancelled'}, isError: true);
+          }
+          setState(() => _status = context.appLocalizations.aiToolWorking);
+          final result = await tools.execute(request);
+          if (mounted && _epoch == epoch) {
+            setState(() => _status = context.appLocalizations.aiThinking);
+          }
+          return result;
+        },
+      );
+    } catch (error) {
+      if (mounted && _epoch == epoch) {
+        setState(() => _error = aiErrorText(context, error));
+      }
+    } finally {
+      if (mounted && _epoch == epoch) {
+        setState(() {
+          _busy = false;
+          _assistantIndex = -1;
+          if (_status != context.appLocalizations.aiCancelled) _status = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _stop() async {
+    final epoch = ++_epoch;
+    _runtime?.cancel();
+    setState(() => _status = context.appLocalizations.aiCancelled);
+    await _subscription?.cancel();
+    _subscription = null;
+    _runtime = null;
+    await _controller.closeAgent();
+    if (mounted && _epoch == epoch) {
+      setState(() {
+        _busy = false;
+        _assistantIndex = -1;
+      });
+    }
+  }
+
+  Future<void> _openSettings() async {
+    _epoch++;
+    _runtime?.cancel();
+    await _subscription?.cancel();
+    _subscription = null;
+    _runtime = null;
+    await _controller.closeAgent();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _status = null;
+    });
+    await Navigator.of(
+      context,
+    ).push<void>(MaterialPageRoute(builder: (_) => const AiSettingsView()));
+  }
+
+  Future<void> _clear() async {
+    final epoch = ++_epoch;
+    _runtime?.cancel();
+    setState(() {
+      _messages.clear();
+      _busy = true;
+      _error = null;
+      _status = null;
+      _assistantIndex = -1;
+    });
+    await _subscription?.cancel();
+    _subscription = null;
+    _runtime = null;
+    await _controller.closeAgent();
+    if (mounted && _epoch == epoch) setState(() => _busy = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = context.appLocalizations;
+    final value = ref.watch(agentSettingsProvider);
+    ref.listen(agentSettingsProvider, (previous, next) {
+      final before = previous?.asData?.value;
+      final after = next.asData?.value;
+      if (before != null &&
+          after != null &&
+          (before.enabled != after.enabled ||
+              jsonEncode(before.selected?.toJson()) !=
+                  jsonEncode(after.selected?.toJson()))) {
+        unawaited(_clear());
+      }
+    });
+    return CommonScaffold(
+      title: strings.aiAssistantTitle,
+      actions: [
+        IconButton(
+          onPressed: _busy ? null : _clear,
+          tooltip: strings.aiClearConversation,
+          icon: const Icon(Icons.delete_outline),
+        ),
+        IconButton(
+          onPressed: _openSettings,
+          tooltip: strings.aiSettingsTitle,
+          icon: const Icon(Icons.settings_outlined),
+        ),
+      ],
+      body: value.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, _) => Center(child: Text(strings.aiRequestFailed)),
+        data: (settings) => Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 860),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.auto_awesome_outlined, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          settings.selected?.label ?? strings.aiNoConnection,
+                        ),
+                      ),
+                      if (settings.selected != null)
+                        Flexible(
+                          child: Text(
+                            settings.selected!.model,
+                            style: Theme.of(context).textTheme.labelSmall,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: _messages.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Text(
+                              !settings.enabled
+                                  ? strings.aiDisabled
+                                  : strings.aiEmptyConversation,
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: _scroll,
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _messages.length,
+                          itemBuilder: (context, index) =>
+                              _MessageCard(message: _messages[index]),
+                        ),
+                ),
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      _error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                if (_status != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    child: Row(
+                      children: [
+                        if (_busy)
+                          const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _status!,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          key: const ValueKey('ai-prompt'),
+                          controller: _input,
+                          enabled:
+                              settings.enabled &&
+                              settings.selected != null &&
+                              !_busy,
+                          onChanged: (_) => setState(() {}),
+                          minLines: 1,
+                          maxLines: 4,
+                          maxLength: 16384,
+                          decoration: InputDecoration(
+                            hintText: strings.aiPromptHint,
+                            counterText: '',
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      if (_busy)
+                        IconButton.filledTonal(
+                          onPressed: _stop,
+                          tooltip: strings.aiStop,
+                          icon: const Icon(Icons.stop),
+                        )
+                      else
+                        IconButton.filled(
+                          key: const ValueKey('ai-send'),
+                          onPressed:
+                              settings.enabled &&
+                                  settings.selected != null &&
+                                  _input.text.trim().isNotEmpty
+                              ? () => _send(settings)
+                              : null,
+                          tooltip: strings.aiSend,
+                          icon: const Icon(Icons.arrow_upward),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MessageCard extends StatelessWidget {
+  const _MessageCard({required this.message});
+  final _ConversationMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final user = message.role == 'user';
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Card(
+        color: user ? colors.secondaryContainer : colors.surfaceContainerLow,
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                user
+                    ? context.appLocalizations.aiYou
+                    : context.appLocalizations.aiAssistantRole,
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+              const SizedBox(height: 6),
+              SelectableText(message.text.isEmpty ? '…' : message.text),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

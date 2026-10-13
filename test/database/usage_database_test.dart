@@ -59,6 +59,40 @@ void main() {
     await database.close();
   });
 
+  test(
+    'source identity separates equal display buckets and old connections keep their source',
+    () async {
+      final original = batch().buckets.first;
+      await database.ingest(
+        UsageBatch(
+          sessionId: 'sources',
+          sequence: 1,
+          buckets: [
+            original.copyWith(sourceId: 'A', nodeId: 'A1', policyId: 'p'),
+            original.copyWith(sourceId: 'B', nodeId: 'B2', policyId: 'p'),
+          ],
+        ),
+      );
+      await database.ingest(
+        UsageBatch(
+          sessionId: 'sources',
+          sequence: 2,
+          buckets: [
+            original.copyWith(sourceId: 'A', nodeId: 'A1', policyId: 'p'),
+          ],
+        ),
+      );
+      expect(
+        await database.sourceTotals(start: filter.start, end: filter.end),
+        {'A': 92, 'B': 46},
+      );
+      final rows = await database.select(database.usageBuckets).get();
+      expect(rows.length, 2);
+      expect(rows.map((row) => row.sourceId).toSet(), {'A', 'B'});
+      expect(rows.map((row) => row.nodeId).toSet(), {'A1', 'B2'});
+    },
+  );
+
   test('defaults to disabled and keeps setting separate from data', () async {
     expect(await database.isEnabled(), isFalse);
     expect(await database.hasConsent(), isFalse);
@@ -311,6 +345,10 @@ void main() {
     await legacyDatabase.customUpdate(
       "UPDATE usage_buckets SET domain_key = '1.1.1.1'",
     );
+    await legacyDatabase.customStatement('DROP INDEX usage_bucket_source_minute');
+    for (final column in ['source_id', 'node_id', 'policy_id']) {
+      await legacyDatabase.customStatement('ALTER TABLE usage_buckets DROP COLUMN $column');
+    }
     await legacyDatabase.close();
 
     final upgradedDatabase = UsageDatabase(NativeDatabase(file));
@@ -322,6 +360,25 @@ void main() {
     expect(await upgradedDatabase.domainTargets(filter, ''), [
       const UsageRankingItem(key: '1.1.1.1', label: '1.1.1.1', download: 9),
     ]);
+  });
+
+  test('schema 4 upgrade keeps old attribution unknown and preserves byte totals', () async {
+    final directory = await Directory.systemTemp.createTemp('flclash-usage-v4-');
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File('${directory.path}/usage.sqlite');
+    final legacy = _UsageDatabaseV4(NativeDatabase(file));
+    await legacy.ingest(batch());
+    await legacy.customStatement('DROP INDEX usage_bucket_source_minute');
+    for (final column in ['source_id', 'node_id', 'policy_id']) {
+      await legacy.customStatement('ALTER TABLE usage_buckets DROP COLUMN $column');
+    }
+    await legacy.close();
+    final upgraded = UsageDatabase(NativeDatabase(file));
+    addTearDown(upgraded.close);
+    expect(await upgraded.summary(filter), const UsageSummary(upload: 12, download: 34, connections: 1));
+    expect(await upgraded.sourceTotals(start: filter.start, end: filter.end), isEmpty);
+    final rows = await upgraded.select(upgraded.usageBuckets).get();
+    expect(rows.every((row) => row.sourceId.isEmpty && row.nodeId.isEmpty && row.policyId.isEmpty), true);
   });
 
   test('today proxy summary uses the lightweight daily aggregate', () async {
@@ -514,14 +571,13 @@ void main() {
 
   test('cleans details and ingest markers older than 90 days', () async {
     await database.ingest(batch().copyWith(degraded: true));
-    await (database.update(database.usageIngestSessions)..where(
-          (table) => table.sessionId.equals('session-a'),
-        ))
-        .write(
-          UsageIngestSessionsCompanion(
-            updatedAt: Value(DateTime.utc(2026, 8, 14, 10)),
-          ),
-        );
+    await (database.update(
+      database.usageIngestSessions,
+    )..where((table) => table.sessionId.equals('session-a'))).write(
+      UsageIngestSessionsCompanion(
+        updatedAt: Value(DateTime.utc(2026, 8, 14, 10)),
+      ),
+    );
 
     await database.cleanup(now: DateTime.utc(2026, 11, 13, 10));
 
@@ -536,4 +592,10 @@ class _UsageDatabaseV3 extends UsageDatabase {
 
   @override
   int get schemaVersion => 3;
+}
+
+class _UsageDatabaseV4 extends UsageDatabase {
+  _UsageDatabaseV4(super.executor);
+  @override
+  int get schemaVersion => 4;
 }

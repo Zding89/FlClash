@@ -76,9 +76,10 @@ class ProxiesAction extends _$ProxiesAction {
     required String groupName,
     required String proxyName,
   }) async {
-    await coreController.changeProxy(
+    final error = await coreController.changeProxy(
       ChangeProxyParams(groupName: groupName, proxyName: proxyName),
     );
+    if (error.isNotEmpty) throw StateError(error);
     if (ref.read(appSettingProvider).closeConnections) {
       await coreController.closeConnections();
     } else {

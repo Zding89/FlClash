@@ -83,9 +83,45 @@ mixin CoreInterface {
   Future<UsageBatch?> readUsageBatch();
 
   Future<bool> ackUsageBatch(UsageBatchAck ack);
+
+  Future<Map<String, Object?>> getLocalPolicyStatus();
+  Future<Map<String, Object?>> simulateLocalPolicies(
+    Map<String, Object?> input,
+  );
+  Future<String> refreshLocalPolicySource(Map<String, Object?> input);
 }
 
 abstract class CoreHandlerInterface with CoreInterface {
+  @override
+  Future<String> refreshLocalPolicySource(Map<String, Object?> input) async =>
+      await _invokeMethod<String>(
+        method: CoreMethod.refreshLocalPolicySource,
+        arguments: input,
+      ) ??
+      'local_policy_source_unavailable';
+
+  @override
+  Future<Map<String, Object?>> getLocalPolicyStatus() async {
+    final result = await _invokeMethod<Map>(
+      method: CoreMethod.getLocalPolicyStatus,
+    );
+    return result == null
+        ? <String, Object?>{}
+        : Map<String, Object?>.from(result);
+  }
+
+  @override
+  Future<Map<String, Object?>> simulateLocalPolicies(
+    Map<String, Object?> input,
+  ) async {
+    final result = await _invokeMethod<Map>(
+      method: CoreMethod.simulateLocalPolicies,
+      arguments: input,
+    );
+    if (result == null) throw StateError('local_policy_simulation_unavailable');
+    return Map<String, Object?>.from(result);
+  }
+
   Future<T?> _invokeMethod<T>({
     required CoreMethod method,
     Object? arguments,
@@ -93,9 +129,7 @@ abstract class CoreHandlerInterface with CoreInterface {
   }) async {
     return await utils.handleWatch(
       onStart: () {
-        commonPrint.log(
-          'Invoke method ${method.name} ${DateTime.now()} $arguments',
-        );
+        commonPrint.log('Invoke method ${method.name} ${DateTime.now()}');
       },
       function: () async {
         return invokeMethod<T>(

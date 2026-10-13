@@ -63,15 +63,18 @@ class MessageLookup extends MessageLookupByLibrary {
 
   static String m20(label) => "${label}は数字でなければなりません";
 
-  static String m21(label) => "${label} は 1024 から 49151 の間でなければなりません";
+  static String m21(option) =>
+      "未対応のソース設定：${option}。ローカル制御を適用していません。この設定を先に削除してください。";
 
-  static String m22(count) => "${count} 秒";
+  static String m22(label) => "${label} は 1024 から 49151 の間でなければなりません";
 
-  static String m23(count) => "${count} 項目が選択されています";
+  static String m23(count) => "${count} 秒";
 
-  static String m24(label) => "${label}はURLである必要があります";
+  static String m24(count) => "${count} 項目が選択されています";
 
-  static String m25(count) => "${count}年前";
+  static String m25(label) => "${label}はURLである必要があります";
+
+  static String m26(count) => "${count}年前";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
   static Map<String, Function> _notInlinedMessages(_) => <String, Function>{
@@ -109,6 +112,144 @@ class MessageLookup extends MessageLookupByLibrary {
     "advancedConfig": MessageLookupByLibrary.simpleMessage("高度な設定"),
     "advancedConfigDesc": MessageLookupByLibrary.simpleMessage("多様な設定を提供"),
     "agree": MessageLookupByLibrary.simpleMessage("同意"),
+    "aiAddConnection": MessageLookupByLibrary.simpleMessage("接続を追加"),
+    "aiAdvanced": MessageLookupByLibrary.simpleMessage("リクエスト制限"),
+    "aiAfter": MessageLookupByLibrary.simpleMessage("変更後"),
+    "aiApiProtocol": MessageLookupByLibrary.simpleMessage("API プロトコル"),
+    "aiApprovalTitle": MessageLookupByLibrary.simpleMessage("設定変更を確認"),
+    "aiApprove": MessageLookupByLibrary.simpleMessage("承認して適用"),
+    "aiApproveScriptExecution": MessageLookupByLibrary.simpleMessage(
+      "プレビュー実行を承認",
+    ),
+    "aiAssistantRole": MessageLookupByLibrary.simpleMessage("アシスタント"),
+    "aiAssistantTitle": MessageLookupByLibrary.simpleMessage("AI アシスタント"),
+    "aiAuthFailed": MessageLookupByLibrary.simpleMessage(
+      "認証失敗。この接続先のキーを確認してください",
+    ),
+    "aiBaseUrl": MessageLookupByLibrary.simpleMessage("サービス URL"),
+    "aiBefore": MessageLookupByLibrary.simpleMessage("変更前"),
+    "aiCancelled": MessageLookupByLibrary.simpleMessage("停止しました"),
+    "aiChinaApi": MessageLookupByLibrary.simpleMessage("中国 API"),
+    "aiChinaCoding": MessageLookupByLibrary.simpleMessage("中国 Coding プラン"),
+    "aiClearConversation": MessageLookupByLibrary.simpleMessage("会話を消去"),
+    "aiCodingPlan": MessageLookupByLibrary.simpleMessage("Coding プラン"),
+    "aiConnection": MessageLookupByLibrary.simpleMessage("モデル接続"),
+    "aiCredentialRecoveryFailed": MessageLookupByLibrary.simpleMessage(
+      "キーの復元に失敗しました。使用前に再設定してください",
+    ),
+    "aiCredentialUnavailable": MessageLookupByLibrary.simpleMessage(
+      "キーチェーンにアクセスできません。システムの確認画面を確認してください",
+    ),
+    "aiCustomProvider": MessageLookupByLibrary.simpleMessage("カスタム互換サービス"),
+    "aiDeleteConnection": MessageLookupByLibrary.simpleMessage("接続を削除"),
+    "aiDeleteKey": MessageLookupByLibrary.simpleMessage("キーを削除"),
+    "aiDeleteKeyHint": MessageLookupByLibrary.simpleMessage(
+      "キーを削除すると AI タスクを中止します。ローカルポリシーは継続します",
+    ),
+    "aiDisabled": MessageLookupByLibrary.simpleMessage("AI アシスタントは無効です"),
+    "aiEditConnection": MessageLookupByLibrary.simpleMessage("接続を編集"),
+    "aiEmptyConversation": MessageLookupByLibrary.simpleMessage(
+      "現在の設定を確認して、変更をプレビューできます",
+    ),
+    "aiEnable": MessageLookupByLibrary.simpleMessage("AI アシスタントを有効化"),
+    "aiEnableHint": MessageLookupByLibrary.simpleMessage(
+      "送信時のみモデルを呼び出します。ローカルポリシーは独立して動作します",
+    ),
+    "aiFinalConfigDifferences": MessageLookupByLibrary.simpleMessage(
+      "検証済みの最終設定差分",
+    ),
+    "aiGlobalApi": MessageLookupByLibrary.simpleMessage("グローバル API"),
+    "aiGlobalCoding": MessageLookupByLibrary.simpleMessage("グローバル Coding プラン"),
+    "aiHighRisk": MessageLookupByLibrary.simpleMessage(
+      "ネットワーク、設定、プライバシーに影響します。確認してください",
+    ),
+    "aiHistoryLimit": MessageLookupByLibrary.simpleMessage(
+      "会話の上限に達しました。消去して再開してください",
+    ),
+    "aiHostUnavailable": MessageLookupByLibrary.simpleMessage(
+      "AI 実行コンポーネントがありません。対応する macOS ビルドを使用してください",
+    ),
+    "aiInvalidConnection": MessageLookupByLibrary.simpleMessage(
+      "名前、モデル、URL、制限を確認してください",
+    ),
+    "aiKey": MessageLookupByLibrary.simpleMessage("API キー"),
+    "aiKeyHide": MessageLookupByLibrary.simpleMessage("キーを非表示"),
+    "aiKeyMissing": MessageLookupByLibrary.simpleMessage("先にこの接続のキーを保存してください"),
+    "aiKeyRequired": MessageLookupByLibrary.simpleMessage(
+      "このエンドポイントの API キーを入力",
+    ),
+    "aiKeyShow": MessageLookupByLibrary.simpleMessage("キーを表示"),
+    "aiKeyStored": MessageLookupByLibrary.simpleMessage("キーチェーンに保存済み。空欄で保持"),
+    "aiMaxTokens": MessageLookupByLibrary.simpleMessage("最大出力トークン"),
+    "aiModel": MessageLookupByLibrary.simpleMessage("モデル ID"),
+    "aiNoConnection": MessageLookupByLibrary.simpleMessage("接続を追加して会話を開始"),
+    "aiNoDifferences": MessageLookupByLibrary.simpleMessage("適用する変更はありません"),
+    "aiPresetDefault": MessageLookupByLibrary.simpleMessage("空欄で既定の URL を使用"),
+    "aiPromptHint": MessageLookupByLibrary.simpleMessage("確認・変更したい設定を入力…"),
+    "aiProvider": MessageLookupByLibrary.simpleMessage("プロバイダーとエンドポイント"),
+    "aiQuotaExceeded": MessageLookupByLibrary.simpleMessage(
+      "残高・利用枠不足。アカウントを確認してください",
+    ),
+    "aiRateLimited": MessageLookupByLibrary.simpleMessage(
+      "リクエスト制限に達しました。後で再試行してください",
+    ),
+    "aiReject": MessageLookupByLibrary.simpleMessage("拒否"),
+    "aiRequestFailed": MessageLookupByLibrary.simpleMessage(
+      "リクエスト失敗。接続を確認するか後で再試行してください",
+    ),
+    "aiResourceActivationArtifactMissing": MessageLookupByLibrary.simpleMessage(
+      "承認済み設定を利用できません。変更を再作成して承認してください。",
+    ),
+    "aiResourcePanelRequired": MessageLookupByLibrary.simpleMessage(
+      "続行するにはローカル画面でファイルまたは保存先を選択してください。",
+    ),
+    "aiResourceScopeChanged": MessageLookupByLibrary.simpleMessage(
+      "提案を開いている間にリソースが変更されました。新しい提案を作成してください。",
+    ),
+    "aiResourceUpdateAccepted": MessageLookupByLibrary.simpleMessage(
+      "更新リクエストを受け付けました。完了はローカル Core が確認します。",
+    ),
+    "aiSaveFailed": MessageLookupByLibrary.simpleMessage(
+      "保存に失敗しました。接続とキーの復元を試みました。確認して再試行してください",
+    ),
+    "aiSaved": MessageLookupByLibrary.simpleMessage("接続を保存しました"),
+    "aiScriptExecutionOnly": MessageLookupByLibrary.simpleMessage(
+      "今回は制限環境でのスクリプト実行とプレビュー生成のみ承認します。適用には最終差分の再確認が必要です。",
+    ),
+    "aiScriptRuntimeUnavailable": MessageLookupByLibrary.simpleMessage(
+      "同梱のスクリプト実行環境を利用できません。実行前にアプリを再インストールしてください。",
+    ),
+    "aiScriptSandboxRejected": MessageLookupByLibrary.simpleMessage(
+      "ローカルの隔離制限によりスクリプトの実行を停止しました。",
+    ),
+    "aiSelectConnection": MessageLookupByLibrary.simpleMessage("この接続を使用"),
+    "aiSelected": MessageLookupByLibrary.simpleMessage("現在の接続"),
+    "aiSend": MessageLookupByLibrary.simpleMessage("送信"),
+    "aiSettingsTitle": MessageLookupByLibrary.simpleMessage("AI 接続とモデル"),
+    "aiStop": MessageLookupByLibrary.simpleMessage("停止"),
+    "aiTargetChanged": MessageLookupByLibrary.simpleMessage(
+      "接続先が変更されました。新しい接続先のキーを再入力",
+    ),
+    "aiTestConnection": MessageLookupByLibrary.simpleMessage("接続とツールをテスト"),
+    "aiTestPartial": MessageLookupByLibrary.simpleMessage(
+      "ストリームとツールのテストが未完了です。Agent 対応は未確認",
+    ),
+    "aiTestPassed": MessageLookupByLibrary.simpleMessage(
+      "認証、テキストストリーム、ツール呼び出し成功",
+    ),
+    "aiTesting": MessageLookupByLibrary.simpleMessage("接続を検証中…"),
+    "aiTestingCharges": MessageLookupByLibrary.simpleMessage(
+      "テストは選択したモデルを呼び出し、利用料が発生する場合があります",
+    ),
+    "aiThinking": MessageLookupByLibrary.simpleMessage("分析中…"),
+    "aiTimedOut": MessageLookupByLibrary.simpleMessage("モデルリクエストがタイムアウトしました"),
+    "aiTimeout": MessageLookupByLibrary.simpleMessage("タイムアウト（秒）"),
+    "aiToolWorking": MessageLookupByLibrary.simpleMessage("アプリのコマンドを実行中…"),
+    "aiUsageClearIrreversible": MessageLookupByLibrary.simpleMessage(
+      "使用量履歴の削除は取り消せません。ソースの上限カウンターは保持されます。",
+    ),
+    "aiUseProxy": MessageLookupByLibrary.simpleMessage("現在のプロキシでモデルに接続"),
+    "aiYou": MessageLookupByLibrary.simpleMessage("あなた"),
     "allTraffic": MessageLookupByLibrary.simpleMessage("すべて"),
     "allowBypass": MessageLookupByLibrary.simpleMessage("アプリがVPNをバイパスすることを許可"),
     "allowBypassDesc": MessageLookupByLibrary.simpleMessage(
@@ -436,6 +577,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "loading": MessageLookupByLibrary.simpleMessage("読み込み中..."),
     "local": MessageLookupByLibrary.simpleMessage("ローカル"),
     "localBackupDesc": MessageLookupByLibrary.simpleMessage("ローカルにデータをバックアップ"),
+    "localPolicies": MessageLookupByLibrary.simpleMessage("ローカルルール"),
     "localUsageNotice": MessageLookupByLibrary.simpleMessage(
       "ローカル記録であり、請求精度を保証しません",
     ),
@@ -556,9 +698,171 @@ class MessageLookup extends MessageLookupByLibrary {
     "pleaseUploadValidQrcode": MessageLookupByLibrary.simpleMessage(
       "有効なQRコードをアップロードしてください",
     ),
+    "policyActiveIntegration": MessageLookupByLibrary.simpleMessage("使用する統合"),
+    "policyAddBudget": MessageLookupByLibrary.simpleMessage("予算を追加"),
+    "policyAddIntegration": MessageLookupByLibrary.simpleMessage("統合を作成"),
+    "policyAddRule": MessageLookupByLibrary.simpleMessage("ルールを追加"),
+    "policyAdmission": MessageLookupByLibrary.simpleMessage("有効期限と残量"),
+    "policyAdvancedJson": MessageLookupByLibrary.simpleMessage("詳細 JSON"),
+    "policyAppliedStatus": MessageLookupByLibrary.simpleMessage("適用済み"),
+    "policyAssumeHealthy": MessageLookupByLibrary.simpleMessage("全候補を正常と仮定"),
+    "policyAutoRecover": MessageLookupByLibrary.simpleMessage("優先ノードへ自動復帰"),
+    "policyBudgetGiB": MessageLookupByLibrary.simpleMessage("ローカル上限（GiB）"),
+    "policyBudgetHint": MessageLookupByLibrary.simpleMessage(
+      "この端末の FlClash 通信量のみ集計。アカウント全体や厳密な上限ではありません",
+    ),
+    "policyBudgetTab": MessageLookupByLibrary.simpleMessage("予算"),
+    "policyCandidateHint": MessageLookupByLibrary.simpleMessage(
+      "このリスト内のノードのみ、指定順に選択します",
+    ),
+    "policyCandidates": MessageLookupByLibrary.simpleMessage("ノードの順序"),
+    "policyCooldownSeconds": MessageLookupByLibrary.simpleMessage("切替間隔（秒）"),
+    "policyCoreStopped": MessageLookupByLibrary.simpleMessage(
+      "Core が停止中。ポリシーは実行されません",
+    ),
+    "policyDeleteLinked": MessageLookupByLibrary.simpleMessage(
+      "ルールから参照されています。先にルールを変更してください",
+    ),
+    "policyDomainKeyword": MessageLookupByLibrary.simpleMessage("ドメインキーワード"),
+    "policyDomainScope": MessageLookupByLibrary.simpleMessage("完全一致のドメイン"),
+    "policyDomainSuffix": MessageLookupByLibrary.simpleMessage("ドメイン末尾"),
+    "policyDraftStatus": MessageLookupByLibrary.simpleMessage("確認待ち"),
+    "policyEditIntegration": MessageLookupByLibrary.simpleMessage("統合を編集"),
+    "policyEditRule": MessageLookupByLibrary.simpleMessage("ルールを編集"),
+    "policyEligible": MessageLookupByLibrary.simpleMessage("現在の条件に適合"),
+    "policyEmptyBudgets": MessageLookupByLibrary.simpleMessage("ローカル予算がありません"),
+    "policyEmptyHistory": MessageLookupByLibrary.simpleMessage("変更履歴がありません"),
+    "policyEmptyIntegrations": MessageLookupByLibrary.simpleMessage("統合がありません"),
+    "policyEmptyRules": MessageLookupByLibrary.simpleMessage("ローカルルールがありません"),
+    "policyEnableBudgets": MessageLookupByLibrary.simpleMessage("ローカル予算を有効化"),
+    "policyEnableIntegrations": MessageLookupByLibrary.simpleMessage("統合を有効化"),
+    "policyEnableRules": MessageLookupByLibrary.simpleMessage("ローカルルールを有効化"),
+    "policyEndTime": MessageLookupByLibrary.simpleMessage("終了時刻（HH:mm）"),
+    "policyExcluded": MessageLookupByLibrary.simpleMessage("現在の条件に不適合"),
+    "policyExcludedNodes": MessageLookupByLibrary.simpleMessage("除外するノード"),
+    "policyExpectedStatus": MessageLookupByLibrary.simpleMessage(
+      "有効な HTTP ステータス",
+    ),
+    "policyExpiryMargin": MessageLookupByLibrary.simpleMessage("期限前に除外（時間）"),
+    "policyFailures": MessageLookupByLibrary.simpleMessage("連続失敗回数"),
+    "policyFallback": MessageLookupByLibrary.simpleMessage("候補がない場合"),
+    "policyFallbackDirect": MessageLookupByLibrary.simpleMessage("直接接続を許可"),
+    "policyFallbackReject": MessageLookupByLibrary.simpleMessage("接続を拒否"),
+    "policyGlobalScope": MessageLookupByLibrary.simpleMessage("すべての通信"),
+    "policyGroupScope": MessageLookupByLibrary.simpleMessage("既存のグループ"),
+    "policyHistoryTab": MessageLookupByLibrary.simpleMessage("履歴"),
+    "policyIntegrationHint": MessageLookupByLibrary.simpleMessage(
+      "元の購読を保持し、選択したソースを別設定に統合します",
+    ),
+    "policyIntegrationTab": MessageLookupByLibrary.simpleMessage("統合"),
+    "policyInvalidData": MessageLookupByLibrary.simpleMessage(
+      "項目、順序、参照が不正です。確認してください",
+    ),
+    "policyJsonHint": MessageLookupByLibrary.simpleMessage(
+      "現行スキーマのみ対応。不正な項目・参照は適用できません",
+    ),
+    "policyLedgerUntrusted": MessageLookupByLibrary.simpleMessage(
+      "台帳を確認できないためソースを制限",
+    ),
+    "policyLoadNodes": MessageLookupByLibrary.simpleMessage("利用可能なノードを読み込む"),
+    "policyMatchAll": MessageLookupByLibrary.simpleMessage("全条件（詳細）"),
+    "policyMatchAny": MessageLookupByLibrary.simpleMessage("いずれか（詳細）"),
+    "policyMatchNot": MessageLookupByLibrary.simpleMessage("否定条件（詳細）"),
+    "policyMetadataAge": MessageLookupByLibrary.simpleMessage("メタデータの有効時間（時間）"),
+    "policyMissingNode": MessageLookupByLibrary.simpleMessage("ノードがありません"),
+    "policyMoveDown": MessageLookupByLibrary.simpleMessage("下へ"),
+    "policyMoveUp": MessageLookupByLibrary.simpleMessage("上へ"),
+    "policyNameFilter": MessageLookupByLibrary.simpleMessage("ノード名に含む文字（任意）"),
+    "policyNodes": MessageLookupByLibrary.simpleMessage("ノード"),
+    "policyNotCollected": MessageLookupByLibrary.simpleMessage("未収集"),
+    "policyOperationFailed": MessageLookupByLibrary.simpleMessage(
+      "操作が未完了です。状態を確認してください",
+    ),
+    "policyOverrideMinutes": MessageLookupByLibrary.simpleMessage("有効な分数"),
+    "policyPreparingStatus": MessageLookupByLibrary.simpleMessage("処理中"),
+    "policyPriority": MessageLookupByLibrary.simpleMessage("優先度（小さい順）"),
+    "policyProbe": MessageLookupByLibrary.simpleMessage("死活確認"),
+    "policyProbeInterval": MessageLookupByLibrary.simpleMessage("確認間隔（秒）"),
+    "policyProbeTimeout": MessageLookupByLibrary.simpleMessage("確認タイムアウト（秒）"),
+    "policyProbeUrl": MessageLookupByLibrary.simpleMessage("確認 URL"),
+    "policyProcessName": MessageLookupByLibrary.simpleMessage("プロセス名"),
+    "policyProcessPath": MessageLookupByLibrary.simpleMessage("プロセスのパス"),
+    "policyRecovery": MessageLookupByLibrary.simpleMessage("復旧とクールダウン"),
+    "policyRecoverySeconds": MessageLookupByLibrary.simpleMessage("復旧確認時間（秒）"),
+    "policyRecoveryStatus": MessageLookupByLibrary.simpleMessage("復元が必要"),
+    "policyRejectedStatus": MessageLookupByLibrary.simpleMessage("拒否済み"),
+    "policyRemainingGiB": MessageLookupByLibrary.simpleMessage("残量の下限（GiB）"),
+    "policyRemoveCandidate": MessageLookupByLibrary.simpleMessage("候補を削除"),
+    "policyRemoveOverride": MessageLookupByLibrary.simpleMessage("一時指定を解除"),
+    "policyResetDay": MessageLookupByLibrary.simpleMessage("月次リセット日（1–28）"),
+    "policyRestoredStatus": MessageLookupByLibrary.simpleMessage("復元済み"),
+    "policyRulesHint": MessageLookupByLibrary.simpleMessage(
+      "指定順に利用可能なノードを選択します。AI は呼び出しません",
+    ),
+    "policyRulesTab": MessageLookupByLibrary.simpleMessage("ルール"),
+    "policyRuntimeState": MessageLookupByLibrary.simpleMessage("実行状態"),
+    "policySaved": MessageLookupByLibrary.simpleMessage("保存・適用しました"),
+    "policySchedule": MessageLookupByLibrary.simpleMessage("有効時間"),
+    "policyScheduleEnabled": MessageLookupByLibrary.simpleMessage("有効時間を制限"),
+    "policyScheduleHint": MessageLookupByLibrary.simpleMessage(
+      "北京時間を使用。日をまたぐ時間帯は分割してください",
+    ),
+    "policyScope": MessageLookupByLibrary.simpleMessage("適用範囲"),
+    "policyScopeValues": MessageLookupByLibrary.simpleMessage(
+      "ドメイン、グループ、プロセスを各行に入力",
+    ),
+    "policySearchNodes": MessageLookupByLibrary.simpleMessage("ノードやソースを検索"),
+    "policySelectedNode": MessageLookupByLibrary.simpleMessage("現在のノード"),
+    "policySimulation": MessageLookupByLibrary.simpleMessage("ポリシーシミュレーション"),
+    "policySimulationCoreRequired": MessageLookupByLibrary.simpleMessage(
+      "シミュレーションには稼働中のプロキシコアが必要です",
+    ),
+    "policySimulationHint": MessageLookupByLibrary.simpleMessage(
+      "現在のソース、稼働状況、使用量から予測します。シナリオ手順で検査、待機、復旧の時間経過を確認できます。実際の検査や設定変更は行いません。",
+    ),
+    "policySimulationSteps": MessageLookupByLibrary.simpleMessage(
+      "シナリオ手順（高度な JSON）",
+    ),
+    "policySimulationStepsHint": MessageLookupByLibrary.simpleMessage(
+      "最大32手順。at はミリ秒、probes は nodeId と success、sources はメタデータ、usage はソース別使用バイト数です。実際の検査や設定変更は行いません。",
+    ),
+    "policySimulationTimeline": MessageLookupByLibrary.simpleMessage(
+      "候補の切り替え履歴",
+    ),
+    "policySources": MessageLookupByLibrary.simpleMessage("元のソース"),
+    "policyStartTime": MessageLookupByLibrary.simpleMessage("開始時刻（HH:mm）"),
+    "policySuccesses": MessageLookupByLibrary.simpleMessage("連続成功回数"),
+    "policySupersededStatus": MessageLookupByLibrary.simpleMessage("後続の変更で置換"),
+    "policyTarget": MessageLookupByLibrary.simpleMessage("対象設定"),
+    "policyTemporaryOverride": MessageLookupByLibrary.simpleMessage("一時的な指定"),
+    "policyTerminate": MessageLookupByLibrary.simpleMessage("ソース除外時に関連接続を終了"),
+    "policyTerminateHint": MessageLookupByLibrary.simpleMessage(
+      "既存の接続を切断します。適用前に確認が必要です",
+    ),
+    "policyUndo": MessageLookupByLibrary.simpleMessage("この変更を元に戻す"),
+    "policyUnknownHealth": MessageLookupByLibrary.simpleMessage("死活状態が不明"),
+    "policyUnknownMetadata": MessageLookupByLibrary.simpleMessage(
+      "不明なソース情報を除外",
+    ),
+    "policyUnsupportedSourceOption": m21,
+    "policyUpdateProxyUnavailable": MessageLookupByLibrary.simpleMessage(
+      "プロキシを利用できないため更新を停止しました。起動するか、直接更新を明示的に選択してください。",
+    ),
+    "policyUpdateRoute": MessageLookupByLibrary.simpleMessage("サブスクリプション更新経路"),
+    "policyUpdateRouteDirect": MessageLookupByLibrary.simpleMessage("直接接続"),
+    "policyUpdateRouteHint": MessageLookupByLibrary.simpleMessage(
+      "ローカルポリシー、統合、予算の有効時に使用します。プロキシ停止中は更新しません。直接接続には確認が必要です。",
+    ),
+    "policyUpdateRouteProxy": MessageLookupByLibrary.simpleMessage(
+      "現在のプロキシを使用",
+    ),
+    "policyUsage": MessageLookupByLibrary.simpleMessage("ローカル使用量"),
+    "policyViewChanges": MessageLookupByLibrary.simpleMessage("差分を見る"),
+    "policyWeekdays": MessageLookupByLibrary.simpleMessage("曜日（1=月、7=日）"),
+    "policyWorkbenchTitle": MessageLookupByLibrary.simpleMessage("ローカルポリシー"),
     "port": MessageLookupByLibrary.simpleMessage("ポート"),
     "portConflictTip": MessageLookupByLibrary.simpleMessage("別のポートを入力してください"),
-    "portTip": m21,
+    "portTip": m22,
     "preferH3Desc": MessageLookupByLibrary.simpleMessage("DOHのHTTP/3を優先使用"),
     "prerequisites": MessageLookupByLibrary.simpleMessage("Prerequisites"),
     "pressKeyboard": MessageLookupByLibrary.simpleMessage("キーボードを押してください"),
@@ -785,7 +1089,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "search": MessageLookupByLibrary.simpleMessage("検索"),
     "seconds": MessageLookupByLibrary.simpleMessage("秒"),
-    "secondsCount": m22,
+    "secondsCount": m23,
     "selectAll": MessageLookupByLibrary.simpleMessage("すべて選択"),
     "selectProxies": MessageLookupByLibrary.simpleMessage("プロキシを選択"),
     "selectProxyProviders": MessageLookupByLibrary.simpleMessage(
@@ -797,7 +1101,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "selectSubRule": MessageLookupByLibrary.simpleMessage("サブルールを選択してください"),
     "selected": MessageLookupByLibrary.simpleMessage("選択済み"),
-    "selectedCountTitle": m23,
+    "selectedCountTitle": m24,
     "settings": MessageLookupByLibrary.simpleMessage("設定"),
     "show": MessageLookupByLibrary.simpleMessage("表示"),
     "shrink": MessageLookupByLibrary.simpleMessage("縮小"),
@@ -893,7 +1197,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "upload": MessageLookupByLibrary.simpleMessage("アップロード"),
     "url": MessageLookupByLibrary.simpleMessage("URL"),
     "urlDesc": MessageLookupByLibrary.simpleMessage("URL経由でプロファイルを取得"),
-    "urlTip": m24,
+    "urlTip": m25,
     "usage": MessageLookupByLibrary.simpleMessage("使用量"),
     "usageApplications": MessageLookupByLibrary.simpleMessage("アプリ"),
     "usageConnections": MessageLookupByLibrary.simpleMessage("接続数"),
@@ -944,7 +1248,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "vpnTip": MessageLookupByLibrary.simpleMessage("変更はVPN再起動後に有効"),
     "webDAVConfiguration": MessageLookupByLibrary.simpleMessage("WebDAV設定"),
     "whitelistMode": MessageLookupByLibrary.simpleMessage("ホワイトリストモード"),
-    "yearsAgo": m25,
+    "yearsAgo": m26,
     "zh_CN": MessageLookupByLibrary.simpleMessage("簡体字中国語"),
   };
 }

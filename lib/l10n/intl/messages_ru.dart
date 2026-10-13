@@ -69,15 +69,18 @@ class MessageLookup extends MessageLookupByLibrary {
 
   static String m20(label) => "${label} должно быть числом";
 
-  static String m21(label) => "${label} должен быть числом от 1024 до 49151";
+  static String m21(option) =>
+      "Источник использует неподдерживаемый параметр: ${option}. Локальные ограничения не применены; сначала удалите этот параметр.";
 
-  static String m22(count) => "${count} секунд";
+  static String m22(label) => "${label} должен быть числом от 1024 до 49151";
 
-  static String m23(count) => "Выбрано ${count} элементов";
+  static String m23(count) => "${count} секунд";
 
-  static String m24(label) => "${label} должен быть URL";
+  static String m24(count) => "Выбрано ${count} элементов";
 
-  static String m25(count) =>
+  static String m25(label) => "${label} должен быть URL";
+
+  static String m26(count) =>
       "${Intl.plural(count, one: '${count} год назад', few: '${count} года назад', many: '${count} лет назад', other: '${count} года назад')}";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
@@ -130,6 +133,184 @@ class MessageLookup extends MessageLookupByLibrary {
       "Предоставляет разнообразные варианты конфигурации",
     ),
     "agree": MessageLookupByLibrary.simpleMessage("Согласен"),
+    "aiAddConnection": MessageLookupByLibrary.simpleMessage(
+      "Добавить подключение",
+    ),
+    "aiAdvanced": MessageLookupByLibrary.simpleMessage("Ограничения запросов"),
+    "aiAfter": MessageLookupByLibrary.simpleMessage("После"),
+    "aiApiProtocol": MessageLookupByLibrary.simpleMessage("Протокол API"),
+    "aiApprovalTitle": MessageLookupByLibrary.simpleMessage(
+      "Подтвердите изменения",
+    ),
+    "aiApprove": MessageLookupByLibrary.simpleMessage(
+      "Подтвердить и применить",
+    ),
+    "aiApproveScriptExecution": MessageLookupByLibrary.simpleMessage(
+      "Разрешить выполнение для предпросмотра",
+    ),
+    "aiAssistantRole": MessageLookupByLibrary.simpleMessage("Помощник"),
+    "aiAssistantTitle": MessageLookupByLibrary.simpleMessage("ИИ-помощник"),
+    "aiAuthFailed": MessageLookupByLibrary.simpleMessage(
+      "Ошибка авторизации. Проверьте ключ для этого адреса",
+    ),
+    "aiBaseUrl": MessageLookupByLibrary.simpleMessage("Адрес сервиса"),
+    "aiBefore": MessageLookupByLibrary.simpleMessage("До"),
+    "aiCancelled": MessageLookupByLibrary.simpleMessage("Остановлено"),
+    "aiChinaApi": MessageLookupByLibrary.simpleMessage("API Китая"),
+    "aiChinaCoding": MessageLookupByLibrary.simpleMessage("Coding-тариф Китая"),
+    "aiClearConversation": MessageLookupByLibrary.simpleMessage(
+      "Очистить диалог",
+    ),
+    "aiCodingPlan": MessageLookupByLibrary.simpleMessage("Coding-тариф"),
+    "aiConnection": MessageLookupByLibrary.simpleMessage("Подключение"),
+    "aiCredentialRecoveryFailed": MessageLookupByLibrary.simpleMessage(
+      "Восстановить ключ не удалось. Настройте его заново перед использованием",
+    ),
+    "aiCredentialUnavailable": MessageLookupByLibrary.simpleMessage(
+      "Связка ключей недоступна. Проверьте системный запрос доступа",
+    ),
+    "aiCustomProvider": MessageLookupByLibrary.simpleMessage(
+      "Совместимый сервис",
+    ),
+    "aiDeleteConnection": MessageLookupByLibrary.simpleMessage(
+      "Удалить подключение",
+    ),
+    "aiDeleteKey": MessageLookupByLibrary.simpleMessage("Удалить ключ"),
+    "aiDeleteKeyHint": MessageLookupByLibrary.simpleMessage(
+      "Удаление ключа отменит задачу ИИ; локальные политики продолжат работу",
+    ),
+    "aiDisabled": MessageLookupByLibrary.simpleMessage("ИИ-помощник выключен"),
+    "aiEditConnection": MessageLookupByLibrary.simpleMessage(
+      "Изменить подключение",
+    ),
+    "aiEmptyConversation": MessageLookupByLibrary.simpleMessage(
+      "Проверьте текущую конфигурацию и просмотрите изменения",
+    ),
+    "aiEnable": MessageLookupByLibrary.simpleMessage("Включить ИИ-помощника"),
+    "aiEnableHint": MessageLookupByLibrary.simpleMessage(
+      "Модель вызывается только при отправке сообщения; локальные политики работают независимо",
+    ),
+    "aiFinalConfigDifferences": MessageLookupByLibrary.simpleMessage(
+      "Проверенные изменения итоговой конфигурации",
+    ),
+    "aiGlobalApi": MessageLookupByLibrary.simpleMessage("Глобальный API"),
+    "aiGlobalCoding": MessageLookupByLibrary.simpleMessage(
+      "Глобальный Coding-тариф",
+    ),
+    "aiHighRisk": MessageLookupByLibrary.simpleMessage(
+      "Изменение затронет сеть, конфигурацию или конфиденциальность. Проверьте его",
+    ),
+    "aiHistoryLimit": MessageLookupByLibrary.simpleMessage(
+      "Достигнут лимит диалога. Очистите его для продолжения",
+    ),
+    "aiHostUnavailable": MessageLookupByLibrary.simpleMessage(
+      "Среда ИИ недоступна. Используйте сборку macOS с этим компонентом",
+    ),
+    "aiInvalidConnection": MessageLookupByLibrary.simpleMessage(
+      "Проверьте имя, модель, адрес и ограничения",
+    ),
+    "aiKey": MessageLookupByLibrary.simpleMessage("API-ключ"),
+    "aiKeyHide": MessageLookupByLibrary.simpleMessage("Скрыть ключ"),
+    "aiKeyMissing": MessageLookupByLibrary.simpleMessage(
+      "Сначала сохраните ключ для подключения",
+    ),
+    "aiKeyRequired": MessageLookupByLibrary.simpleMessage(
+      "Введите API-ключ для этого адреса",
+    ),
+    "aiKeyShow": MessageLookupByLibrary.simpleMessage("Показать ключ"),
+    "aiKeyStored": MessageLookupByLibrary.simpleMessage(
+      "Сохранён в Связке ключей; оставьте пустым для сохранения",
+    ),
+    "aiMaxTokens": MessageLookupByLibrary.simpleMessage(
+      "Максимум выходных токенов",
+    ),
+    "aiModel": MessageLookupByLibrary.simpleMessage("ID модели"),
+    "aiNoConnection": MessageLookupByLibrary.simpleMessage(
+      "Добавьте подключение для начала диалога",
+    ),
+    "aiNoDifferences": MessageLookupByLibrary.simpleMessage(
+      "Нет изменений для применения",
+    ),
+    "aiPresetDefault": MessageLookupByLibrary.simpleMessage(
+      "Пустое поле — адрес по умолчанию",
+    ),
+    "aiPromptHint": MessageLookupByLibrary.simpleMessage(
+      "Опишите, что проверить или изменить…",
+    ),
+    "aiProvider": MessageLookupByLibrary.simpleMessage("Провайдер и адрес"),
+    "aiQuotaExceeded": MessageLookupByLibrary.simpleMessage(
+      "Квота исчерпана. Проверьте аккаунт провайдера",
+    ),
+    "aiRateLimited": MessageLookupByLibrary.simpleMessage(
+      "Слишком много запросов. Повторите позже",
+    ),
+    "aiReject": MessageLookupByLibrary.simpleMessage("Отклонить"),
+    "aiRequestFailed": MessageLookupByLibrary.simpleMessage(
+      "Ошибка запроса. Проверьте подключение или повторите позже",
+    ),
+    "aiResourceActivationArtifactMissing": MessageLookupByLibrary.simpleMessage(
+      "Одобренная конфигурация недоступна. Подготовьте и одобрите изменение заново.",
+    ),
+    "aiResourcePanelRequired": MessageLookupByLibrary.simpleMessage(
+      "Выберите файл или папку назначения в локальной панели, чтобы продолжить.",
+    ),
+    "aiResourceScopeChanged": MessageLookupByLibrary.simpleMessage(
+      "Ресурс изменился, пока предложение было открыто. Подготовьте новое предложение.",
+    ),
+    "aiResourceUpdateAccepted": MessageLookupByLibrary.simpleMessage(
+      "Запрос обновления принят. Локальное ядро подтвердит завершение.",
+    ),
+    "aiSaveFailed": MessageLookupByLibrary.simpleMessage(
+      "Сохранение не удалось. Предпринято восстановление подключения и ключа; проверьте перед повтором",
+    ),
+    "aiSaved": MessageLookupByLibrary.simpleMessage("Подключение сохранено"),
+    "aiScriptExecutionOnly": MessageLookupByLibrary.simpleMessage(
+      "Разрешается только выполнение скрипта в ограниченной среде для предпросмотра. Применение результата потребует отдельного подтверждения.",
+    ),
+    "aiScriptRuntimeUnavailable": MessageLookupByLibrary.simpleMessage(
+      "Встроенная среда скриптов недоступна. Переустановите приложение перед запуском скриптов.",
+    ),
+    "aiScriptSandboxRejected": MessageLookupByLibrary.simpleMessage(
+      "Выполнение скрипта остановлено локальными ограничениями изоляции.",
+    ),
+    "aiSelectConnection": MessageLookupByLibrary.simpleMessage(
+      "Использовать подключение",
+    ),
+    "aiSelected": MessageLookupByLibrary.simpleMessage("Выбрано"),
+    "aiSend": MessageLookupByLibrary.simpleMessage("Отправить"),
+    "aiSettingsTitle": MessageLookupByLibrary.simpleMessage("Подключения ИИ"),
+    "aiStop": MessageLookupByLibrary.simpleMessage("Остановить"),
+    "aiTargetChanged": MessageLookupByLibrary.simpleMessage(
+      "Адрес изменён. Введите ключ для нового сервиса",
+    ),
+    "aiTestConnection": MessageLookupByLibrary.simpleMessage(
+      "Проверить подключение и инструменты",
+    ),
+    "aiTestPartial": MessageLookupByLibrary.simpleMessage(
+      "Проверка потока и инструмента не завершена; работа агента не подтверждена",
+    ),
+    "aiTestPassed": MessageLookupByLibrary.simpleMessage(
+      "Авторизация, поток текста и вызов инструмента проверены",
+    ),
+    "aiTesting": MessageLookupByLibrary.simpleMessage("Проверка подключения…"),
+    "aiTestingCharges": MessageLookupByLibrary.simpleMessage(
+      "Тест вызывает выбранную модель и может расходовать платную квоту",
+    ),
+    "aiThinking": MessageLookupByLibrary.simpleMessage("Анализ…"),
+    "aiTimedOut": MessageLookupByLibrary.simpleMessage(
+      "Истёк тайм-аут запроса модели",
+    ),
+    "aiTimeout": MessageLookupByLibrary.simpleMessage("Тайм-аут (секунды)"),
+    "aiToolWorking": MessageLookupByLibrary.simpleMessage(
+      "Выполнение команды приложения…",
+    ),
+    "aiUsageClearIrreversible": MessageLookupByLibrary.simpleMessage(
+      "Удаление истории использования нельзя отменить. Счетчики лимитов источников сохранятся.",
+    ),
+    "aiUseProxy": MessageLookupByLibrary.simpleMessage(
+      "Использовать текущий прокси",
+    ),
+    "aiYou": MessageLookupByLibrary.simpleMessage("Вы"),
     "allTraffic": MessageLookupByLibrary.simpleMessage("Весь"),
     "allowBypass": MessageLookupByLibrary.simpleMessage(
       "Разрешить приложениям обходить VPN",
@@ -577,6 +758,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "localBackupDesc": MessageLookupByLibrary.simpleMessage(
       "Резервное копирование локальных данных на локальный диск",
     ),
+    "localPolicies": MessageLookupByLibrary.simpleMessage("Локальные правила"),
     "localUsageNotice": MessageLookupByLibrary.simpleMessage(
       "Локальная запись, не для точного биллинга",
     ),
@@ -737,11 +919,299 @@ class MessageLookup extends MessageLookupByLibrary {
     "pleaseUploadValidQrcode": MessageLookupByLibrary.simpleMessage(
       "Пожалуйста, загрузите действительный QR-код",
     ),
+    "policyActiveIntegration": MessageLookupByLibrary.simpleMessage(
+      "Активное объединение",
+    ),
+    "policyAddBudget": MessageLookupByLibrary.simpleMessage("Добавить лимит"),
+    "policyAddIntegration": MessageLookupByLibrary.simpleMessage(
+      "Создать объединение",
+    ),
+    "policyAddRule": MessageLookupByLibrary.simpleMessage("Добавить правило"),
+    "policyAdmission": MessageLookupByLibrary.simpleMessage(
+      "Срок действия и остаток квоты",
+    ),
+    "policyAdvancedJson": MessageLookupByLibrary.simpleMessage(
+      "Расширенный JSON",
+    ),
+    "policyAppliedStatus": MessageLookupByLibrary.simpleMessage("Применено"),
+    "policyAssumeHealthy": MessageLookupByLibrary.simpleMessage(
+      "Считать все узлы доступными",
+    ),
+    "policyAutoRecover": MessageLookupByLibrary.simpleMessage(
+      "Возвращаться к более приоритетному узлу",
+    ),
+    "policyBudgetGiB": MessageLookupByLibrary.simpleMessage(
+      "Лимит устройства (GiB)",
+    ),
+    "policyBudgetHint": MessageLookupByLibrary.simpleMessage(
+      "Учитывается только трафик FlClash этого устройства, не весь аккаунт и не точный побайтовый лимит",
+    ),
+    "policyBudgetTab": MessageLookupByLibrary.simpleMessage("Лимиты"),
+    "policyCandidateHint": MessageLookupByLibrary.simpleMessage(
+      "Выбираются только эти узлы и в указанном порядке",
+    ),
+    "policyCandidates": MessageLookupByLibrary.simpleMessage(
+      "Точный порядок узлов",
+    ),
+    "policyCooldownSeconds": MessageLookupByLibrary.simpleMessage(
+      "Пауза между переключениями (секунды)",
+    ),
+    "policyCoreStopped": MessageLookupByLibrary.simpleMessage(
+      "Core остановлен; политики не выполняются",
+    ),
+    "policyDeleteLinked": MessageLookupByLibrary.simpleMessage(
+      "Объединение используется правилами. Сначала измените их",
+    ),
+    "policyDomainKeyword": MessageLookupByLibrary.simpleMessage(
+      "Ключевое слово домена",
+    ),
+    "policyDomainScope": MessageLookupByLibrary.simpleMessage("Точный домен"),
+    "policyDomainSuffix": MessageLookupByLibrary.simpleMessage(
+      "Суффикс домена",
+    ),
+    "policyDraftStatus": MessageLookupByLibrary.simpleMessage(
+      "Ожидает подтверждения",
+    ),
+    "policyEditIntegration": MessageLookupByLibrary.simpleMessage(
+      "Изменить объединение",
+    ),
+    "policyEditRule": MessageLookupByLibrary.simpleMessage("Изменить правило"),
+    "policyEligible": MessageLookupByLibrary.simpleMessage("Подходит сейчас"),
+    "policyEmptyBudgets": MessageLookupByLibrary.simpleMessage(
+      "Нет лимитов источников",
+    ),
+    "policyEmptyHistory": MessageLookupByLibrary.simpleMessage(
+      "Нет истории изменений",
+    ),
+    "policyEmptyIntegrations": MessageLookupByLibrary.simpleMessage(
+      "Нет объединений",
+    ),
+    "policyEmptyRules": MessageLookupByLibrary.simpleMessage(
+      "Нет локальных правил",
+    ),
+    "policyEnableBudgets": MessageLookupByLibrary.simpleMessage(
+      "Включить лимиты источников",
+    ),
+    "policyEnableIntegrations": MessageLookupByLibrary.simpleMessage(
+      "Включить объединение",
+    ),
+    "policyEnableRules": MessageLookupByLibrary.simpleMessage(
+      "Включить локальные правила",
+    ),
+    "policyEndTime": MessageLookupByLibrary.simpleMessage("Окончание (HH:mm)"),
+    "policyExcluded": MessageLookupByLibrary.simpleMessage("Исключён сейчас"),
+    "policyExcludedNodes": MessageLookupByLibrary.simpleMessage(
+      "Исключённые узлы",
+    ),
+    "policyExpectedStatus": MessageLookupByLibrary.simpleMessage(
+      "Ожидаемый статус HTTP",
+    ),
+    "policyExpiryMargin": MessageLookupByLibrary.simpleMessage(
+      "Исключать до истечения (часы)",
+    ),
+    "policyFailures": MessageLookupByLibrary.simpleMessage("Ошибок подряд"),
+    "policyFallback": MessageLookupByLibrary.simpleMessage(
+      "Если подходящих узлов нет",
+    ),
+    "policyFallbackDirect": MessageLookupByLibrary.simpleMessage(
+      "Разрешить прямое соединение",
+    ),
+    "policyFallbackReject": MessageLookupByLibrary.simpleMessage(
+      "Блокировать соединения",
+    ),
+    "policyGlobalScope": MessageLookupByLibrary.simpleMessage("Весь трафик"),
+    "policyGroupScope": MessageLookupByLibrary.simpleMessage(
+      "Существующая группа",
+    ),
+    "policyHistoryTab": MessageLookupByLibrary.simpleMessage("История"),
+    "policyIntegrationHint": MessageLookupByLibrary.simpleMessage(
+      "Исходные подписки сохраняются; выбранные источники объединяются в отдельную конфигурацию",
+    ),
+    "policyIntegrationTab": MessageLookupByLibrary.simpleMessage("Объединение"),
+    "policyInvalidData": MessageLookupByLibrary.simpleMessage(
+      "Неверные поля, порядок или ссылки. Проверьте их",
+    ),
+    "policyJsonHint": MessageLookupByLibrary.simpleMessage(
+      "Принимается только текущая схема; неверные поля и ссылки не применяются",
+    ),
+    "policyLedgerUntrusted": MessageLookupByLibrary.simpleMessage(
+      "Учёт недостоверен; источник ограничен",
+    ),
+    "policyLoadNodes": MessageLookupByLibrary.simpleMessage(
+      "Загрузить доступные узлы",
+    ),
+    "policyMatchAll": MessageLookupByLibrary.simpleMessage(
+      "Все условия (расширенно)",
+    ),
+    "policyMatchAny": MessageLookupByLibrary.simpleMessage(
+      "Любое условие (расширенно)",
+    ),
+    "policyMatchNot": MessageLookupByLibrary.simpleMessage(
+      "Отрицание (расширенно)",
+    ),
+    "policyMetadataAge": MessageLookupByLibrary.simpleMessage(
+      "Срок актуальности данных (часы)",
+    ),
+    "policyMissingNode": MessageLookupByLibrary.simpleMessage(
+      "Узел отсутствует",
+    ),
+    "policyMoveDown": MessageLookupByLibrary.simpleMessage("Вниз"),
+    "policyMoveUp": MessageLookupByLibrary.simpleMessage("Вверх"),
+    "policyNameFilter": MessageLookupByLibrary.simpleMessage(
+      "Имя узла содержит (необязательно)",
+    ),
+    "policyNodes": MessageLookupByLibrary.simpleMessage("Узлы"),
+    "policyNotCollected": MessageLookupByLibrary.simpleMessage(
+      "Данные не собраны",
+    ),
+    "policyOperationFailed": MessageLookupByLibrary.simpleMessage(
+      "Операция не завершена. Проверьте состояние",
+    ),
+    "policyOverrideMinutes": MessageLookupByLibrary.simpleMessage(
+      "Срок в минутах",
+    ),
+    "policyPreparingStatus": MessageLookupByLibrary.simpleMessage("Обработка"),
+    "policyPriority": MessageLookupByLibrary.simpleMessage(
+      "Приоритет (меньший первым)",
+    ),
+    "policyProbe": MessageLookupByLibrary.simpleMessage("Проверка доступности"),
+    "policyProbeInterval": MessageLookupByLibrary.simpleMessage(
+      "Интервал (секунды)",
+    ),
+    "policyProbeTimeout": MessageLookupByLibrary.simpleMessage(
+      "Тайм-аут (секунды)",
+    ),
+    "policyProbeUrl": MessageLookupByLibrary.simpleMessage("Адрес проверки"),
+    "policyProcessName": MessageLookupByLibrary.simpleMessage("Имя процесса"),
+    "policyProcessPath": MessageLookupByLibrary.simpleMessage("Путь процесса"),
+    "policyRecovery": MessageLookupByLibrary.simpleMessage(
+      "Восстановление и пауза",
+    ),
+    "policyRecoverySeconds": MessageLookupByLibrary.simpleMessage(
+      "Наблюдение восстановления (секунды)",
+    ),
+    "policyRecoveryStatus": MessageLookupByLibrary.simpleMessage(
+      "Требуется восстановление",
+    ),
+    "policyRejectedStatus": MessageLookupByLibrary.simpleMessage("Отклонено"),
+    "policyRemainingGiB": MessageLookupByLibrary.simpleMessage(
+      "Минимальный остаток (GiB)",
+    ),
+    "policyRemoveCandidate": MessageLookupByLibrary.simpleMessage(
+      "Убрать узел",
+    ),
+    "policyRemoveOverride": MessageLookupByLibrary.simpleMessage(
+      "Убрать временный выбор",
+    ),
+    "policyResetDay": MessageLookupByLibrary.simpleMessage(
+      "День сброса (1–28)",
+    ),
+    "policyRestoredStatus": MessageLookupByLibrary.simpleMessage(
+      "Восстановлено",
+    ),
+    "policyRulesHint": MessageLookupByLibrary.simpleMessage(
+      "Выбор доступных узлов в указанном порядке, без вызова ИИ",
+    ),
+    "policyRulesTab": MessageLookupByLibrary.simpleMessage("Правила"),
+    "policyRuntimeState": MessageLookupByLibrary.simpleMessage("Состояние"),
+    "policySaved": MessageLookupByLibrary.simpleMessage(
+      "Сохранено и применено",
+    ),
+    "policySchedule": MessageLookupByLibrary.simpleMessage("Расписание"),
+    "policyScheduleEnabled": MessageLookupByLibrary.simpleMessage(
+      "Ограничить часы работы",
+    ),
+    "policyScheduleHint": MessageLookupByLibrary.simpleMessage(
+      "Используйте время Пекина; ночной период разделите на два окна",
+    ),
+    "policyScope": MessageLookupByLibrary.simpleMessage("Область действия"),
+    "policyScopeValues": MessageLookupByLibrary.simpleMessage(
+      "Один домен, группа или процесс в строке",
+    ),
+    "policySearchNodes": MessageLookupByLibrary.simpleMessage(
+      "Поиск узлов и источников",
+    ),
+    "policySelectedNode": MessageLookupByLibrary.simpleMessage(
+      "Выбранный узел",
+    ),
+    "policySimulation": MessageLookupByLibrary.simpleMessage(
+      "Моделирование политик",
+    ),
+    "policySimulationCoreRequired": MessageLookupByLibrary.simpleMessage(
+      "Для моделирования нужно запущенное ядро прокси",
+    ),
+    "policySimulationHint": MessageLookupByLibrary.simpleMessage(
+      "Прогноз по текущим источникам, состоянию и использованию; шаги сценария показывают проверки, паузы и восстановление. Реальные проверки и запись конфигурации не выполняются.",
+    ),
+    "policySimulationSteps": MessageLookupByLibrary.simpleMessage(
+      "Шаги сценария (расширенный JSON)",
+    ),
+    "policySimulationStepsHint": MessageLookupByLibrary.simpleMessage(
+      "До 32 шагов: at — время в миллисекундах; probes — nodeId и success; sources — метаданные; usage — использованные байты по источникам. Проверки и запись конфигурации не выполняются.",
+    ),
+    "policySimulationTimeline": MessageLookupByLibrary.simpleMessage(
+      "Временная шкала смены кандидатов",
+    ),
+    "policySources": MessageLookupByLibrary.simpleMessage("Источники"),
+    "policyStartTime": MessageLookupByLibrary.simpleMessage("Начало (HH:mm)"),
+    "policySuccesses": MessageLookupByLibrary.simpleMessage(
+      "Успешных проверок подряд",
+    ),
+    "policySupersededStatus": MessageLookupByLibrary.simpleMessage(
+      "Заменено последующим изменением",
+    ),
+    "policyTarget": MessageLookupByLibrary.simpleMessage(
+      "Целевая конфигурация",
+    ),
+    "policyTemporaryOverride": MessageLookupByLibrary.simpleMessage(
+      "Временный выбор",
+    ),
+    "policyTerminate": MessageLookupByLibrary.simpleMessage(
+      "Завершать связанные соединения при исключении",
+    ),
+    "policyTerminateHint": MessageLookupByLibrary.simpleMessage(
+      "Это прервёт существующие соединения и требует подтверждения",
+    ),
+    "policyUndo": MessageLookupByLibrary.simpleMessage("Отменить изменение"),
+    "policyUnknownHealth": MessageLookupByLibrary.simpleMessage(
+      "Доступность неизвестна",
+    ),
+    "policyUnknownMetadata": MessageLookupByLibrary.simpleMessage(
+      "Исключать источники с неизвестными данными",
+    ),
+    "policyUnsupportedSourceOption": m21,
+    "policyUpdateProxyUnavailable": MessageLookupByLibrary.simpleMessage(
+      "Прокси недоступен. Запустите его или явно выберите прямое обновление подписок.",
+    ),
+    "policyUpdateRoute": MessageLookupByLibrary.simpleMessage(
+      "Маршрут обновления подписок",
+    ),
+    "policyUpdateRouteDirect": MessageLookupByLibrary.simpleMessage(
+      "Прямое соединение",
+    ),
+    "policyUpdateRouteHint": MessageLookupByLibrary.simpleMessage(
+      "Действует при включённых локальных политиках, объединении или бюджетах. Недоступный прокси останавливает обновления; прямой доступ требует подтверждения.",
+    ),
+    "policyUpdateRouteProxy": MessageLookupByLibrary.simpleMessage(
+      "Через текущий прокси",
+    ),
+    "policyUsage": MessageLookupByLibrary.simpleMessage(
+      "Использовано устройством",
+    ),
+    "policyViewChanges": MessageLookupByLibrary.simpleMessage(
+      "Просмотреть изменения",
+    ),
+    "policyWeekdays": MessageLookupByLibrary.simpleMessage(
+      "Дни (1=понедельник, 7=воскресенье)",
+    ),
+    "policyWorkbenchTitle": MessageLookupByLibrary.simpleMessage(
+      "Локальные политики",
+    ),
     "port": MessageLookupByLibrary.simpleMessage("Порт"),
     "portConflictTip": MessageLookupByLibrary.simpleMessage(
       "Введите другой порт",
     ),
-    "portTip": m21,
+    "portTip": m22,
     "preferH3Desc": MessageLookupByLibrary.simpleMessage(
       "Приоритетное использование HTTP/3 для DOH",
     ),
@@ -1018,7 +1488,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "search": MessageLookupByLibrary.simpleMessage("Поиск"),
     "seconds": MessageLookupByLibrary.simpleMessage("Секунд"),
-    "secondsCount": m22,
+    "secondsCount": m23,
     "selectAll": MessageLookupByLibrary.simpleMessage("Выбрать все"),
     "selectProxies": MessageLookupByLibrary.simpleMessage("Выбрать прокси"),
     "selectProxyProviders": MessageLookupByLibrary.simpleMessage(
@@ -1034,7 +1504,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Пожалуйста, выберите подправило",
     ),
     "selected": MessageLookupByLibrary.simpleMessage("Выбрано"),
-    "selectedCountTitle": m23,
+    "selectedCountTitle": m24,
     "settings": MessageLookupByLibrary.simpleMessage("Настройки"),
     "show": MessageLookupByLibrary.simpleMessage("Показать"),
     "shrink": MessageLookupByLibrary.simpleMessage("Сжать"),
@@ -1174,7 +1644,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "urlDesc": MessageLookupByLibrary.simpleMessage(
       "Получить профиль через URL",
     ),
-    "urlTip": m24,
+    "urlTip": m25,
     "usage": MessageLookupByLibrary.simpleMessage("Расход"),
     "usageApplications": MessageLookupByLibrary.simpleMessage("Приложения"),
     "usageConnections": MessageLookupByLibrary.simpleMessage("Соединения"),
@@ -1237,7 +1707,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "whitelistMode": MessageLookupByLibrary.simpleMessage(
       "Режим белого списка",
     ),
-    "yearsAgo": m25,
+    "yearsAgo": m26,
     "zh_CN": MessageLookupByLibrary.simpleMessage("Упрощенный китайский"),
   };
 }

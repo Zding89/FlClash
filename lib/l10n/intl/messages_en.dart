@@ -70,15 +70,18 @@ class MessageLookup extends MessageLookupByLibrary {
 
   static String m20(label) => "${label} must be a number";
 
-  static String m21(label) => "${label} must be between 1024 and 49151";
+  static String m21(option) =>
+      "This source uses an unsupported option: ${option}. Local controls were not applied; remove this option first.";
 
-  static String m22(count) => "${count} seconds";
+  static String m22(label) => "${label} must be between 1024 and 49151";
 
-  static String m23(count) => "${count} items have been selected";
+  static String m23(count) => "${count} seconds";
 
-  static String m24(label) => "${label} must be a url";
+  static String m24(count) => "${count} items have been selected";
 
-  static String m25(count) =>
+  static String m25(label) => "${label} must be a url";
+
+  static String m26(count) =>
       "${Intl.plural(count, one: '1 year ago', other: '${count} years ago')}";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
@@ -131,6 +134,182 @@ class MessageLookup extends MessageLookupByLibrary {
       "Provide diverse configuration options",
     ),
     "agree": MessageLookupByLibrary.simpleMessage("Agree"),
+    "aiAddConnection": MessageLookupByLibrary.simpleMessage("Add connection"),
+    "aiAdvanced": MessageLookupByLibrary.simpleMessage("Request limits"),
+    "aiAfter": MessageLookupByLibrary.simpleMessage("After"),
+    "aiApiProtocol": MessageLookupByLibrary.simpleMessage("API protocol"),
+    "aiApprovalTitle": MessageLookupByLibrary.simpleMessage(
+      "Review configuration changes",
+    ),
+    "aiApprove": MessageLookupByLibrary.simpleMessage("Approve and apply"),
+    "aiApproveScriptExecution": MessageLookupByLibrary.simpleMessage(
+      "Authorize preview execution",
+    ),
+    "aiAssistantRole": MessageLookupByLibrary.simpleMessage("Assistant"),
+    "aiAssistantTitle": MessageLookupByLibrary.simpleMessage("AI assistant"),
+    "aiAuthFailed": MessageLookupByLibrary.simpleMessage(
+      "Authentication failed. Check the key for this endpoint",
+    ),
+    "aiBaseUrl": MessageLookupByLibrary.simpleMessage("Base URL"),
+    "aiBefore": MessageLookupByLibrary.simpleMessage("Before"),
+    "aiCancelled": MessageLookupByLibrary.simpleMessage("Stopped"),
+    "aiChinaApi": MessageLookupByLibrary.simpleMessage("China API"),
+    "aiChinaCoding": MessageLookupByLibrary.simpleMessage("China coding plan"),
+    "aiClearConversation": MessageLookupByLibrary.simpleMessage(
+      "Clear conversation",
+    ),
+    "aiCodingPlan": MessageLookupByLibrary.simpleMessage("Coding plan"),
+    "aiConnection": MessageLookupByLibrary.simpleMessage("Connection"),
+    "aiCredentialRecoveryFailed": MessageLookupByLibrary.simpleMessage(
+      "Key recovery failed. Configure the key again before use",
+    ),
+    "aiCredentialUnavailable": MessageLookupByLibrary.simpleMessage(
+      "Keychain is unavailable. Check the system access prompt",
+    ),
+    "aiCustomProvider": MessageLookupByLibrary.simpleMessage(
+      "Custom compatible service",
+    ),
+    "aiDeleteConnection": MessageLookupByLibrary.simpleMessage(
+      "Delete connection",
+    ),
+    "aiDeleteKey": MessageLookupByLibrary.simpleMessage("Delete key"),
+    "aiDeleteKeyHint": MessageLookupByLibrary.simpleMessage(
+      "Deleting the key cancels the AI task; local policies continue",
+    ),
+    "aiDisabled": MessageLookupByLibrary.simpleMessage(
+      "AI assistant is disabled",
+    ),
+    "aiEditConnection": MessageLookupByLibrary.simpleMessage("Edit connection"),
+    "aiEmptyConversation": MessageLookupByLibrary.simpleMessage(
+      "Inspect the current configuration, then preview changes",
+    ),
+    "aiEnable": MessageLookupByLibrary.simpleMessage("Enable AI assistant"),
+    "aiEnableHint": MessageLookupByLibrary.simpleMessage(
+      "Models run only when you send a message; local policies run independently",
+    ),
+    "aiFinalConfigDifferences": MessageLookupByLibrary.simpleMessage(
+      "Validated final configuration changes",
+    ),
+    "aiGlobalApi": MessageLookupByLibrary.simpleMessage("Global API"),
+    "aiGlobalCoding": MessageLookupByLibrary.simpleMessage(
+      "Global coding plan",
+    ),
+    "aiHighRisk": MessageLookupByLibrary.simpleMessage(
+      "This change affects networking, configuration or privacy. Review before approving",
+    ),
+    "aiHistoryLimit": MessageLookupByLibrary.simpleMessage(
+      "Conversation limit reached. Clear it to start again",
+    ),
+    "aiHostUnavailable": MessageLookupByLibrary.simpleMessage(
+      "AI runtime is unavailable. Use a macOS build containing it",
+    ),
+    "aiInvalidConnection": MessageLookupByLibrary.simpleMessage(
+      "Check name, model, URL and request limits",
+    ),
+    "aiKey": MessageLookupByLibrary.simpleMessage("API key"),
+    "aiKeyHide": MessageLookupByLibrary.simpleMessage("Hide key"),
+    "aiKeyMissing": MessageLookupByLibrary.simpleMessage(
+      "Save a key for this connection first",
+    ),
+    "aiKeyRequired": MessageLookupByLibrary.simpleMessage(
+      "Enter an API key for this endpoint",
+    ),
+    "aiKeyShow": MessageLookupByLibrary.simpleMessage("Show key"),
+    "aiKeyStored": MessageLookupByLibrary.simpleMessage(
+      "Stored in Keychain; leave blank to keep",
+    ),
+    "aiMaxTokens": MessageLookupByLibrary.simpleMessage(
+      "Maximum output tokens",
+    ),
+    "aiModel": MessageLookupByLibrary.simpleMessage("Model ID"),
+    "aiNoConnection": MessageLookupByLibrary.simpleMessage(
+      "Add a connection to start chatting",
+    ),
+    "aiNoDifferences": MessageLookupByLibrary.simpleMessage(
+      "No changes to apply",
+    ),
+    "aiPresetDefault": MessageLookupByLibrary.simpleMessage(
+      "Leave blank for preset URL",
+    ),
+    "aiPromptHint": MessageLookupByLibrary.simpleMessage(
+      "Describe what to inspect or change…",
+    ),
+    "aiProvider": MessageLookupByLibrary.simpleMessage("Provider and endpoint"),
+    "aiQuotaExceeded": MessageLookupByLibrary.simpleMessage(
+      "Quota exceeded. Check your provider account",
+    ),
+    "aiRateLimited": MessageLookupByLibrary.simpleMessage(
+      "Rate limit reached. Retry later",
+    ),
+    "aiReject": MessageLookupByLibrary.simpleMessage("Reject"),
+    "aiRequestFailed": MessageLookupByLibrary.simpleMessage(
+      "Request failed. Check the connection or retry later",
+    ),
+    "aiResourceActivationArtifactMissing": MessageLookupByLibrary.simpleMessage(
+      "The approved configuration is unavailable. Prepare and approve the change again.",
+    ),
+    "aiResourcePanelRequired": MessageLookupByLibrary.simpleMessage(
+      "Choose the file or destination in the local panel to continue.",
+    ),
+    "aiResourceScopeChanged": MessageLookupByLibrary.simpleMessage(
+      "This resource changed while the proposal was open. Prepare a new proposal.",
+    ),
+    "aiResourceUpdateAccepted": MessageLookupByLibrary.simpleMessage(
+      "The update request was accepted. Completion will be confirmed by the local Core.",
+    ),
+    "aiSaveFailed": MessageLookupByLibrary.simpleMessage(
+      "Save failed. Connection and key recovery was attempted; check before retrying",
+    ),
+    "aiSaved": MessageLookupByLibrary.simpleMessage("Connection saved"),
+    "aiScriptExecutionOnly": MessageLookupByLibrary.simpleMessage(
+      "This authorizes restricted script execution for a preview only. Applying the final result requires another approval.",
+    ),
+    "aiScriptRuntimeUnavailable": MessageLookupByLibrary.simpleMessage(
+      "The packaged script runtime is unavailable. Reinstall the application before running scripts.",
+    ),
+    "aiScriptSandboxRejected": MessageLookupByLibrary.simpleMessage(
+      "Script execution was stopped by the local isolation limits.",
+    ),
+    "aiSelectConnection": MessageLookupByLibrary.simpleMessage(
+      "Use connection",
+    ),
+    "aiSelected": MessageLookupByLibrary.simpleMessage("Selected"),
+    "aiSend": MessageLookupByLibrary.simpleMessage("Send"),
+    "aiSettingsTitle": MessageLookupByLibrary.simpleMessage("AI connections"),
+    "aiStop": MessageLookupByLibrary.simpleMessage("Stop"),
+    "aiTargetChanged": MessageLookupByLibrary.simpleMessage(
+      "Endpoint changed. Re-enter the key for this destination",
+    ),
+    "aiTestConnection": MessageLookupByLibrary.simpleMessage(
+      "Test connection and tools",
+    ),
+    "aiTestPartial": MessageLookupByLibrary.simpleMessage(
+      "Streaming and tool tests were incomplete; agent support is unverified",
+    ),
+    "aiTestPassed": MessageLookupByLibrary.simpleMessage(
+      "Authentication, text streaming and tools passed",
+    ),
+    "aiTesting": MessageLookupByLibrary.simpleMessage("Testing connection…"),
+    "aiTestingCharges": MessageLookupByLibrary.simpleMessage(
+      "Testing calls the selected model and may incur provider charges",
+    ),
+    "aiThinking": MessageLookupByLibrary.simpleMessage("Thinking…"),
+    "aiTimedOut": MessageLookupByLibrary.simpleMessage(
+      "Model request timed out",
+    ),
+    "aiTimeout": MessageLookupByLibrary.simpleMessage(
+      "Request timeout (seconds)",
+    ),
+    "aiToolWorking": MessageLookupByLibrary.simpleMessage(
+      "Running app command…",
+    ),
+    "aiUsageClearIrreversible": MessageLookupByLibrary.simpleMessage(
+      "Clearing usage history cannot be undone. Source budget accounting will be retained.",
+    ),
+    "aiUseProxy": MessageLookupByLibrary.simpleMessage(
+      "Use current proxy for model requests",
+    ),
+    "aiYou": MessageLookupByLibrary.simpleMessage("You"),
     "allTraffic": MessageLookupByLibrary.simpleMessage("All"),
     "allowBypass": MessageLookupByLibrary.simpleMessage(
       "Allow applications to bypass VPN",
@@ -556,6 +735,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "localBackupDesc": MessageLookupByLibrary.simpleMessage(
       "Backup local data to local",
     ),
+    "localPolicies": MessageLookupByLibrary.simpleMessage("Local policies"),
     "localUsageNotice": MessageLookupByLibrary.simpleMessage(
       "Recorded locally; not billing-grade data",
     ),
@@ -700,11 +880,291 @@ class MessageLookup extends MessageLookupByLibrary {
     "pleaseUploadValidQrcode": MessageLookupByLibrary.simpleMessage(
       "Please upload a valid QR code",
     ),
+    "policyActiveIntegration": MessageLookupByLibrary.simpleMessage(
+      "Active integration",
+    ),
+    "policyAddBudget": MessageLookupByLibrary.simpleMessage("Add budget"),
+    "policyAddIntegration": MessageLookupByLibrary.simpleMessage(
+      "Create integration",
+    ),
+    "policyAddRule": MessageLookupByLibrary.simpleMessage("Add rule"),
+    "policyAdmission": MessageLookupByLibrary.simpleMessage(
+      "Expiry and remaining quota",
+    ),
+    "policyAdvancedJson": MessageLookupByLibrary.simpleMessage(
+      "Advanced structured JSON",
+    ),
+    "policyAppliedStatus": MessageLookupByLibrary.simpleMessage("Applied"),
+    "policyAssumeHealthy": MessageLookupByLibrary.simpleMessage(
+      "Assume all candidates healthy",
+    ),
+    "policyAutoRecover": MessageLookupByLibrary.simpleMessage(
+      "Recover to a higher-priority node",
+    ),
+    "policyBudgetGiB": MessageLookupByLibrary.simpleMessage(
+      "Local budget (GiB)",
+    ),
+    "policyBudgetHint": MessageLookupByLibrary.simpleMessage(
+      "Counts this device’s FlClash traffic only; not account-wide usage or a byte-exact cap",
+    ),
+    "policyBudgetTab": MessageLookupByLibrary.simpleMessage("Budgets"),
+    "policyCandidateHint": MessageLookupByLibrary.simpleMessage(
+      "Only these nodes are considered, in order",
+    ),
+    "policyCandidates": MessageLookupByLibrary.simpleMessage(
+      "Exact candidate order",
+    ),
+    "policyCooldownSeconds": MessageLookupByLibrary.simpleMessage(
+      "Switch cooldown (seconds)",
+    ),
+    "policyCoreStopped": MessageLookupByLibrary.simpleMessage(
+      "Core stopped; policies are not running",
+    ),
+    "policyDeleteLinked": MessageLookupByLibrary.simpleMessage(
+      "Integration is referenced by rules. Update them first",
+    ),
+    "policyDomainKeyword": MessageLookupByLibrary.simpleMessage(
+      "Domain keyword",
+    ),
+    "policyDomainScope": MessageLookupByLibrary.simpleMessage("Exact domain"),
+    "policyDomainSuffix": MessageLookupByLibrary.simpleMessage("Domain suffix"),
+    "policyDraftStatus": MessageLookupByLibrary.simpleMessage(
+      "Pending approval",
+    ),
+    "policyEditIntegration": MessageLookupByLibrary.simpleMessage(
+      "Edit integration",
+    ),
+    "policyEditRule": MessageLookupByLibrary.simpleMessage("Edit rule"),
+    "policyEligible": MessageLookupByLibrary.simpleMessage("Eligible now"),
+    "policyEmptyBudgets": MessageLookupByLibrary.simpleMessage(
+      "No local source budgets yet",
+    ),
+    "policyEmptyHistory": MessageLookupByLibrary.simpleMessage(
+      "No change history yet",
+    ),
+    "policyEmptyIntegrations": MessageLookupByLibrary.simpleMessage(
+      "No integrations yet",
+    ),
+    "policyEmptyRules": MessageLookupByLibrary.simpleMessage(
+      "No local rules yet",
+    ),
+    "policyEnableBudgets": MessageLookupByLibrary.simpleMessage(
+      "Enable local source budgets",
+    ),
+    "policyEnableIntegrations": MessageLookupByLibrary.simpleMessage(
+      "Enable integration",
+    ),
+    "policyEnableRules": MessageLookupByLibrary.simpleMessage(
+      "Enable local rules",
+    ),
+    "policyEndTime": MessageLookupByLibrary.simpleMessage("End time (HH:mm)"),
+    "policyExcluded": MessageLookupByLibrary.simpleMessage("Excluded now"),
+    "policyExcludedNodes": MessageLookupByLibrary.simpleMessage(
+      "Excluded nodes",
+    ),
+    "policyExpectedStatus": MessageLookupByLibrary.simpleMessage(
+      "Expected HTTP status",
+    ),
+    "policyExpiryMargin": MessageLookupByLibrary.simpleMessage(
+      "Exclude before expiry (hours)",
+    ),
+    "policyFailures": MessageLookupByLibrary.simpleMessage(
+      "Consecutive failures",
+    ),
+    "policyFallback": MessageLookupByLibrary.simpleMessage(
+      "When no candidate qualifies",
+    ),
+    "policyFallbackDirect": MessageLookupByLibrary.simpleMessage(
+      "Allow direct connection",
+    ),
+    "policyFallbackReject": MessageLookupByLibrary.simpleMessage(
+      "Reject connections",
+    ),
+    "policyGlobalScope": MessageLookupByLibrary.simpleMessage("All traffic"),
+    "policyGroupScope": MessageLookupByLibrary.simpleMessage(
+      "Existing proxy group",
+    ),
+    "policyHistoryTab": MessageLookupByLibrary.simpleMessage("History"),
+    "policyIntegrationHint": MessageLookupByLibrary.simpleMessage(
+      "Original subscriptions remain; selected sources form a separate configuration",
+    ),
+    "policyIntegrationTab": MessageLookupByLibrary.simpleMessage(
+      "Integrations",
+    ),
+    "policyInvalidData": MessageLookupByLibrary.simpleMessage(
+      "Invalid fields, order or references. Check and retry",
+    ),
+    "policyJsonHint": MessageLookupByLibrary.simpleMessage(
+      "Only the current schema is accepted; invalid fields or references cannot be applied",
+    ),
+    "policyLedgerUntrusted": MessageLookupByLibrary.simpleMessage(
+      "Ledger untrusted; source restricted",
+    ),
+    "policyLoadNodes": MessageLookupByLibrary.simpleMessage(
+      "Load available nodes",
+    ),
+    "policyMatchAll": MessageLookupByLibrary.simpleMessage(
+      "All conditions (advanced)",
+    ),
+    "policyMatchAny": MessageLookupByLibrary.simpleMessage(
+      "Any condition (advanced)",
+    ),
+    "policyMatchNot": MessageLookupByLibrary.simpleMessage(
+      "Negated condition (advanced)",
+    ),
+    "policyMetadataAge": MessageLookupByLibrary.simpleMessage(
+      "Metadata maximum age (hours)",
+    ),
+    "policyMissingNode": MessageLookupByLibrary.simpleMessage("Node missing"),
+    "policyMoveDown": MessageLookupByLibrary.simpleMessage("Move down"),
+    "policyMoveUp": MessageLookupByLibrary.simpleMessage("Move up"),
+    "policyNameFilter": MessageLookupByLibrary.simpleMessage(
+      "Node name contains (optional)",
+    ),
+    "policyNodes": MessageLookupByLibrary.simpleMessage("Nodes"),
+    "policyNotCollected": MessageLookupByLibrary.simpleMessage("Not collected"),
+    "policyOperationFailed": MessageLookupByLibrary.simpleMessage(
+      "Operation incomplete. Check status or retry later",
+    ),
+    "policyOverrideMinutes": MessageLookupByLibrary.simpleMessage(
+      "Valid minutes",
+    ),
+    "policyPreparingStatus": MessageLookupByLibrary.simpleMessage("Processing"),
+    "policyPriority": MessageLookupByLibrary.simpleMessage(
+      "Priority (smaller first)",
+    ),
+    "policyProbe": MessageLookupByLibrary.simpleMessage("Health probes"),
+    "policyProbeInterval": MessageLookupByLibrary.simpleMessage(
+      "Probe interval (seconds)",
+    ),
+    "policyProbeTimeout": MessageLookupByLibrary.simpleMessage(
+      "Probe timeout (seconds)",
+    ),
+    "policyProbeUrl": MessageLookupByLibrary.simpleMessage("Probe URL"),
+    "policyProcessName": MessageLookupByLibrary.simpleMessage("Process name"),
+    "policyProcessPath": MessageLookupByLibrary.simpleMessage("Process path"),
+    "policyRecovery": MessageLookupByLibrary.simpleMessage(
+      "Recovery and cooldown",
+    ),
+    "policyRecoverySeconds": MessageLookupByLibrary.simpleMessage(
+      "Recovery observation (seconds)",
+    ),
+    "policyRecoveryStatus": MessageLookupByLibrary.simpleMessage(
+      "Recovery required",
+    ),
+    "policyRejectedStatus": MessageLookupByLibrary.simpleMessage("Rejected"),
+    "policyRemainingGiB": MessageLookupByLibrary.simpleMessage(
+      "Minimum remaining (GiB)",
+    ),
+    "policyRemoveCandidate": MessageLookupByLibrary.simpleMessage(
+      "Remove candidate",
+    ),
+    "policyRemoveOverride": MessageLookupByLibrary.simpleMessage(
+      "Remove temporary override",
+    ),
+    "policyResetDay": MessageLookupByLibrary.simpleMessage(
+      "Monthly reset day (1–28)",
+    ),
+    "policyRestoredStatus": MessageLookupByLibrary.simpleMessage("Restored"),
+    "policyRulesHint": MessageLookupByLibrary.simpleMessage(
+      "Choose available nodes in the specified order; no model calls",
+    ),
+    "policyRulesTab": MessageLookupByLibrary.simpleMessage("Rules"),
+    "policyRuntimeState": MessageLookupByLibrary.simpleMessage(
+      "Runtime status",
+    ),
+    "policySaved": MessageLookupByLibrary.simpleMessage("Saved and applied"),
+    "policySchedule": MessageLookupByLibrary.simpleMessage("Schedule"),
+    "policyScheduleEnabled": MessageLookupByLibrary.simpleMessage(
+      "Restrict active hours",
+    ),
+    "policyScheduleHint": MessageLookupByLibrary.simpleMessage(
+      "Use Beijing time; split overnight periods into two windows",
+    ),
+    "policyScope": MessageLookupByLibrary.simpleMessage("Scope"),
+    "policyScopeValues": MessageLookupByLibrary.simpleMessage(
+      "One domain, group or process per line",
+    ),
+    "policySearchNodes": MessageLookupByLibrary.simpleMessage(
+      "Search nodes or sources",
+    ),
+    "policySelectedNode": MessageLookupByLibrary.simpleMessage("Selected node"),
+    "policySimulation": MessageLookupByLibrary.simpleMessage(
+      "Policy simulation",
+    ),
+    "policySimulationCoreRequired": MessageLookupByLibrary.simpleMessage(
+      "Simulation requires a running proxy core",
+    ),
+    "policySimulationHint": MessageLookupByLibrary.simpleMessage(
+      "Predict from current sources, health and usage; add scenario steps to inspect probe, cooldown and recovery timing. No real probes or configuration writes.",
+    ),
+    "policySimulationSteps": MessageLookupByLibrary.simpleMessage(
+      "Scenario steps (advanced JSON)",
+    ),
+    "policySimulationStepsHint": MessageLookupByLibrary.simpleMessage(
+      "Up to 32 steps: at is epoch milliseconds; probes contain nodeId and success; sources change metadata; usage contains bytes used per source. Simulation performs no probes or configuration writes.",
+    ),
+    "policySimulationTimeline": MessageLookupByLibrary.simpleMessage(
+      "Candidate transition timeline",
+    ),
+    "policySources": MessageLookupByLibrary.simpleMessage("Sources"),
+    "policyStartTime": MessageLookupByLibrary.simpleMessage(
+      "Start time (HH:mm)",
+    ),
+    "policySuccesses": MessageLookupByLibrary.simpleMessage(
+      "Consecutive successes",
+    ),
+    "policySupersededStatus": MessageLookupByLibrary.simpleMessage(
+      "Superseded",
+    ),
+    "policyTarget": MessageLookupByLibrary.simpleMessage(
+      "Target configuration",
+    ),
+    "policyTemporaryOverride": MessageLookupByLibrary.simpleMessage(
+      "Temporary override",
+    ),
+    "policyTerminate": MessageLookupByLibrary.simpleMessage(
+      "Terminate affected connections on exclusion",
+    ),
+    "policyTerminateHint": MessageLookupByLibrary.simpleMessage(
+      "This interrupts existing connections and requires approval",
+    ),
+    "policyUndo": MessageLookupByLibrary.simpleMessage("Undo change"),
+    "policyUnknownHealth": MessageLookupByLibrary.simpleMessage(
+      "Health unknown",
+    ),
+    "policyUnknownMetadata": MessageLookupByLibrary.simpleMessage(
+      "Exclude sources with unknown metadata",
+    ),
+    "policyUnsupportedSourceOption": m21,
+    "policyUpdateProxyUnavailable": MessageLookupByLibrary.simpleMessage(
+      "The proxy is unavailable. Start it or explicitly choose direct subscription updates.",
+    ),
+    "policyUpdateRoute": MessageLookupByLibrary.simpleMessage(
+      "Subscription update route",
+    ),
+    "policyUpdateRouteDirect": MessageLookupByLibrary.simpleMessage(
+      "Direct connection",
+    ),
+    "policyUpdateRouteHint": MessageLookupByLibrary.simpleMessage(
+      "Applies while local policies, integration or budgets are enabled. Unavailable proxy stops updates; direct access requires approval.",
+    ),
+    "policyUpdateRouteProxy": MessageLookupByLibrary.simpleMessage(
+      "Use current proxy",
+    ),
+    "policyUsage": MessageLookupByLibrary.simpleMessage("Local usage"),
+    "policyViewChanges": MessageLookupByLibrary.simpleMessage("View changes"),
+    "policyWeekdays": MessageLookupByLibrary.simpleMessage(
+      "Weekdays (1=Monday, 7=Sunday)",
+    ),
+    "policyWorkbenchTitle": MessageLookupByLibrary.simpleMessage(
+      "Local policy workbench",
+    ),
     "port": MessageLookupByLibrary.simpleMessage("Port"),
     "portConflictTip": MessageLookupByLibrary.simpleMessage(
       "Please enter a different port",
     ),
-    "portTip": m21,
+    "portTip": m22,
     "preferH3Desc": MessageLookupByLibrary.simpleMessage(
       "Prioritize the use of DOH\'s http/3",
     ),
@@ -969,7 +1429,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "search": MessageLookupByLibrary.simpleMessage("Search"),
     "seconds": MessageLookupByLibrary.simpleMessage("Seconds"),
-    "secondsCount": m22,
+    "secondsCount": m23,
     "selectAll": MessageLookupByLibrary.simpleMessage("Select all"),
     "selectProxies": MessageLookupByLibrary.simpleMessage("Select proxies"),
     "selectProxyProviders": MessageLookupByLibrary.simpleMessage(
@@ -985,7 +1445,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Please select sub rule",
     ),
     "selected": MessageLookupByLibrary.simpleMessage("Selected"),
-    "selectedCountTitle": m23,
+    "selectedCountTitle": m24,
     "settings": MessageLookupByLibrary.simpleMessage("Settings"),
     "show": MessageLookupByLibrary.simpleMessage("Show"),
     "shrink": MessageLookupByLibrary.simpleMessage("Shrink"),
@@ -1105,7 +1565,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "urlDesc": MessageLookupByLibrary.simpleMessage(
       "Obtain profile through URL",
     ),
-    "urlTip": m24,
+    "urlTip": m25,
     "usage": MessageLookupByLibrary.simpleMessage("Usage"),
     "usageApplications": MessageLookupByLibrary.simpleMessage("Apps"),
     "usageConnections": MessageLookupByLibrary.simpleMessage("Connections"),
@@ -1162,7 +1622,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "WebDAV configuration",
     ),
     "whitelistMode": MessageLookupByLibrary.simpleMessage("Whitelist mode"),
-    "yearsAgo": m25,
+    "yearsAgo": m26,
     "zh_CN": MessageLookupByLibrary.simpleMessage("Simplified Chinese"),
   };
 }

@@ -330,6 +330,8 @@ enum PageLabel {
   requests,
   resources,
   connections,
+  aiAssistant,
+  localPolicies,
 }
 
 enum UsageRoute { proxy, direct, unknown }

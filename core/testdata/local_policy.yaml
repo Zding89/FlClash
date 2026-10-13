@@ -1,0 +1,78 @@
+mode: rule
+proxies:
+  - name: A1
+    type: ss
+    server: 127.0.0.1
+    port: 1
+    cipher: aes-128-gcm
+    password: fixture-a
+    udp: true
+  - name: B2
+    type: ss
+    server: 127.0.0.1
+    port: 2
+    cipher: aes-128-gcm
+    password: fixture-b
+    udp: true
+proxy-groups:
+  - name: managed
+    type: select
+    proxies: [REJECT, A1, B2]
+rules:
+  - DOMAIN,example.test,managed
+  - MATCH,DIRECT
+flclash-local-policy:
+  schemaVersion: 1
+  revision: 3
+  documentRevision: 2
+  enabled: true
+  sources:
+    - id: a
+      label: Source A
+      expiresAt: 4102444800000
+      remainingBytes: 10737418240
+      observedAt: 1791849600000
+    - id: b
+      label: Source B
+      expiresAt: null
+      remainingBytes: null
+      observedAt: null
+  nodes:
+    - id: a1
+      sourceId: a
+      proxyName: A1
+    - id: b2
+      sourceId: b
+      proxyName: B2
+  budgets:
+    - sourceId: a
+      limitBytes: 1073741824
+      resetDay: 1
+      timeZone: Asia/Shanghai
+  policies:
+    - id: p
+      label: Strict A1 then B2
+      enabled: true
+      groupName: managed
+      candidateNodeIds: [a1, b2]
+      probe:
+        url: https://example.test/health
+        expectedStatus: 200-399
+        intervalSeconds: 30
+        timeoutSeconds: 5
+        failureThreshold: 3
+        successThreshold: 2
+      guard:
+        expiryMarginSeconds: 0
+        minRemainingBytes: 0
+        metadataMaxAgeSeconds: 86400
+        unknownBehavior: exclude
+      schedule:
+        timeZone: Asia/Shanghai
+        windows: []
+      recoverySeconds: 300
+      cooldownSeconds: 60
+      autoRecover: true
+      fallback: reject
+      terminateConnectionsOnExclusion: true
+  overrides: []

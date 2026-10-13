@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 void main() {
   const productName = 'FlClash Usage';
@@ -68,15 +69,103 @@ void main() {
     expect(davClient, contains("String get root => '/\$platformAppName';"));
   });
 
-  test('manual GitHub build validates and uploads the independent app', () {
-    final workflow = read('.github/workflows/build-macos-usage.yaml');
+  test(
+    'GitHub builds only the development branch and preserves read access',
+    () {
+      final workflow =
+          loadYaml(read('.github/workflows/build-macos-usage.yaml')) as YamlMap;
+      final triggers = workflow['on'] as YamlMap;
 
-    expect(workflow, contains('workflow_dispatch:'));
-    expect(workflow, contains('runs-on: macos-latest'));
-    expect(workflow, contains('dart setup.dart macos --env stable -v'));
-    expect(workflow, contains("test \"\$bundle_id\" = '$releaseBundleId'"));
-    expect(workflow, contains("test \"\$display_name\" = '$productName'"));
-    expect(workflow, contains('path: dist/*.dmg'));
-    expect(workflow, isNot(contains('action-gh-release')));
-  });
+      expect(triggers.keys, unorderedEquals(['workflow_dispatch', 'push']));
+      expect(triggers['push'], {
+        'branches': ['codex/macos-usage-cloud-build'],
+      });
+      expect(workflow['permissions'], {'contents': 'read'});
+      expect(workflow['env']['FLUTTER_VERSION'], '3.44.4');
+      expect(workflow['env']['FLUTTER_SWIFT_PACKAGE_MANAGER'], 'true');
+    },
+  );
+
+  test(
+    'GitHub build tests packaged runtime before uploading independent app',
+    () {
+      final workflowText = read('.github/workflows/build-macos-usage.yaml');
+      final workflow = loadYaml(workflowText) as YamlMap;
+      final job = workflow['jobs']['build'] as YamlMap;
+      final steps = (job['steps'] as YamlList).cast<YamlMap>();
+      YamlMap step(String name) =>
+          steps.singleWhere((step) => step['name'] == name);
+      int index(String name) =>
+          steps.indexWhere((step) => step['name'] == name);
+
+      expect(job['runs-on'], 'macos-latest');
+      expect(step('Setup Node')['with']['node-version'], '22.23.3');
+      expect(step('Setup pnpm')['with']['version'], '11.21.0');
+      expect(step('Setup Go')['with']['go-version'], '1.26.4');
+      expect(
+        step('Build and test AI agent host')['run'],
+        contains(
+          'pnpm install --frozen-lockfile --ignore-scripts\npnpm build\npnpm test',
+        ),
+      );
+      expect(
+        step('Prepare isolated macOS script test runtime')['run'],
+        'node scripts/package.mjs --arch arm64 --resources '
+        '/private/tmp/flclash-ai-host-node22-arm64/Resources',
+      );
+      expect(
+        index('Prepare isolated macOS script test runtime'),
+        lessThan(index('Test Flutter application')),
+      );
+      expect(
+        step('Analyze Flutter application')['run'],
+        'flutter analyze --no-fatal-infos',
+      );
+      expect(
+        step('Test Flutter application')['run'],
+        'flutter test --no-pub --reporter expanded',
+      );
+      expect(step('Validate Go core wrapper')['env']['CGO_ENABLED'], '0');
+      expect(step('Validate Go core wrapper')['run'], 'go test .\ngo vet .\n');
+      expect(
+        step('Build macOS DMG')['run'],
+        'dart setup.dart macos --env stable -v',
+      );
+      final verification =
+          step('Verify built application and packaged AI runtime')['run']
+              as String;
+      expect(
+        verification,
+        contains("test \"\$bundle_id\" = '$releaseBundleId'"),
+      );
+      expect(
+        verification,
+        contains("test \"\$display_name\" = '$productName'"),
+      );
+      for (final resource in [
+        'node',
+        'host.mjs',
+        'script_runner.mjs',
+        'manifest.json',
+        'NODE-LICENSE',
+      ]) {
+        expect(verification, contains('\$resources/ai/$resource'));
+      }
+      expect(
+        verification,
+        contains('/usr/bin/codesign --verify --deep --strict'),
+      );
+      expect(
+        verification,
+        contains('node packages/ai_agent_host/scripts/verify.mjs --resources'),
+      );
+      expect(
+        index('Verify built application and packaged AI runtime'),
+        lessThan(index('Upload installer')),
+      );
+      expect(step('Upload installer')['with']['path'], 'dist/*.dmg');
+      expect(step('Upload installer')['with']['retention-days'], 14);
+      expect(workflowText, isNot(contains('action-gh-release')));
+    },
+  );
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/core/controller.dart';
+import 'package:fl_clash/configuration/barrier.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/manager/window_manager.dart';
 import 'package:fl_clash/providers/providers.dart';
@@ -33,7 +34,7 @@ class _AppStateManagerState extends ConsumerState<AppStateManager>
       }
     });
     ref.listenManual(configProvider, (prev, next) {
-      if (prev != next) {
+      if (prev != next && !configurationWriteBarrier.active) {
         globalState.container
             .read(storeActionProvider.notifier)
             .savePreferencesDebounce();
@@ -61,7 +62,7 @@ class _AppStateManagerState extends ConsumerState<AppStateManager>
     });
     if (system.isMacOS) {
       ref.listenManual(autoSetSystemDnsStateProvider, (prev, next) async {
-        if (prev == next) {
+        if (prev == next || configurationWriteBarrier.active) {
           return;
         }
         if (next.a == true && next.b == true) {

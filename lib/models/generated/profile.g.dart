@@ -12,6 +12,14 @@ _SubscriptionInfo _$SubscriptionInfoFromJson(Map<String, dynamic> json) =>
       download: (json['download'] as num?)?.toInt() ?? 0,
       total: (json['total'] as num?)?.toInt() ?? 0,
       expire: (json['expire'] as num?)?.toInt() ?? 0,
+      knownFields:
+          (json['knownFields'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toSet() ??
+          const {},
+      observedAt: json['observedAt'] == null
+          ? null
+          : DateTime.parse(json['observedAt'] as String),
     );
 
 Map<String, dynamic> _$SubscriptionInfoToJson(_SubscriptionInfo instance) =>
@@ -20,6 +28,8 @@ Map<String, dynamic> _$SubscriptionInfoToJson(_SubscriptionInfo instance) =>
       'download': instance.download,
       'total': instance.total,
       'expire': instance.expire,
+      'knownFields': instance.knownFields.toList(),
+      'observedAt': instance.observedAt?.toIso8601String(),
     };
 
 _Profile _$ProfileFromJson(Map<String, dynamic> json) => _Profile(

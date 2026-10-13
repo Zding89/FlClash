@@ -805,7 +805,7 @@ final class UsageRuntimeProvider
   UsageRuntime create() => UsageRuntime();
 }
 
-String _$usageRuntimeHash() => r'100aa9249826bde0385e0b78250f8c3e79a53bc9';
+String _$usageRuntimeHash() => r'e581ed61f56adaae99a3f4889b0651d4737c0869';
 
 abstract class _$UsageRuntime extends $AsyncNotifier<void> {
   FutureOr<void> build();

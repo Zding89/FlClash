@@ -88,10 +88,22 @@ class CoreController {
     final path = await appPath.tempFilePath;
     final file = File(path);
     await file.safeWriteAsString(data);
-    final res = await _interface.validateConfig(path);
-    await File(path).safeDelete();
-    return res;
+    try {
+      return await _interface.validateConfig(path);
+    } finally {
+      await File(path).safeDelete();
+    }
   }
+
+  Future<Map<String, Object?>> simulateLocalPolicies(
+    Map<String, Object?> input,
+  ) => _interface.simulateLocalPolicies(input);
+
+  Future<Map<String, Object?>> getLocalPolicyStatus() =>
+      _interface.getLocalPolicyStatus();
+
+  Future<String> refreshLocalPolicySource(Map<String, Object?> input) =>
+      _interface.refreshLocalPolicySource(input);
 
   Future<String> updateConfig(UpdateParams updateParams) async {
     return _interface.updateConfig(updateParams);

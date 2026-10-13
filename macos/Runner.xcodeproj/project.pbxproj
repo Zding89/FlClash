@@ -264,6 +264,7 @@
 				3399D490228B24CF009A79C7 /* ShellScript */,
 				DD2258A65B871C474676AD18 /* [CP] Embed Pods Frameworks */,
 				F51BB7C92EF0265000E05D67 /* Copy Core */,
+				A13000000000000000000001,
 			);
 			buildRules = (
 			);
@@ -448,6 +449,18 @@
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
+		};
+		A13000000000000000000001 = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ();
+			outputPaths = ();
+			name = "Bundle AI Runtime";
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$PROJECT_DIR/../packages/ai_agent_host/scripts/package_macos.sh\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

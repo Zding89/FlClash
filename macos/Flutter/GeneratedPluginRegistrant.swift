@@ -5,6 +5,7 @@
 import FlutterMacOS
 import Foundation
 
+import ai_security
 import app_links
 import connectivity_plus
 import device_info_plus
@@ -25,6 +26,7 @@ import window_ext
 import window_manager
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
+  AiSecurityPlugin.register(with: registry.registrar(forPlugin: "AiSecurityPlugin"))
   AppLinksMacosPlugin.register(with: registry.registrar(forPlugin: "AppLinksMacosPlugin"))
   ConnectivityPlusPlugin.register(with: registry.registrar(forPlugin: "ConnectivityPlusPlugin"))
   DeviceInfoPlusMacosPlugin.register(with: registry.registrar(forPlugin: "DeviceInfoPlusMacosPlugin"))

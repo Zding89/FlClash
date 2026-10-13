@@ -76,18 +76,50 @@ func handleForceGC() {
 }
 
 func handleShutdown() bool {
+	runLock.Lock()
+	defer runLock.Unlock()
+	isInit.Store(false)
+	if e := activeLocalPolicy.Swap(nil); e != nil {
+		e.stop()
+	}
 	stopListeners()
 	executor.Shutdown()
+	clean := closeLocalPolicyConnections()
+	if localBudgetStore != nil {
+		localBudgetStore.save(clean && localBudgetStore.waitForIO())
+	}
 	handleForceGC()
 	isInit.Store(false)
 	return true
 }
 
 func handleValidateConfig(path string) string {
-	buf, err := readFile(path)
-	_, err = config.UnmarshalRawConfig(buf)
+	data, err := readFile(path)
 	if err != nil {
 		return err.Error()
+	}
+	localConfig, err := parseLocalPolicyConfig(data)
+	if err != nil {
+		return err.Error()
+	}
+	if localConfig != nil && localConfig.Enabled {
+		parsed, err := config.Parse(data)
+		if err != nil {
+			return err.Error()
+		}
+		defer closeLocalPolicyValidationConfig(parsed)
+		engine, err := prepareLocalPolicy(localConfig, parsed, nil)
+		if err != nil {
+			return err.Error()
+		}
+		if engine != nil {
+			engine.cancel()
+		}
+	} else {
+		_, err = config.UnmarshalRawConfig(data)
+		if err != nil {
+			return err.Error()
+		}
 	}
 	return ""
 }
@@ -434,7 +466,9 @@ func handleCrash() {
 }
 
 func handleUpdateConfig(params *UpdateParams) string {
-	updateConfig(params)
+	if err := updateConfig(params); err != nil {
+		return err.Error()
+	}
 	return ""
 }
 

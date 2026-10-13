@@ -44,6 +44,25 @@ class Navigation {
             const ProfilesView(key: GlobalObjectKey(PageLabel.profiles)),
       ),
       NavigationItem(
+        icon: const Icon(Icons.auto_awesome),
+        label: PageLabel.aiAssistant,
+        builder: (_) =>
+            const AiAssistantView(key: GlobalObjectKey(PageLabel.aiAssistant)),
+        modes: system.isMacOS
+            ? [NavigationItemMode.desktop, NavigationItemMode.more]
+            : [],
+      ),
+      NavigationItem(
+        icon: const Icon(Icons.rule),
+        label: PageLabel.localPolicies,
+        builder: (_) => const LocalPolicyWorkbenchView(
+          key: GlobalObjectKey(PageLabel.localPolicies),
+        ),
+        modes: system.isMacOS
+            ? [NavigationItemMode.desktop, NavigationItemMode.more]
+            : [],
+      ),
+      NavigationItem(
         icon: const Icon(Icons.view_timeline),
         label: PageLabel.requests,
         builder: (_) =>

@@ -1,0 +1,20 @@
+{
+  "name": "flclash-ai-agent-host",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.21.0",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "package": "node scripts/package.mjs"
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "1.2.0",
+    "@earendil-works/pi-ai": "1.2.0",
+    "undici": "8.11.2"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
+  }
+}

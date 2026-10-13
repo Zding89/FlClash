@@ -1,4 +1,5 @@
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/configuration/barrier.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/common.dart';
 import 'package:fl_clash/providers/action.dart';
@@ -23,54 +24,11 @@ class _HotKeyManagerState extends ConsumerState<HotKeyManager> {
   void initState() {
     super.initState();
     ref.listenManual(hotKeyActionsProvider, (prev, next) {
-      if (!hotKeyActionListEquality.equals(prev, next)) {
-        _updateHotKeys(hotKeyActions: next);
+      if (!configurationWriteBarrier.active &&
+          !hotKeyActionListEquality.equals(prev, next)) {
+        applyHotKeyActions(next);
       }
     }, fireImmediately: true);
-  }
-
-  Future<void> _handleHotKeyAction(HotAction action) async {
-    final ref = globalState.container;
-    final commonAction = ref.read(commonActionProvider.notifier);
-    final systemAction = ref.read(systemActionProvider.notifier);
-    switch (action) {
-      case HotAction.mode:
-        commonAction.updateMode();
-      case HotAction.start:
-        commonAction.toggleRunning();
-      case HotAction.view:
-        systemAction.updateVisible();
-      case HotAction.proxy:
-        systemAction.updateSystemProxy();
-      case HotAction.tun:
-        systemAction.updateTun();
-    }
-  }
-
-  Future<void> _updateHotKeys({
-    required List<HotKeyAction> hotKeyActions,
-  }) async {
-    await hotKeyManager.unregisterAll();
-    final hotkeyActionHandles = hotKeyActions
-        .where((hotKeyAction) {
-          return hotKeyAction.key != null && hotKeyAction.modifiers.isNotEmpty;
-        })
-        .map<Future>((hotKeyAction) async {
-          final modifiers = hotKeyAction.modifiers
-              .map((item) => item.toHotKeyModifier())
-              .toList();
-          final hotKey = HotKey(
-            key: PhysicalKeyboardKey(hotKeyAction.key!),
-            modifiers: modifiers,
-          );
-          return hotKeyManager.register(
-            hotKey,
-            keyDownHandler: (_) {
-              _handleHotKeyAction(hotKeyAction.action);
-            },
-          );
-        });
-    await Future.wait(hotkeyActionHandles);
   }
 
   Shortcuts _buildCloseShortcuts(Widget child) {
@@ -104,4 +62,46 @@ class _HotKeyManagerState extends ConsumerState<HotKeyManager> {
   Widget build(BuildContext context) {
     return _buildCloseShortcuts(widget.child);
   }
+}
+
+Future<void> _handleHotKeyAction(HotAction action) async {
+  final ref = globalState.container;
+  final commonAction = ref.read(commonActionProvider.notifier);
+  final systemAction = ref.read(systemActionProvider.notifier);
+  switch (action) {
+    case HotAction.mode:
+      commonAction.updateMode();
+    case HotAction.start:
+      commonAction.toggleRunning();
+    case HotAction.view:
+      systemAction.updateVisible();
+    case HotAction.proxy:
+      systemAction.updateSystemProxy();
+    case HotAction.tun:
+      systemAction.updateTun();
+  }
+}
+
+Future<void> applyHotKeyActions(List<HotKeyAction> hotKeyActions) async {
+  await hotKeyManager.unregisterAll();
+  final hotkeyActionHandles = hotKeyActions
+      .where((hotKeyAction) {
+        return hotKeyAction.key != null && hotKeyAction.modifiers.isNotEmpty;
+      })
+      .map<Future>((hotKeyAction) async {
+        final modifiers = hotKeyAction.modifiers
+            .map((item) => item.toHotKeyModifier())
+            .toList();
+        final hotKey = HotKey(
+          key: PhysicalKeyboardKey(hotKeyAction.key!),
+          modifiers: modifiers,
+        );
+        return hotKeyManager.register(
+          hotKey,
+          keyDownHandler: (_) {
+            _handleHotKeyAction(hotKeyAction.action);
+          },
+        );
+      });
+  await Future.wait(hotkeyActionHandles);
 }

@@ -4978,6 +4978,1836 @@ class AppLocalizations {
       args: [],
     );
   }
+
+  /// `AI assistant`
+  String get aiAssistantTitle {
+    return Intl.message(
+      'AI assistant',
+      name: 'aiAssistantTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `AI connections`
+  String get aiSettingsTitle {
+    return Intl.message(
+      'AI connections',
+      name: 'aiSettingsTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Enable AI assistant`
+  String get aiEnable {
+    return Intl.message(
+      'Enable AI assistant',
+      name: 'aiEnable',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Models run only when you send a message; local policies run independently`
+  String get aiEnableHint {
+    return Intl.message(
+      'Models run only when you send a message; local policies run independently',
+      name: 'aiEnableHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Add a connection to start chatting`
+  String get aiNoConnection {
+    return Intl.message(
+      'Add a connection to start chatting',
+      name: 'aiNoConnection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `AI assistant is disabled`
+  String get aiDisabled {
+    return Intl.message(
+      'AI assistant is disabled',
+      name: 'aiDisabled',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Connection`
+  String get aiConnection {
+    return Intl.message('Connection', name: 'aiConnection', desc: '', args: []);
+  }
+
+  /// `Add connection`
+  String get aiAddConnection {
+    return Intl.message(
+      'Add connection',
+      name: 'aiAddConnection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Edit connection`
+  String get aiEditConnection {
+    return Intl.message(
+      'Edit connection',
+      name: 'aiEditConnection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Provider and endpoint`
+  String get aiProvider {
+    return Intl.message(
+      'Provider and endpoint',
+      name: 'aiProvider',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Model ID`
+  String get aiModel {
+    return Intl.message('Model ID', name: 'aiModel', desc: '', args: []);
+  }
+
+  /// `Base URL`
+  String get aiBaseUrl {
+    return Intl.message('Base URL', name: 'aiBaseUrl', desc: '', args: []);
+  }
+
+  /// `API protocol`
+  String get aiApiProtocol {
+    return Intl.message(
+      'API protocol',
+      name: 'aiApiProtocol',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `API key`
+  String get aiKey {
+    return Intl.message('API key', name: 'aiKey', desc: '', args: []);
+  }
+
+  /// `Stored in Keychain; leave blank to keep`
+  String get aiKeyStored {
+    return Intl.message(
+      'Stored in Keychain; leave blank to keep',
+      name: 'aiKeyStored',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Enter an API key for this endpoint`
+  String get aiKeyRequired {
+    return Intl.message(
+      'Enter an API key for this endpoint',
+      name: 'aiKeyRequired',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Endpoint changed. Re-enter the key for this destination`
+  String get aiTargetChanged {
+    return Intl.message(
+      'Endpoint changed. Re-enter the key for this destination',
+      name: 'aiTargetChanged',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Use current proxy for model requests`
+  String get aiUseProxy {
+    return Intl.message(
+      'Use current proxy for model requests',
+      name: 'aiUseProxy',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Request limits`
+  String get aiAdvanced {
+    return Intl.message(
+      'Request limits',
+      name: 'aiAdvanced',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Request timeout (seconds)`
+  String get aiTimeout {
+    return Intl.message(
+      'Request timeout (seconds)',
+      name: 'aiTimeout',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Maximum output tokens`
+  String get aiMaxTokens {
+    return Intl.message(
+      'Maximum output tokens',
+      name: 'aiMaxTokens',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Leave blank for preset URL`
+  String get aiPresetDefault {
+    return Intl.message(
+      'Leave blank for preset URL',
+      name: 'aiPresetDefault',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Check name, model, URL and request limits`
+  String get aiInvalidConnection {
+    return Intl.message(
+      'Check name, model, URL and request limits',
+      name: 'aiInvalidConnection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Save failed. Connection and key recovery was attempted; check before retrying`
+  String get aiSaveFailed {
+    return Intl.message(
+      'Save failed. Connection and key recovery was attempted; check before retrying',
+      name: 'aiSaveFailed',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Connection saved`
+  String get aiSaved {
+    return Intl.message(
+      'Connection saved',
+      name: 'aiSaved',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Delete key`
+  String get aiDeleteKey {
+    return Intl.message('Delete key', name: 'aiDeleteKey', desc: '', args: []);
+  }
+
+  /// `Deleting the key cancels the AI task; local policies continue`
+  String get aiDeleteKeyHint {
+    return Intl.message(
+      'Deleting the key cancels the AI task; local policies continue',
+      name: 'aiDeleteKeyHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Delete connection`
+  String get aiDeleteConnection {
+    return Intl.message(
+      'Delete connection',
+      name: 'aiDeleteConnection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Test connection and tools`
+  String get aiTestConnection {
+    return Intl.message(
+      'Test connection and tools',
+      name: 'aiTestConnection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Authentication, text streaming and tools passed`
+  String get aiTestPassed {
+    return Intl.message(
+      'Authentication, text streaming and tools passed',
+      name: 'aiTestPassed',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Streaming and tool tests were incomplete; agent support is unverified`
+  String get aiTestPartial {
+    return Intl.message(
+      'Streaming and tool tests were incomplete; agent support is unverified',
+      name: 'aiTestPartial',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Testing connection…`
+  String get aiTesting {
+    return Intl.message(
+      'Testing connection…',
+      name: 'aiTesting',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Describe what to inspect or change…`
+  String get aiPromptHint {
+    return Intl.message(
+      'Describe what to inspect or change…',
+      name: 'aiPromptHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Send`
+  String get aiSend {
+    return Intl.message('Send', name: 'aiSend', desc: '', args: []);
+  }
+
+  /// `Stop`
+  String get aiStop {
+    return Intl.message('Stop', name: 'aiStop', desc: '', args: []);
+  }
+
+  /// `Inspect the current configuration, then preview changes`
+  String get aiEmptyConversation {
+    return Intl.message(
+      'Inspect the current configuration, then preview changes',
+      name: 'aiEmptyConversation',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Thinking…`
+  String get aiThinking {
+    return Intl.message('Thinking…', name: 'aiThinking', desc: '', args: []);
+  }
+
+  /// `Running app command…`
+  String get aiToolWorking {
+    return Intl.message(
+      'Running app command…',
+      name: 'aiToolWorking',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Stopped`
+  String get aiCancelled {
+    return Intl.message('Stopped', name: 'aiCancelled', desc: '', args: []);
+  }
+
+  /// `Save a key for this connection first`
+  String get aiKeyMissing {
+    return Intl.message(
+      'Save a key for this connection first',
+      name: 'aiKeyMissing',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Request failed. Check the connection or retry later`
+  String get aiRequestFailed {
+    return Intl.message(
+      'Request failed. Check the connection or retry later',
+      name: 'aiRequestFailed',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Authentication failed. Check the key for this endpoint`
+  String get aiAuthFailed {
+    return Intl.message(
+      'Authentication failed. Check the key for this endpoint',
+      name: 'aiAuthFailed',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Quota exceeded. Check your provider account`
+  String get aiQuotaExceeded {
+    return Intl.message(
+      'Quota exceeded. Check your provider account',
+      name: 'aiQuotaExceeded',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Rate limit reached. Retry later`
+  String get aiRateLimited {
+    return Intl.message(
+      'Rate limit reached. Retry later',
+      name: 'aiRateLimited',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Model request timed out`
+  String get aiTimedOut {
+    return Intl.message(
+      'Model request timed out',
+      name: 'aiTimedOut',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `AI runtime is unavailable. Use a macOS build containing it`
+  String get aiHostUnavailable {
+    return Intl.message(
+      'AI runtime is unavailable. Use a macOS build containing it',
+      name: 'aiHostUnavailable',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Review configuration changes`
+  String get aiApprovalTitle {
+    return Intl.message(
+      'Review configuration changes',
+      name: 'aiApprovalTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `This change affects networking, configuration or privacy. Review before approving`
+  String get aiHighRisk {
+    return Intl.message(
+      'This change affects networking, configuration or privacy. Review before approving',
+      name: 'aiHighRisk',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Before`
+  String get aiBefore {
+    return Intl.message('Before', name: 'aiBefore', desc: '', args: []);
+  }
+
+  /// `After`
+  String get aiAfter {
+    return Intl.message('After', name: 'aiAfter', desc: '', args: []);
+  }
+
+  /// `Approve and apply`
+  String get aiApprove {
+    return Intl.message(
+      'Approve and apply',
+      name: 'aiApprove',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Reject`
+  String get aiReject {
+    return Intl.message('Reject', name: 'aiReject', desc: '', args: []);
+  }
+
+  /// `No changes to apply`
+  String get aiNoDifferences {
+    return Intl.message(
+      'No changes to apply',
+      name: 'aiNoDifferences',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Selected`
+  String get aiSelected {
+    return Intl.message('Selected', name: 'aiSelected', desc: '', args: []);
+  }
+
+  /// `Use connection`
+  String get aiSelectConnection {
+    return Intl.message(
+      'Use connection',
+      name: 'aiSelectConnection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `China API`
+  String get aiChinaApi {
+    return Intl.message('China API', name: 'aiChinaApi', desc: '', args: []);
+  }
+
+  /// `China coding plan`
+  String get aiChinaCoding {
+    return Intl.message(
+      'China coding plan',
+      name: 'aiChinaCoding',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Global API`
+  String get aiGlobalApi {
+    return Intl.message('Global API', name: 'aiGlobalApi', desc: '', args: []);
+  }
+
+  /// `Global coding plan`
+  String get aiGlobalCoding {
+    return Intl.message(
+      'Global coding plan',
+      name: 'aiGlobalCoding',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Coding plan`
+  String get aiCodingPlan {
+    return Intl.message(
+      'Coding plan',
+      name: 'aiCodingPlan',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Custom compatible service`
+  String get aiCustomProvider {
+    return Intl.message(
+      'Custom compatible service',
+      name: 'aiCustomProvider',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `You`
+  String get aiYou {
+    return Intl.message('You', name: 'aiYou', desc: '', args: []);
+  }
+
+  /// `Assistant`
+  String get aiAssistantRole {
+    return Intl.message(
+      'Assistant',
+      name: 'aiAssistantRole',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Clear conversation`
+  String get aiClearConversation {
+    return Intl.message(
+      'Clear conversation',
+      name: 'aiClearConversation',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Conversation limit reached. Clear it to start again`
+  String get aiHistoryLimit {
+    return Intl.message(
+      'Conversation limit reached. Clear it to start again',
+      name: 'aiHistoryLimit',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Key recovery failed. Configure the key again before use`
+  String get aiCredentialRecoveryFailed {
+    return Intl.message(
+      'Key recovery failed. Configure the key again before use',
+      name: 'aiCredentialRecoveryFailed',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Local policies`
+  String get localPolicies {
+    return Intl.message(
+      'Local policies',
+      name: 'localPolicies',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Keychain is unavailable. Check the system access prompt`
+  String get aiCredentialUnavailable {
+    return Intl.message(
+      'Keychain is unavailable. Check the system access prompt',
+      name: 'aiCredentialUnavailable',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Show key`
+  String get aiKeyShow {
+    return Intl.message('Show key', name: 'aiKeyShow', desc: '', args: []);
+  }
+
+  /// `Hide key`
+  String get aiKeyHide {
+    return Intl.message('Hide key', name: 'aiKeyHide', desc: '', args: []);
+  }
+
+  /// `Testing calls the selected model and may incur provider charges`
+  String get aiTestingCharges {
+    return Intl.message(
+      'Testing calls the selected model and may incur provider charges',
+      name: 'aiTestingCharges',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `This authorizes restricted script execution for a preview only. Applying the final result requires another approval.`
+  String get aiScriptExecutionOnly {
+    return Intl.message(
+      'This authorizes restricted script execution for a preview only. Applying the final result requires another approval.',
+      name: 'aiScriptExecutionOnly',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Validated final configuration changes`
+  String get aiFinalConfigDifferences {
+    return Intl.message(
+      'Validated final configuration changes',
+      name: 'aiFinalConfigDifferences',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Authorize preview execution`
+  String get aiApproveScriptExecution {
+    return Intl.message(
+      'Authorize preview execution',
+      name: 'aiApproveScriptExecution',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Local policy workbench`
+  String get policyWorkbenchTitle {
+    return Intl.message(
+      'Local policy workbench',
+      name: 'policyWorkbenchTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Integrations`
+  String get policyIntegrationTab {
+    return Intl.message(
+      'Integrations',
+      name: 'policyIntegrationTab',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Rules`
+  String get policyRulesTab {
+    return Intl.message('Rules', name: 'policyRulesTab', desc: '', args: []);
+  }
+
+  /// `Budgets`
+  String get policyBudgetTab {
+    return Intl.message('Budgets', name: 'policyBudgetTab', desc: '', args: []);
+  }
+
+  /// `History`
+  String get policyHistoryTab {
+    return Intl.message(
+      'History',
+      name: 'policyHistoryTab',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Enable integration`
+  String get policyEnableIntegrations {
+    return Intl.message(
+      'Enable integration',
+      name: 'policyEnableIntegrations',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Original subscriptions remain; selected sources form a separate configuration`
+  String get policyIntegrationHint {
+    return Intl.message(
+      'Original subscriptions remain; selected sources form a separate configuration',
+      name: 'policyIntegrationHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Active integration`
+  String get policyActiveIntegration {
+    return Intl.message(
+      'Active integration',
+      name: 'policyActiveIntegration',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Create integration`
+  String get policyAddIntegration {
+    return Intl.message(
+      'Create integration',
+      name: 'policyAddIntegration',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Edit integration`
+  String get policyEditIntegration {
+    return Intl.message(
+      'Edit integration',
+      name: 'policyEditIntegration',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Sources`
+  String get policySources {
+    return Intl.message('Sources', name: 'policySources', desc: '', args: []);
+  }
+
+  /// `Node name contains (optional)`
+  String get policyNameFilter {
+    return Intl.message(
+      'Node name contains (optional)',
+      name: 'policyNameFilter',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Excluded nodes`
+  String get policyExcludedNodes {
+    return Intl.message(
+      'Excluded nodes',
+      name: 'policyExcludedNodes',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Enable local rules`
+  String get policyEnableRules {
+    return Intl.message(
+      'Enable local rules',
+      name: 'policyEnableRules',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Choose available nodes in the specified order; no model calls`
+  String get policyRulesHint {
+    return Intl.message(
+      'Choose available nodes in the specified order; no model calls',
+      name: 'policyRulesHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Add rule`
+  String get policyAddRule {
+    return Intl.message('Add rule', name: 'policyAddRule', desc: '', args: []);
+  }
+
+  /// `Edit rule`
+  String get policyEditRule {
+    return Intl.message(
+      'Edit rule',
+      name: 'policyEditRule',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Target configuration`
+  String get policyTarget {
+    return Intl.message(
+      'Target configuration',
+      name: 'policyTarget',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Priority (smaller first)`
+  String get policyPriority {
+    return Intl.message(
+      'Priority (smaller first)',
+      name: 'policyPriority',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Scope`
+  String get policyScope {
+    return Intl.message('Scope', name: 'policyScope', desc: '', args: []);
+  }
+
+  /// `All traffic`
+  String get policyGlobalScope {
+    return Intl.message(
+      'All traffic',
+      name: 'policyGlobalScope',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Existing proxy group`
+  String get policyGroupScope {
+    return Intl.message(
+      'Existing proxy group',
+      name: 'policyGroupScope',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Exact domain`
+  String get policyDomainScope {
+    return Intl.message(
+      'Exact domain',
+      name: 'policyDomainScope',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Domain suffix`
+  String get policyDomainSuffix {
+    return Intl.message(
+      'Domain suffix',
+      name: 'policyDomainSuffix',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Domain keyword`
+  String get policyDomainKeyword {
+    return Intl.message(
+      'Domain keyword',
+      name: 'policyDomainKeyword',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Process name`
+  String get policyProcessName {
+    return Intl.message(
+      'Process name',
+      name: 'policyProcessName',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Process path`
+  String get policyProcessPath {
+    return Intl.message(
+      'Process path',
+      name: 'policyProcessPath',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `All conditions (advanced)`
+  String get policyMatchAll {
+    return Intl.message(
+      'All conditions (advanced)',
+      name: 'policyMatchAll',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Any condition (advanced)`
+  String get policyMatchAny {
+    return Intl.message(
+      'Any condition (advanced)',
+      name: 'policyMatchAny',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Negated condition (advanced)`
+  String get policyMatchNot {
+    return Intl.message(
+      'Negated condition (advanced)',
+      name: 'policyMatchNot',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `One domain, group or process per line`
+  String get policyScopeValues {
+    return Intl.message(
+      'One domain, group or process per line',
+      name: 'policyScopeValues',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Exact candidate order`
+  String get policyCandidates {
+    return Intl.message(
+      'Exact candidate order',
+      name: 'policyCandidates',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Only these nodes are considered, in order`
+  String get policyCandidateHint {
+    return Intl.message(
+      'Only these nodes are considered, in order',
+      name: 'policyCandidateHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Nodes`
+  String get policyNodes {
+    return Intl.message('Nodes', name: 'policyNodes', desc: '', args: []);
+  }
+
+  /// `Node missing`
+  String get policyMissingNode {
+    return Intl.message(
+      'Node missing',
+      name: 'policyMissingNode',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Search nodes or sources`
+  String get policySearchNodes {
+    return Intl.message(
+      'Search nodes or sources',
+      name: 'policySearchNodes',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Move up`
+  String get policyMoveUp {
+    return Intl.message('Move up', name: 'policyMoveUp', desc: '', args: []);
+  }
+
+  /// `Move down`
+  String get policyMoveDown {
+    return Intl.message(
+      'Move down',
+      name: 'policyMoveDown',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Health probes`
+  String get policyProbe {
+    return Intl.message(
+      'Health probes',
+      name: 'policyProbe',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Probe URL`
+  String get policyProbeUrl {
+    return Intl.message(
+      'Probe URL',
+      name: 'policyProbeUrl',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Probe interval (seconds)`
+  String get policyProbeInterval {
+    return Intl.message(
+      'Probe interval (seconds)',
+      name: 'policyProbeInterval',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Probe timeout (seconds)`
+  String get policyProbeTimeout {
+    return Intl.message(
+      'Probe timeout (seconds)',
+      name: 'policyProbeTimeout',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Consecutive failures`
+  String get policyFailures {
+    return Intl.message(
+      'Consecutive failures',
+      name: 'policyFailures',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Consecutive successes`
+  String get policySuccesses {
+    return Intl.message(
+      'Consecutive successes',
+      name: 'policySuccesses',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Expected HTTP status`
+  String get policyExpectedStatus {
+    return Intl.message(
+      'Expected HTTP status',
+      name: 'policyExpectedStatus',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Expiry and remaining quota`
+  String get policyAdmission {
+    return Intl.message(
+      'Expiry and remaining quota',
+      name: 'policyAdmission',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Exclude before expiry (hours)`
+  String get policyExpiryMargin {
+    return Intl.message(
+      'Exclude before expiry (hours)',
+      name: 'policyExpiryMargin',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Minimum remaining (GiB)`
+  String get policyRemainingGiB {
+    return Intl.message(
+      'Minimum remaining (GiB)',
+      name: 'policyRemainingGiB',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Metadata maximum age (hours)`
+  String get policyMetadataAge {
+    return Intl.message(
+      'Metadata maximum age (hours)',
+      name: 'policyMetadataAge',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Exclude sources with unknown metadata`
+  String get policyUnknownMetadata {
+    return Intl.message(
+      'Exclude sources with unknown metadata',
+      name: 'policyUnknownMetadata',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Recovery and cooldown`
+  String get policyRecovery {
+    return Intl.message(
+      'Recovery and cooldown',
+      name: 'policyRecovery',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Recover to a higher-priority node`
+  String get policyAutoRecover {
+    return Intl.message(
+      'Recover to a higher-priority node',
+      name: 'policyAutoRecover',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Recovery observation (seconds)`
+  String get policyRecoverySeconds {
+    return Intl.message(
+      'Recovery observation (seconds)',
+      name: 'policyRecoverySeconds',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Switch cooldown (seconds)`
+  String get policyCooldownSeconds {
+    return Intl.message(
+      'Switch cooldown (seconds)',
+      name: 'policyCooldownSeconds',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Schedule`
+  String get policySchedule {
+    return Intl.message('Schedule', name: 'policySchedule', desc: '', args: []);
+  }
+
+  /// `Use Beijing time; split overnight periods into two windows`
+  String get policyScheduleHint {
+    return Intl.message(
+      'Use Beijing time; split overnight periods into two windows',
+      name: 'policyScheduleHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Restrict active hours`
+  String get policyScheduleEnabled {
+    return Intl.message(
+      'Restrict active hours',
+      name: 'policyScheduleEnabled',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Weekdays (1=Monday, 7=Sunday)`
+  String get policyWeekdays {
+    return Intl.message(
+      'Weekdays (1=Monday, 7=Sunday)',
+      name: 'policyWeekdays',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Start time (HH:mm)`
+  String get policyStartTime {
+    return Intl.message(
+      'Start time (HH:mm)',
+      name: 'policyStartTime',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `End time (HH:mm)`
+  String get policyEndTime {
+    return Intl.message(
+      'End time (HH:mm)',
+      name: 'policyEndTime',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `When no candidate qualifies`
+  String get policyFallback {
+    return Intl.message(
+      'When no candidate qualifies',
+      name: 'policyFallback',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Reject connections`
+  String get policyFallbackReject {
+    return Intl.message(
+      'Reject connections',
+      name: 'policyFallbackReject',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Allow direct connection`
+  String get policyFallbackDirect {
+    return Intl.message(
+      'Allow direct connection',
+      name: 'policyFallbackDirect',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Terminate affected connections on exclusion`
+  String get policyTerminate {
+    return Intl.message(
+      'Terminate affected connections on exclusion',
+      name: 'policyTerminate',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `This interrupts existing connections and requires approval`
+  String get policyTerminateHint {
+    return Intl.message(
+      'This interrupts existing connections and requires approval',
+      name: 'policyTerminateHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Temporary override`
+  String get policyTemporaryOverride {
+    return Intl.message(
+      'Temporary override',
+      name: 'policyTemporaryOverride',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Valid minutes`
+  String get policyOverrideMinutes {
+    return Intl.message(
+      'Valid minutes',
+      name: 'policyOverrideMinutes',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Remove temporary override`
+  String get policyRemoveOverride {
+    return Intl.message(
+      'Remove temporary override',
+      name: 'policyRemoveOverride',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Advanced structured JSON`
+  String get policyAdvancedJson {
+    return Intl.message(
+      'Advanced structured JSON',
+      name: 'policyAdvancedJson',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Only the current schema is accepted; invalid fields or references cannot be applied`
+  String get policyJsonHint {
+    return Intl.message(
+      'Only the current schema is accepted; invalid fields or references cannot be applied',
+      name: 'policyJsonHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Invalid fields, order or references. Check and retry`
+  String get policyInvalidData {
+    return Intl.message(
+      'Invalid fields, order or references. Check and retry',
+      name: 'policyInvalidData',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Saved and applied`
+  String get policySaved {
+    return Intl.message(
+      'Saved and applied',
+      name: 'policySaved',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Operation incomplete. Check status or retry later`
+  String get policyOperationFailed {
+    return Intl.message(
+      'Operation incomplete. Check status or retry later',
+      name: 'policyOperationFailed',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `No integrations yet`
+  String get policyEmptyIntegrations {
+    return Intl.message(
+      'No integrations yet',
+      name: 'policyEmptyIntegrations',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `No local rules yet`
+  String get policyEmptyRules {
+    return Intl.message(
+      'No local rules yet',
+      name: 'policyEmptyRules',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `No local source budgets yet`
+  String get policyEmptyBudgets {
+    return Intl.message(
+      'No local source budgets yet',
+      name: 'policyEmptyBudgets',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `No change history yet`
+  String get policyEmptyHistory {
+    return Intl.message(
+      'No change history yet',
+      name: 'policyEmptyHistory',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Enable local source budgets`
+  String get policyEnableBudgets {
+    return Intl.message(
+      'Enable local source budgets',
+      name: 'policyEnableBudgets',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Counts this device’s FlClash traffic only; not account-wide usage or a byte-exact cap`
+  String get policyBudgetHint {
+    return Intl.message(
+      'Counts this device’s FlClash traffic only; not account-wide usage or a byte-exact cap',
+      name: 'policyBudgetHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Add budget`
+  String get policyAddBudget {
+    return Intl.message(
+      'Add budget',
+      name: 'policyAddBudget',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Local budget (GiB)`
+  String get policyBudgetGiB {
+    return Intl.message(
+      'Local budget (GiB)',
+      name: 'policyBudgetGiB',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Monthly reset day (1–28)`
+  String get policyResetDay {
+    return Intl.message(
+      'Monthly reset day (1–28)',
+      name: 'policyResetDay',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Local usage`
+  String get policyUsage {
+    return Intl.message('Local usage', name: 'policyUsage', desc: '', args: []);
+  }
+
+  /// `Ledger untrusted; source restricted`
+  String get policyLedgerUntrusted {
+    return Intl.message(
+      'Ledger untrusted; source restricted',
+      name: 'policyLedgerUntrusted',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Not collected`
+  String get policyNotCollected {
+    return Intl.message(
+      'Not collected',
+      name: 'policyNotCollected',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Core stopped; policies are not running`
+  String get policyCoreStopped {
+    return Intl.message(
+      'Core stopped; policies are not running',
+      name: 'policyCoreStopped',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Runtime status`
+  String get policyRuntimeState {
+    return Intl.message(
+      'Runtime status',
+      name: 'policyRuntimeState',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Selected node`
+  String get policySelectedNode {
+    return Intl.message(
+      'Selected node',
+      name: 'policySelectedNode',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Policy simulation`
+  String get policySimulation {
+    return Intl.message(
+      'Policy simulation',
+      name: 'policySimulation',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Predict from current sources, health and usage; add scenario steps to inspect probe, cooldown and recovery timing. No real probes or configuration writes.`
+  String get policySimulationHint {
+    return Intl.message(
+      'Predict from current sources, health and usage; add scenario steps to inspect probe, cooldown and recovery timing. No real probes or configuration writes.',
+      name: 'policySimulationHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Assume all candidates healthy`
+  String get policyAssumeHealthy {
+    return Intl.message(
+      'Assume all candidates healthy',
+      name: 'policyAssumeHealthy',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Eligible now`
+  String get policyEligible {
+    return Intl.message(
+      'Eligible now',
+      name: 'policyEligible',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Excluded now`
+  String get policyExcluded {
+    return Intl.message(
+      'Excluded now',
+      name: 'policyExcluded',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Health unknown`
+  String get policyUnknownHealth {
+    return Intl.message(
+      'Health unknown',
+      name: 'policyUnknownHealth',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Undo change`
+  String get policyUndo {
+    return Intl.message('Undo change', name: 'policyUndo', desc: '', args: []);
+  }
+
+  /// `View changes`
+  String get policyViewChanges {
+    return Intl.message(
+      'View changes',
+      name: 'policyViewChanges',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Applied`
+  String get policyAppliedStatus {
+    return Intl.message(
+      'Applied',
+      name: 'policyAppliedStatus',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Pending approval`
+  String get policyDraftStatus {
+    return Intl.message(
+      'Pending approval',
+      name: 'policyDraftStatus',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Rejected`
+  String get policyRejectedStatus {
+    return Intl.message(
+      'Rejected',
+      name: 'policyRejectedStatus',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Recovery required`
+  String get policyRecoveryStatus {
+    return Intl.message(
+      'Recovery required',
+      name: 'policyRecoveryStatus',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Restored`
+  String get policyRestoredStatus {
+    return Intl.message(
+      'Restored',
+      name: 'policyRestoredStatus',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Superseded`
+  String get policySupersededStatus {
+    return Intl.message(
+      'Superseded',
+      name: 'policySupersededStatus',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Processing`
+  String get policyPreparingStatus {
+    return Intl.message(
+      'Processing',
+      name: 'policyPreparingStatus',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Integration is referenced by rules. Update them first`
+  String get policyDeleteLinked {
+    return Intl.message(
+      'Integration is referenced by rules. Update them first',
+      name: 'policyDeleteLinked',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Remove candidate`
+  String get policyRemoveCandidate {
+    return Intl.message(
+      'Remove candidate',
+      name: 'policyRemoveCandidate',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Load available nodes`
+  String get policyLoadNodes {
+    return Intl.message(
+      'Load available nodes',
+      name: 'policyLoadNodes',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Choose the file or destination in the local panel to continue.`
+  String get aiResourcePanelRequired {
+    return Intl.message(
+      'Choose the file or destination in the local panel to continue.',
+      name: 'aiResourcePanelRequired',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `The packaged script runtime is unavailable. Reinstall the application before running scripts.`
+  String get aiScriptRuntimeUnavailable {
+    return Intl.message(
+      'The packaged script runtime is unavailable. Reinstall the application before running scripts.',
+      name: 'aiScriptRuntimeUnavailable',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `The approved configuration is unavailable. Prepare and approve the change again.`
+  String get aiResourceActivationArtifactMissing {
+    return Intl.message(
+      'The approved configuration is unavailable. Prepare and approve the change again.',
+      name: 'aiResourceActivationArtifactMissing',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `This resource changed while the proposal was open. Prepare a new proposal.`
+  String get aiResourceScopeChanged {
+    return Intl.message(
+      'This resource changed while the proposal was open. Prepare a new proposal.',
+      name: 'aiResourceScopeChanged',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Clearing usage history cannot be undone. Source budget accounting will be retained.`
+  String get aiUsageClearIrreversible {
+    return Intl.message(
+      'Clearing usage history cannot be undone. Source budget accounting will be retained.',
+      name: 'aiUsageClearIrreversible',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `The update request was accepted. Completion will be confirmed by the local Core.`
+  String get aiResourceUpdateAccepted {
+    return Intl.message(
+      'The update request was accepted. Completion will be confirmed by the local Core.',
+      name: 'aiResourceUpdateAccepted',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Script execution was stopped by the local isolation limits.`
+  String get aiScriptSandboxRejected {
+    return Intl.message(
+      'Script execution was stopped by the local isolation limits.',
+      name: 'aiScriptSandboxRejected',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Simulation requires a running proxy core`
+  String get policySimulationCoreRequired {
+    return Intl.message(
+      'Simulation requires a running proxy core',
+      name: 'policySimulationCoreRequired',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Scenario steps (advanced JSON)`
+  String get policySimulationSteps {
+    return Intl.message(
+      'Scenario steps (advanced JSON)',
+      name: 'policySimulationSteps',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Up to 32 steps: at is epoch milliseconds; probes contain nodeId and success; sources change metadata; usage contains bytes used per source. Simulation performs no probes or configuration writes.`
+  String get policySimulationStepsHint {
+    return Intl.message(
+      'Up to 32 steps: at is epoch milliseconds; probes contain nodeId and success; sources change metadata; usage contains bytes used per source. Simulation performs no probes or configuration writes.',
+      name: 'policySimulationStepsHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Candidate transition timeline`
+  String get policySimulationTimeline {
+    return Intl.message(
+      'Candidate transition timeline',
+      name: 'policySimulationTimeline',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Subscription update route`
+  String get policyUpdateRoute {
+    return Intl.message(
+      'Subscription update route',
+      name: 'policyUpdateRoute',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Applies while local policies, integration or budgets are enabled. Unavailable proxy stops updates; direct access requires approval.`
+  String get policyUpdateRouteHint {
+    return Intl.message(
+      'Applies while local policies, integration or budgets are enabled. Unavailable proxy stops updates; direct access requires approval.',
+      name: 'policyUpdateRouteHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Use current proxy`
+  String get policyUpdateRouteProxy {
+    return Intl.message(
+      'Use current proxy',
+      name: 'policyUpdateRouteProxy',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Direct connection`
+  String get policyUpdateRouteDirect {
+    return Intl.message(
+      'Direct connection',
+      name: 'policyUpdateRouteDirect',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `The proxy is unavailable. Start it or explicitly choose direct subscription updates.`
+  String get policyUpdateProxyUnavailable {
+    return Intl.message(
+      'The proxy is unavailable. Start it or explicitly choose direct subscription updates.',
+      name: 'policyUpdateProxyUnavailable',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `This source uses an unsupported option: {option}. Local controls were not applied; remove this option first.`
+  String policyUnsupportedSourceOption(String option) {
+    return Intl.message(
+      'This source uses an unsupported option: $option. Local controls were not applied; remove this option first.',
+      name: 'policyUnsupportedSourceOption',
+      desc: '',
+      args: [option],
+    );
+  }
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<AppLocalizations> {

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/configuration/barrier.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/state.dart';
@@ -32,7 +33,7 @@ class _WindowContainerState extends ConsumerState<WindowManager>
       prev,
       next,
     ) {
-      if (prev != next) {
+      if (prev != next && !configurationWriteBarrier.active) {
         debouncer.call(FunctionTag.autoLaunch, () {
           autoLaunch?.updateStatus(next);
         });
@@ -65,6 +66,7 @@ class _WindowContainerState extends ConsumerState<WindowManager>
   void onWindowMoved() {
     super.onWindowMoved();
     windowManager.getPosition().then((offset) {
+      if (configurationWriteBarrier.active) return;
       ref
           .read(windowSettingProvider.notifier)
           .update((state) => state.copyWith(top: offset.dy, left: offset.dx));
@@ -75,6 +77,7 @@ class _WindowContainerState extends ConsumerState<WindowManager>
   Future<void> onWindowResized() async {
     super.onWindowResized();
     final size = await windowManager.getSize();
+    if (configurationWriteBarrier.active) return;
     ref
         .read(windowSettingProvider.notifier)
         .update(
