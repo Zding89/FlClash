@@ -336,10 +336,13 @@ class GlobalState {
     }
     container.read(initProvider.notifier).value = true;
     if (system.isMacOS) {
+      commonPrint.log('Local control: application_initialized');
       final control = await container
           .read(workbenchDatabaseProvider)
           .readSection('localControl');
-      if (control?['enabled'] == true) {
+      final enabled = control?['enabled'] == true;
+      commonPrint.log('Local control: persisted_enabled=$enabled');
+      if (enabled) {
         await container.read(localControlServiceProvider).enable();
       }
     }

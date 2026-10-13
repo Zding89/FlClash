@@ -6,6 +6,7 @@ import secrets
 import shutil
 import signal
 import socket
+import sqlite3
 import stat
 import struct
 import subprocess
@@ -215,6 +216,29 @@ def main():
     except Exception as error:
         report['status'] = 'failed'
         report['error'] = str(error).replace(password, '[REDACTED-FIXTURE]')
+        report['endpointFiles'] = [
+            {'name': path.name, 'mode': oct(stat.S_IMODE(path.lstat().st_mode))}
+            for path in runtime.iterdir()
+        ] if runtime.is_dir() and not runtime.is_symlink() else []
+        database = data / 'workbench.sqlite'
+        if database.is_file():
+            try:
+                with sqlite3.connect(f'file:{database}?mode=ro', uri=True) as connection:
+                    record = connection.execute(
+                        "SELECT payload FROM workbench_records WHERE section = 'localControl'"
+                    ).fetchone()
+                    report['fixtureControlEnabled'] = bool(record and json.loads(record[0]).get('enabled') is True)
+            except Exception as diagnostic_error:
+                report['fixtureDiagnosticError'] = type(diagnostic_error).__name__
+        if process is not None and process.poll() is None:
+            for arguments in [
+                ['/usr/sbin/screencapture', '-x', str(report_dir / 'failure-window.png')],
+                ['/usr/bin/sample', str(process.pid), '1', '1', '-file', str(report_dir / 'failure-sample.txt')],
+            ]:
+                try:
+                    subprocess.run(arguments, capture_output=True, timeout=15)
+                except (OSError, subprocess.SubprocessError) as diagnostic_error:
+                    report.setdefault('captureErrors', []).append(type(diagnostic_error).__name__)
         if isinstance(error, subprocess.CalledProcessError):
             diagnostic = (error.stdout or b'') + (error.stderr or b'')
             (report_dir / 'setup-error.log').write_bytes(diagnostic[-1024 * 1024:].replace(password.encode(), b'[REDACTED-FIXTURE]'))

@@ -4,15 +4,18 @@ import 'dart:convert';
 import 'package:fl_clash/control/password.dart';
 import 'package:fl_clash/control/service.dart';
 import 'package:fl_clash/control/transport.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class MemoryStore implements ControlPasswordStore {
   String? value;
   bool readFails = false;
+  Object? readError;
   bool writeFails = false;
   int writes = 0;
   @override
   Future<String?> read() async {
+    if (readError != null) throw readError!;
     if (readFails) throw StateError('locked');
     return value;
   }
@@ -109,6 +112,45 @@ void main() {
       expect(store.writes, 1);
     },
   );
+  test(
+    'startup diagnostics exclude credential errors and cannot break enable',
+    () async {
+      service.dispose();
+      final diagnostics = <String>[];
+      service = LocalControlService(
+        passwordStore: store,
+        transport: transport,
+        supported: true,
+        onDiagnostic: diagnostics.add,
+        executor: (_) async => {'status': 'completed'},
+      );
+      store.readError = PlatformException(
+        code: 'keychainFailure',
+        message: 'secret-value-never-log',
+        details: {'status': -25308, 'password': 'secret-value-never-log'},
+      );
+      await service.enable();
+      expect(service.enabled, isFalse);
+      expect(service.errorCode, 'control_unavailable');
+      expect(diagnostics, [
+        'password_read_started',
+        'enable_failed:keychain_status_-25308',
+      ]);
+      expect(diagnostics.join(), isNot(contains('secret-value-never-log')));
+      service.dispose();
+      store.readError = null;
+      service = LocalControlService(
+        passwordStore: store,
+        transport: transport,
+        supported: true,
+        onDiagnostic: (_) => throw StateError('observer failure'),
+        executor: (_) async => {'status': 'completed'},
+      );
+      await service.enable();
+      expect(service.enabled, isTrue);
+    },
+  );
+
   test('read and write failures never enable or overwrite', () async {
     store.readFails = true;
     await service.enable();

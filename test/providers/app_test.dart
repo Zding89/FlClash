@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:fl_clash/common/constant.dart';
+import 'package:fl_clash/common/function.dart';
 import 'package:fl_clash/common/request.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
@@ -344,43 +345,75 @@ void main() {
       request.dio.httpClientAdapter = originalAdapter;
     });
 
-    test(
-      'ignores a canceled stale check after a newer check succeeds',
-      () async {
-        request.dio.httpClientAdapter = _DelayedCancelIpAdapter();
-        final container = ProviderContainer(
-          overrides: [
-            initProvider.overrideWithBuild((_, _) => true),
-            runTimeProvider.overrideWithBuild((_, _) => 1),
-          ],
-        );
-        addTearDown(container.dispose);
+    testWidgets('ignores a canceled stale check after a newer check succeeds', (
+      tester,
+    ) async {
+      final adapter = _ControlledIpAdapter();
+      final interceptor = InterceptorsWrapper(
+        onError: adapter.holdStaleCancellation,
+      );
+      request.dio.httpClientAdapter = adapter;
+      request.dio.interceptors.add(interceptor);
+      final container = ProviderContainer(
+        overrides: [
+          initProvider.overrideWithBuild((_, _) => true),
+          runTimeProvider.overrideWithBuild((_, _) => 1),
+        ],
+      );
 
+      try {
         final notifier = container.read(networkDetectionProvider.notifier);
         notifier.startCheck();
-        await Future.delayed(commonDuration + const Duration(milliseconds: 50));
+        await tester.pump(commonDuration);
+        expect(adapter.staleRequestCount, greaterThan(0));
 
         notifier.startCheck();
-        await Future.delayed(
-          commonDuration + const Duration(milliseconds: 120),
+        await tester.pump(commonDuration);
+        expect(adapter.currentRequestCount, adapter.staleRequestCount);
+        expect(adapter.staleCancellationCount, adapter.staleRequestCount);
+        expect(adapter.releasedStaleCancellationCount, 0);
+        expect(container.read(networkDetectionProvider).isLoading, isTrue);
+        expect(container.read(networkDetectionProvider).ipInfo, isNull);
+
+        adapter.completeCurrentCheck();
+        await tester.pump(Duration.zero);
+
+        expect(container.read(networkDetectionProvider).ipInfo?.ip, '2.2.2.2');
+        expect(container.read(networkDetectionProvider).isLoading, isFalse);
+        expect(adapter.releasedStaleCancellationCount, 0);
+
+        adapter.releaseStaleCheck();
+        await tester.pump(Duration.zero);
+        expect(
+          adapter.releasedStaleCancellationCount,
+          adapter.staleRequestCount,
         );
+        await tester.pump(const Duration(seconds: 3));
 
         expect(container.read(networkDetectionProvider).ipInfo?.ip, '2.2.2.2');
-        expect(container.read(networkDetectionProvider).isLoading, false);
-
-        await Future.delayed(const Duration(milliseconds: 620));
-
-        expect(container.read(networkDetectionProvider).ipInfo?.ip, '2.2.2.2');
-        expect(container.read(networkDetectionProvider).isLoading, false);
-      },
-    );
+        expect(container.read(networkDetectionProvider).isLoading, isFalse);
+      } finally {
+        request.dio.interceptors.remove(interceptor);
+        debouncer.cancel(FunctionTag.checkIp);
+        container.dispose();
+        adapter.releaseStaleCheck();
+        adapter.close(force: true);
+        await tester.pump(Duration.zero);
+      }
+    });
   });
 }
 
-class _DelayedCancelIpAdapter implements HttpClientAdapter {
-  static const _sourceCount = 7;
+class _ControlledIpAdapter implements HttpClientAdapter {
+  final _staleRequests = <RequestOptions, Completer<ResponseBody>>{};
+  final _currentRequests = <RequestOptions, Completer<ResponseBody>>{};
+  final _releaseStaleCancellation = Completer<void>();
+  CancelToken? _staleCancelToken;
+  int staleCancellationCount = 0;
+  int releasedStaleCancellationCount = 0;
 
-  int _requestCount = 0;
+  int get staleRequestCount => _staleRequests.length;
+  int get currentRequestCount => _currentRequests.length;
 
   @override
   Future<ResponseBody> fetch(
@@ -388,37 +421,75 @@ class _DelayedCancelIpAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) {
-    _requestCount++;
-    final batch = ((_requestCount - 1) ~/ _sourceCount) + 1;
-    if (batch == 1) {
-      final completer = Completer<ResponseBody>();
-      cancelFuture?.then((_) {
-        Timer(const Duration(milliseconds: 500), () {
-          if (completer.isCompleted) return;
-          completer.completeError(
-            DioException(
-              requestOptions: options,
-              type: DioExceptionType.cancel,
-              error: 'cancelled',
-            ),
-          );
-        });
-      });
-      return completer.future;
-    }
+    _staleCancelToken ??= options.cancelToken;
+    final requests = options.cancelToken == _staleCancelToken
+        ? _staleRequests
+        : _currentRequests;
+    final completer = Completer<ResponseBody>();
+    requests[options] = completer;
+    cancelFuture?.then((_) {
+      if (completer.isCompleted) return;
+      completer.completeError(
+        DioException(
+          requestOptions: options,
+          type: DioExceptionType.cancel,
+          error: 'cancelled',
+        ),
+      );
+    });
+    return completer.future;
+  }
 
-    return Future.delayed(
-      const Duration(milliseconds: 10),
-      () => ResponseBody.fromString(
-        '{"ip":"2.2.2.2","country_code":"US"}',
-        200,
-        headers: {
-          Headers.contentTypeHeader: ['application/json'],
-        },
-      ),
-    );
+  void holdStaleCancellation(
+    DioException error,
+    ErrorInterceptorHandler handler,
+  ) {
+    if (error.type != DioExceptionType.cancel ||
+        error.requestOptions.cancelToken != _staleCancelToken) {
+      handler.next(error);
+      return;
+    }
+    staleCancellationCount++;
+    _releaseStaleCancellation.future.then((_) {
+      releasedStaleCancellationCount++;
+      handler.next(error);
+    });
+  }
+
+  void completeCurrentCheck() {
+    for (final completer in _currentRequests.values) {
+      completer.complete(
+        ResponseBody.fromString(
+          '{"ip":"2.2.2.2","country_code":"US"}',
+          200,
+          headers: {
+            Headers.contentTypeHeader: ['application/json'],
+          },
+        ),
+      );
+    }
+  }
+
+  void releaseStaleCheck() {
+    if (!_releaseStaleCancellation.isCompleted) {
+      _releaseStaleCancellation.complete();
+    }
   }
 
   @override
-  void close({bool force = false}) {}
+  void close({bool force = false}) {
+    for (final entry in [
+      ..._staleRequests.entries,
+      ..._currentRequests.entries,
+    ]) {
+      if (entry.value.isCompleted) continue;
+      entry.value.completeError(
+        DioException(
+          requestOptions: entry.key,
+          type: DioExceptionType.cancel,
+          error: 'closed',
+        ),
+      );
+    }
+  }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'password.dart';
 import 'operations.dart';
@@ -34,6 +35,7 @@ class LocalControlService extends ChangeNotifier {
     ControlRequestLedger? operations,
     this.onCredentialRotated,
     this.onEnabledChanged,
+    this.onDiagnostic,
     this.drainCapabilities,
     this.drainTimeout = const Duration(seconds: 30),
     this.queryTimeout = const Duration(seconds: 10),
@@ -46,6 +48,7 @@ class LocalControlService extends ChangeNotifier {
   final bool supported;
   final Future<void> Function(int generation)? onCredentialRotated;
   final Future<void> Function(bool enabled)? onEnabledChanged;
+  final void Function(String event)? onDiagnostic;
   final Future<void> Function()? drainCapabilities;
   final Duration drainTimeout;
   final Duration queryTimeout;
@@ -67,6 +70,12 @@ class LocalControlService extends ChangeNotifier {
   int get credentialGeneration => _generation;
   String? revealPassword() => _password;
 
+  void _diagnose(String event) {
+    try {
+      onDiagnostic?.call(event);
+    } catch (_) {}
+  }
+
   Future<void> enable() async {
     if (_closed || busy || enabled) return;
     if (!supported) {
@@ -78,7 +87,9 @@ class LocalControlService extends ChangeNotifier {
     errorCode = null;
     notifyListeners();
     try {
+      _diagnose('password_read_started');
       var password = await passwordStore.read();
+      _diagnose('password_read_completed');
       if (password == null) {
         password = generateControlPassword();
         await passwordStore.write(password);
@@ -90,12 +101,26 @@ class LocalControlService extends ChangeNotifier {
       _generation = generateControlCredentialGeneration();
       await onCredentialRotated?.call(_generation);
       _instanceId = generateControlPassword();
+      _diagnose('transport_start_started');
       transport.start(_instanceId!);
+      _diagnose('transport_start_completed');
       _accepting = true;
       enabled = true;
       _timer = Timer.periodic(const Duration(milliseconds: 20), (_) => _poll());
       await onEnabledChanged?.call(true);
-    } catch (_) {
+      _diagnose('enable_completed');
+    } catch (error) {
+      final status =
+          error is PlatformException &&
+              error.code == 'keychainFailure' &&
+              error.details is Map
+          ? (error.details as Map)['status']
+          : null;
+      _diagnose(
+        status is int
+            ? 'enable_failed:keychain_status_$status'
+            : 'enable_failed:${error.runtimeType}',
+      );
       _timer?.cancel();
       transport.stop();
       _accepting = false;

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:fl_clash/capabilities/service.dart';
 import 'package:fl_clash/common/system.dart';
+import 'package:fl_clash/common/print.dart';
 import 'package:fl_clash/configuration/barrier.dart';
 import 'package:fl_clash/control/password.dart';
 import 'package:fl_clash/control/operations.dart';
@@ -17,6 +18,7 @@ final localControlServiceProvider = Provider<LocalControlService>((ref) {
     passwordStore: const KeychainControlPasswordStore(),
     transport: NativeControlTransport(),
     supported: system.isMacOS,
+    onDiagnostic: (event) => commonPrint.log('Local control: $event'),
     operations: ControlRequestLedger(
       load: () =>
           ref.read(workbenchDatabaseProvider).readSection('control.requests'),
