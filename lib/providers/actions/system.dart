@@ -29,6 +29,9 @@ class SystemAction extends _$SystemAction {
       await coordinator.exit(
         cleanup: () => cleanupExitResources(needSave),
         prepareForClose: () async {
+          if (system.isMacOS) {
+            await ref.read(localControlServiceProvider).close();
+          }
           if (!ref.read(usagePlatformSupportedProvider)) {
             return;
           }

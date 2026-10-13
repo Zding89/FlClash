@@ -84,6 +84,12 @@ mixin CoreInterface {
 
   Future<bool> ackUsageBatch(UsageBatchAck ack);
 
+  Future<Map<String, Object?>> checkLocalPolicyNodes(
+    Map<String, Object?> input,
+  );
+  Future<Map<String, Object?>> getLocalPolicyDetails(
+    Map<String, Object?> input,
+  );
   Future<Map<String, Object?>> getLocalPolicyStatus();
   Future<Map<String, Object?>> simulateLocalPolicies(
     Map<String, Object?> input,
@@ -92,6 +98,30 @@ mixin CoreInterface {
 }
 
 abstract class CoreHandlerInterface with CoreInterface {
+  @override
+  Future<Map<String, Object?>> getLocalPolicyDetails(
+    Map<String, Object?> input,
+  ) async {
+    final result = await _invokeMethod<Map>(
+      method: CoreMethod.getLocalPolicyDetails,
+      arguments: input,
+    );
+    if (result == null) throw StateError('local_policy_details_unavailable');
+    return Map<String, Object?>.from(result);
+  }
+
+  @override
+  Future<Map<String, Object?>> checkLocalPolicyNodes(
+    Map<String, Object?> input,
+  ) async {
+    final result = await _invokeMethod<Map>(
+      method: CoreMethod.checkLocalPolicyNodes,
+      arguments: input,
+    );
+    if (result == null) throw StateError('local_policy_check_unavailable');
+    return Map<String, Object?>.from(result);
+  }
+
   @override
   Future<String> refreshLocalPolicySource(Map<String, Object?> input) async =>
       await _invokeMethod<String>(

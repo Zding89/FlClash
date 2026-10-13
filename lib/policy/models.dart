@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:collection/collection.dart';
 import 'package:crypto/crypto.dart';
 
+import 'node_sets.dart';
+export 'node_sets.dart';
+
 enum PolicyMatchType {
   global,
   group,
@@ -198,6 +201,16 @@ final class PolicyMatch {
           throw const FormatException('Match scope requires values');
         }
         for (final value in values) {
+          if ({
+                PolicyMatchType.domain,
+                PolicyMatchType.domainSuffix,
+              }.contains(type) &&
+              (value.contains(RegExp(r'[\s/:?#@]')) ||
+                  Uri.tryParse('https://$value')?.host.isEmpty != false)) {
+            throw const FormatException(
+              'Enter a domain without protocol or path',
+            );
+          }
           if (value.trim().isEmpty ||
               value.contains(RegExp(r'[,\r\n()]')) ||
               value != value.trim()) {
@@ -230,6 +243,10 @@ final class PolicyProbe {
   final int failureThreshold;
   final int successThreshold;
   final String expectedStatus;
+  final String method;
+  final bool automatic;
+  final int retrySeconds;
+  final int validitySeconds;
 
   const PolicyProbe({
     this.url = 'https://www.gstatic.com/generate_204',
@@ -238,6 +255,10 @@ final class PolicyProbe {
     this.failureThreshold = 3,
     this.successThreshold = 3,
     this.expectedStatus = '200-399',
+    this.method = 'HEAD',
+    this.automatic = true,
+    this.retrySeconds = 180,
+    this.validitySeconds = 600,
   });
 
   factory PolicyProbe.fromJson(Map<String, Object?> json) {
@@ -248,8 +269,28 @@ final class PolicyProbe {
       'failureThreshold',
       'successThreshold',
       'expectedStatus',
+      'method',
+      'automatic',
+      'retrySeconds',
+      'validitySeconds',
     });
     final probe = PolicyProbe(
+      method: policyString(json, 'method', fallback: 'HEAD'),
+      automatic: policyBool(json, 'automatic', fallback: true),
+      retrySeconds: policyInt(
+        json,
+        'retrySeconds',
+        fallback: 180,
+        minimum: 5,
+        maximum: 86400,
+      ),
+      validitySeconds: policyInt(
+        json,
+        'validitySeconds',
+        fallback: 600,
+        minimum: 5,
+        maximum: 86400,
+      ),
       url: policyString(
         json,
         'url',
@@ -295,6 +336,8 @@ final class PolicyProbe {
         !{'http', 'https'}.contains(uri.scheme) ||
         uri.host.isEmpty ||
         uri.userInfo.isNotEmpty ||
+        !{'GET', 'HEAD'}.contains(probe.method) ||
+        probe.validitySeconds < probe.intervalSeconds ||
         probe.timeoutSeconds >= probe.intervalSeconds) {
       throw const FormatException('Invalid probe URL or timing');
     }
@@ -318,6 +361,10 @@ final class PolicyProbe {
     'failureThreshold': failureThreshold,
     'successThreshold': successThreshold,
     'expectedStatus': expectedStatus,
+    'method': method,
+    'automatic': automatic,
+    'retrySeconds': retrySeconds,
+    'validitySeconds': validitySeconds,
   };
 }
 
@@ -451,6 +498,9 @@ final class LocalPolicy {
   final int priority;
   final PolicyMatch scope;
   final List<String> candidateNodeIds;
+  final List<PolicyChoice> choices;
+  final PolicyOrigin origin;
+  final bool userModified;
   final PolicyProbe probe;
   final PolicyGuard guard;
   final PolicySchedule schedule;
@@ -464,7 +514,10 @@ final class LocalPolicy {
     required this.id,
     required this.label,
     required this.targetId,
-    required this.candidateNodeIds,
+    this.candidateNodeIds = const [],
+    this.choices = const [],
+    this.origin = PolicyOrigin.unknown,
+    this.userModified = false,
     this.enabled = true,
     this.priority = 100,
     this.scope = const PolicyMatch(),
@@ -491,6 +544,9 @@ final class LocalPolicy {
       'priority',
       'scope',
       'candidateNodeIds',
+      'choices',
+      'origin',
+      'userModified',
       'probe',
       'guard',
       'schedule',
@@ -509,7 +565,17 @@ final class LocalPolicy {
       throw const FormatException('Invalid policy identity or target');
     }
     final candidates = policyStrings(json, 'candidateNodeIds', maximum: 10);
-    if (candidates.isEmpty || candidates.toSet().length != candidates.length) {
+    final choices = policyItems(
+      json,
+      'choices',
+      PolicyChoice.fromJson,
+      maximum: 10,
+    );
+    if ((candidates.isEmpty && choices.isEmpty) ||
+        (candidates.isNotEmpty && choices.isNotEmpty) ||
+        candidates.toSet().length != candidates.length ||
+        choices.map((c) => '${c.type.name}:${c.id}').toSet().length !=
+            choices.length) {
       throw const FormatException(
         'Policy requires a unique ordered candidate list',
       );
@@ -524,6 +590,11 @@ final class LocalPolicy {
         policyObject(json['scope'] ?? <String, Object?>{}, 'scope'),
       ),
       candidateNodeIds: candidates,
+      choices: choices,
+      origin: PolicyOrigin.values.byName(
+        policyString(json, 'origin', fallback: 'unknown'),
+      ),
+      userModified: policyBool(json, 'userModified'),
       probe: PolicyProbe.fromJson(
         policyObject(json['probe'] ?? <String, Object?>{}, 'probe'),
       ),
@@ -564,6 +635,9 @@ final class LocalPolicy {
     'priority': priority,
     'scope': scope.toJson(),
     'candidateNodeIds': candidateNodeIds,
+    'choices': choices.map((c) => c.toJson()).toList(),
+    'origin': origin.name,
+    'userModified': userModified,
     'probe': probe.toJson(),
     'guard': guard.toJson(),
     'schedule': schedule.toJson(),
@@ -577,6 +651,8 @@ final class LocalPolicy {
   Map<String, Object?> toCoreJson() => Map<String, Object?>.from(toJson())
     ..remove('scope')
     ..remove('targetId')
+    ..remove('origin')
+    ..remove('userModified')
     ..['groupName'] = groupName;
 }
 
@@ -723,6 +799,7 @@ final class LocalNode {
   final String sourceLabel;
   final String protocol;
   final Map<String, Object?> raw;
+  final NodeAttributes attributes;
 
   LocalNode({
     required this.id,
@@ -731,6 +808,7 @@ final class LocalNode {
     required this.sourceLabel,
     required this.protocol,
     required Map<String, Object?> raw,
+    this.attributes = const NodeAttributes(),
   }) : raw = Map.unmodifiable(raw);
 
   String get proxyName {
@@ -756,6 +834,7 @@ final class LocalNode {
     'label': label,
     'sourceLabel': sourceLabel,
     'protocol': protocol,
+    'attributes': attributes.toJson(),
   };
 }
 
@@ -779,9 +858,15 @@ final class LocalPolicyDocument {
   final List<LocalPolicy> policies;
   final List<SourceBudget> budgets;
   final List<PolicyOverride> overrides;
+  final bool? _moduleEnabled;
+  bool get moduleEnabled =>
+      _moduleEnabled ??
+      (policiesEnabled || integrationEnabled || budgetsEnabled);
+  final List<PolicyNodeSet> nodeSets;
+  final Map<String, NodeAttributes> nodeAttributes;
 
   const LocalPolicyDocument({
-    this.schemaVersion = 1,
+    this.schemaVersion = 2,
     this.revision = 0,
     this.policiesEnabled = false,
     this.integrationEnabled = false,
@@ -792,7 +877,10 @@ final class LocalPolicyDocument {
     this.policies = const [],
     this.budgets = const [],
     this.overrides = const [],
-  });
+    bool? moduleEnabled,
+    this.nodeSets = const [],
+    this.nodeAttributes = const {},
+  }) : _moduleEnabled = moduleEnabled;
 
   SubscriptionIntegration? get activeIntegration => integrations
       .firstWhereOrNull((integration) => integration.id == activeIntegrationId);
@@ -810,9 +898,12 @@ final class LocalPolicyDocument {
       'overrides',
       'budgetsEnabled',
       'sourceUpdateRoute',
+      'moduleEnabled',
+      'nodeSets',
+      'nodeAttributes',
     });
     final version = policyInt(json, 'schemaVersion', fallback: 1, minimum: 1);
-    if (version != 1) {
+    if (version != 1 && version != 2) {
       throw const FormatException('Unsupported local policy schema version');
     }
     final activeId = json['activeIntegrationId'];
@@ -820,7 +911,23 @@ final class LocalPolicyDocument {
       throw const FormatException('Invalid active integration');
     }
     final document = LocalPolicyDocument(
-      schemaVersion: version,
+      schemaVersion: 2,
+      moduleEnabled: policyBool(
+        json,
+        'moduleEnabled',
+        fallback:
+            policyBool(json, 'policiesEnabled') ||
+            policyBool(json, 'integrationEnabled') ||
+            policyBool(json, 'budgetsEnabled'),
+      ),
+      nodeSets: policyItems(json, 'nodeSets', PolicyNodeSet.fromJson),
+      nodeAttributes:
+          policyObject(json['nodeAttributes'] ?? {}, 'nodeAttributes').map(
+            (key, value) => MapEntry(
+              key,
+              NodeAttributes.fromJson(policyObject(value, 'attributes')),
+            ),
+          ),
       revision: policyInt(json, 'revision', fallback: 0),
       policiesEnabled: policyBool(json, 'policiesEnabled'),
       integrationEnabled: policyBool(json, 'integrationEnabled'),
@@ -856,11 +963,32 @@ final class LocalPolicyDocument {
     if (integrationEnabled && activeIntegration == null) {
       throw const FormatException('Choose an integration before enabling it');
     }
+    if (nodeSets.length > 100 ||
+        nodeAttributes.length > 5000 ||
+        nodeSets.map((s) => s.id).toSet().length != nodeSets.length) {
+      throw const FormatException('Invalid node set capacity or identity');
+    }
+    for (final set in nodeSets) {
+      if (set.targetId.startsWith('integration:') &&
+          !integrations.any((i) => i.targetId == set.targetId)) {
+        throw const FormatException('Node set target is missing');
+      }
+    }
     final scopes = <String>{};
     for (final policy in policies) {
       if (policy.targetId.startsWith('integration:') &&
           !integrations.any((entry) => entry.targetId == policy.targetId)) {
         throw const FormatException('Policy refers to a missing integration');
+      }
+      for (final choice in policy.choices.where(
+        (c) => c.type == PolicyChoiceType.nodeSet,
+      )) {
+        final set = nodeSets.firstWhereOrNull((s) => s.id == choice.id);
+        if (set == null || set.targetId != policy.targetId) {
+          throw const FormatException(
+            'Node set reference is missing or belongs to another target',
+          );
+        }
       }
       if (!policy.enabled) continue;
       final scopeKey = '${policy.targetId}/${policy.priority}';
@@ -875,7 +1003,12 @@ final class LocalPolicyDocument {
         (entry) => entry.id == override.policyId,
       );
       if (policy == null ||
-          !policy.candidateNodeIds.contains(override.nodeId)) {
+          !policy.candidateNodeIds.contains(override.nodeId) &&
+              !policy.choices.any(
+                (c) =>
+                    c.type == PolicyChoiceType.node && c.id == override.nodeId,
+              ) &&
+              !policy.choices.any((c) => c.type == PolicyChoiceType.nodeSet)) {
         throw const FormatException(
           'Temporary override must reference an allowed candidate',
         );
@@ -885,6 +1018,9 @@ final class LocalPolicyDocument {
 
   LocalPolicyDocument withRevision(int value) => LocalPolicyDocument(
     schemaVersion: schemaVersion,
+    moduleEnabled: moduleEnabled,
+    nodeSets: nodeSets,
+    nodeAttributes: nodeAttributes,
     revision: value,
     policiesEnabled: policiesEnabled,
     integrationEnabled: integrationEnabled,
@@ -899,6 +1035,11 @@ final class LocalPolicyDocument {
 
   Map<String, Object?> toJson() => {
     'schemaVersion': schemaVersion,
+    'moduleEnabled': moduleEnabled,
+    'nodeSets': nodeSets.map((s) => s.toJson()).toList(),
+    'nodeAttributes': nodeAttributes.map(
+      (key, value) => MapEntry(key, value.toJson()),
+    ),
     'revision': revision,
     'policiesEnabled': policiesEnabled,
     'integrationEnabled': integrationEnabled,

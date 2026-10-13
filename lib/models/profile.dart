@@ -21,6 +21,9 @@ abstract class SubscriptionInfo with _$SubscriptionInfo {
     @Default(0) int expire,
     @Default({}) Set<String> knownFields,
     DateTime? observedAt,
+    DateTime? expireObservedAt,
+    DateTime? remainingObservedAt,
+    @Default(false) bool exhausted,
   }) = _SubscriptionInfo;
 
   factory SubscriptionInfo.fromJson(Map<String, Object?> json) =>
@@ -46,6 +49,14 @@ abstract class SubscriptionInfo with _$SubscriptionInfo {
       expire: map['expire'] ?? 0,
       knownFields: map.keys.toSet(),
       observedAt: DateTime.now(),
+      expireObservedAt: map.containsKey('expire') ? DateTime.now() : null,
+      remainingObservedAt:
+          map.keys.toSet().containsAll({'total', 'upload', 'download'})
+          ? DateTime.now()
+          : null,
+      exhausted:
+          (map['total'] ?? 0) > 0 &&
+          (map['upload'] ?? 0) + (map['download'] ?? 0) >= map['total']!,
     );
   }
 }
@@ -230,8 +241,12 @@ extension ProfileExtension on Profile {
     if (info.expire <= 0 && previousInfo != null && previousInfo.expire > 0) {
       info = info.copyWith(
         expire: previousInfo.expire,
-        knownFields: {...info.knownFields, 'expire'},
+        expireObservedAt:
+            previousInfo.expireObservedAt ?? previousInfo.observedAt,
       );
+    }
+    if (!info.knownFields.containsAll({'total', 'upload', 'download'})) {
+      info = info.copyWith(exhausted: previousInfo?.exhausted ?? false);
     }
     final metadata = copyWith(
       label: label.takeFirstValid([

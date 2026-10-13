@@ -80,6 +80,8 @@ type ProxiesData struct {
 
 const (
 	refreshLocalPolicySourceMethod CoreMethod = "refreshLocalPolicySource"
+	getLocalPolicyDetailsMethod    CoreMethod = "getLocalPolicyDetails"
+	checkLocalPolicyNodesMethod    CoreMethod = "checkLocalPolicyNodes"
 	getLocalPolicyStatusMethod     CoreMethod = "getLocalPolicyStatus"
 	simulateLocalPoliciesMethod    CoreMethod = "simulateLocalPolicies"
 	messageMethod                  CoreMethod = "message"

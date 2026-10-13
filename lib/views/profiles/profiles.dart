@@ -1,3 +1,5 @@
+import 'package:fl_clash/views/policy/policy.dart';
+import 'package:fl_clash/views/ai/approval.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
@@ -23,6 +25,8 @@ class ProfilesView extends StatefulWidget {
 class _ProfilesViewState extends State<ProfilesView> {
   Function? applyConfigDebounce;
   bool _isUpdating = false;
+  bool _selecting = false;
+  int _selectionEpoch = 0;
 
   // final GlobalKey _targetKey = GlobalKey();
 
@@ -81,6 +85,41 @@ class _ProfilesViewState extends State<ProfilesView> {
     _isUpdating = false;
   }
 
+  Future<void> _select(
+    WidgetRef ref, {
+    int? profileId,
+    String? integrationId,
+    bool? moduleEnabled,
+  }) async {
+    final epoch = ++_selectionEpoch;
+    setState(() => _selecting = true);
+    try {
+      await ref
+          .read(workbenchControllerProvider)
+          .selectPolicyTarget(
+            profileId: profileId,
+            integrationId: integrationId,
+            moduleEnabled: moduleEnabled,
+            approve: (proposal) => mounted
+                ? showAiConfigurationApproval(context, proposal)
+                : Future.value(false),
+          );
+    } catch (_) {
+      if (mounted && epoch == _selectionEpoch) {
+        globalState.showNotifier(
+          context.appLocalizations.policyOperationFailed,
+        );
+      }
+    } finally {
+      if (mounted && epoch == _selectionEpoch) {
+        setState(() => _selecting = false);
+      }
+    }
+  }
+
+  void _editCollection() =>
+      showExtend(context, builder: (_) => const LocalPolicyWorkbenchView());
+
   List<Widget> _buildActions(List<Profile> profiles) {
     return profiles.isNotEmpty
         ? [
@@ -122,6 +161,18 @@ class _ProfilesViewState extends State<ProfilesView> {
         final isLoading = ref.watch(loadingProvider(LoadingTag.profiles));
         final state = ref.watch(profilesStateProvider);
         final spacing = 14.mAp;
+        final document = system.isMacOS
+            ? ref.watch(localPoliciesProvider).value
+            : null;
+        final runtime = system.isMacOS
+            ? ref.watch(localPolicyStatusProvider).value
+            : null;
+        final integrated =
+            document?.moduleEnabled == true &&
+            document?.integrationEnabled == true;
+        final collectionInUse =
+            runtime?['targetId'] == document?.activeIntegration?.targetId &&
+            runtime?['documentRevision'] == document?.revision;
         return CommonScaffold(
           isLoading: isLoading,
           title: appLocalizations.profiles,
@@ -153,18 +204,95 @@ class _ProfilesViewState extends State<ProfilesView> {
                           crossAxisSpacing: spacing,
                           crossAxisCount: columns,
                           children: [
+                            if (system.isMacOS)
+                              GridItem(
+                                child: SwitchListTile(
+                                  title: Text(appLocalizations.policyModule),
+                                  subtitle: Text(
+                                    appLocalizations.policyModuleOffHint,
+                                  ),
+                                  value: document?.moduleEnabled ?? false,
+                                  onChanged: document == null
+                                      ? null
+                                      : (value) =>
+                                            _select(ref, moduleEnabled: value),
+                                ),
+                              ),
+                            if (document?.moduleEnabled == true)
+                              GridItem(
+                                child: Card(
+                                  child: ListTile(
+                                    leading: RadioGroup<String>(
+                                      groupValue: integrated ? 'local' : null,
+                                      onChanged: (_) {
+                                        if (document!.activeIntegration ==
+                                            null) {
+                                          _editCollection();
+                                        } else {
+                                          _select(
+                                            ref,
+                                            integrationId:
+                                                document.activeIntegrationId,
+                                          );
+                                        }
+                                      },
+                                      child: const Radio<String>(
+                                        value: 'local',
+                                      ),
+                                    ),
+                                    title: Text(
+                                      appLocalizations.policyLocalCollection,
+                                    ),
+                                    subtitle: Text(
+                                      document!.activeIntegration == null
+                                          ? appLocalizations
+                                                .policyCollectionPending
+                                          : '${document.activeIntegration!.label} · ${document.activeIntegration!.sourceProfileIds.length} · ${document.policies.where((p) => p.targetId == document.activeIntegration!.targetId).length}\n${integrated
+                                                ? collectionInUse
+                                                      ? appLocalizations.policyAppliedStatus
+                                                      : appLocalizations.policySelectedOffline
+                                                : appLocalizations.policySelectCollection}',
+                                    ),
+                                    onTap: () {
+                                      if (document.activeIntegration == null) {
+                                        _editCollection();
+                                      } else {
+                                        _select(
+                                          ref,
+                                          integrationId:
+                                              document.activeIntegrationId,
+                                        );
+                                      }
+                                    },
+                                    trailing: IconButton(
+                                      onPressed: _editCollection,
+                                      tooltip: appLocalizations.edit,
+                                      icon: const Icon(Icons.edit_outlined),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            if (_selecting)
+                              const GridItem(child: LinearProgressIndicator()),
                             for (int i = 0; i < state.profiles.length; i++)
                               GridItem(
                                 child: ProfileItem(
                                   profile: state.profiles[i],
-                                  groupValue: state.currentProfileId,
+                                  groupValue: integrated
+                                      ? null
+                                      : state.currentProfileId,
                                   onChanged: (profileId) {
-                                    ref
-                                            .read(
-                                              currentProfileIdProvider.notifier,
-                                            )
-                                            .value =
-                                        profileId;
+                                    if (system.isMacOS) {
+                                      _select(ref, profileId: profileId);
+                                    } else {
+                                      ref
+                                              .read(
+                                                currentProfileIdProvider
+                                                    .notifier,
+                                              )
+                                              .value =
+                                          profileId;
+                                    }
                                   },
                                 ),
                               ),

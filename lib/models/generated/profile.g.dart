@@ -20,6 +20,13 @@ _SubscriptionInfo _$SubscriptionInfoFromJson(Map<String, dynamic> json) =>
       observedAt: json['observedAt'] == null
           ? null
           : DateTime.parse(json['observedAt'] as String),
+      expireObservedAt: json['expireObservedAt'] == null
+          ? null
+          : DateTime.parse(json['expireObservedAt'] as String),
+      remainingObservedAt: json['remainingObservedAt'] == null
+          ? null
+          : DateTime.parse(json['remainingObservedAt'] as String),
+      exhausted: json['exhausted'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$SubscriptionInfoToJson(_SubscriptionInfo instance) =>
@@ -30,6 +37,9 @@ Map<String, dynamic> _$SubscriptionInfoToJson(_SubscriptionInfo instance) =>
       'expire': instance.expire,
       'knownFields': instance.knownFields.toList(),
       'observedAt': instance.observedAt?.toIso8601String(),
+      'expireObservedAt': instance.expireObservedAt?.toIso8601String(),
+      'remainingObservedAt': instance.remainingObservedAt?.toIso8601String(),
+      'exhausted': instance.exhausted,
     };
 
 _Profile _$ProfileFromJson(Map<String, dynamic> json) => _Profile(

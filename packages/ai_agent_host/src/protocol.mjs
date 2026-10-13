@@ -3,7 +3,7 @@ export const MAX_QUEUE_BYTES = 4 * MAX_FRAME_BYTES;
 const identifier = /^[A-Za-z0-9_-]{1,96}$/;
 export function validId(value) { return typeof value === 'string' && identifier.test(value) && !value.includes('\n'); }
 export function envelope(value) {
-  if (!value || value.version !== 1 || !validId(value.sessionId) || !validId(value.requestId) || !Number.isSafeInteger(value.generation) || value.generation < 1 || !['prompt', 'cancel', 'toolResult', 'close'].includes(value.type)) throw new Error('invalidEnvelope');
+  if (!value || value.version !== 1 || !validId(value.sessionId) || !validId(value.requestId) || !Number.isSafeInteger(value.generation) || value.generation < 1 || !['prompt', 'listModels', 'cancel', 'toolResult', 'close'].includes(value.type)) throw new Error('invalidEnvelope');
   return value;
 }
 export class JsonLineReader {

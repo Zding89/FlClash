@@ -18,7 +18,7 @@ final class PolicyProfileService {
     required List<Profile> profiles,
     required int? profileId,
   }) {
-    final integration = document.integrationEnabled
+    final integration = document.moduleEnabled && document.integrationEnabled
         ? document.activeIntegration
         : null;
     final ids = integration == null
@@ -98,14 +98,30 @@ final class PolicyProfileService {
       allowNetwork: refresh,
       persistCache: refresh,
     );
-    return sources.expand(compiler.extractNodes).where((node) {
-      final selectedIntegration = integration;
-      if (selectedIntegration == null) return true;
-      if (selectedIntegration.excludedNodeIds.contains(node.id)) return false;
-      final filter = selectedIntegration.nameFilter;
-      return filter == null ||
-          filter.isEmpty ||
-          node.label.toLowerCase().contains(filter.toLowerCase());
-    }).toList();
+    return sources
+        .expand(compiler.extractNodes)
+        .map(
+          (node) => LocalNode(
+            id: node.id,
+            sourceId: node.sourceId,
+            label: node.label,
+            sourceLabel: node.sourceLabel,
+            protocol: node.protocol,
+            raw: node.raw,
+            attributes: document.nodeAttributes[node.id] ?? node.attributes,
+          ),
+        )
+        .where((node) {
+          final selectedIntegration = integration;
+          if (selectedIntegration == null) return true;
+          if (selectedIntegration.excludedNodeIds.contains(node.id)) {
+            return false;
+          }
+          final filter = selectedIntegration.nameFilter;
+          return filter == null ||
+              filter.isEmpty ||
+              node.label.toLowerCase().contains(filter.toLowerCase());
+        })
+        .toList();
   }
 }

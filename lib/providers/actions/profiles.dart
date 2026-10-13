@@ -208,9 +208,8 @@ class ProfilesAction extends _$ProfilesAction {
     addProfileFormURL(url);
   }
 
-  void reorder(List<Profile> profiles) {
-    ref.read(profilesProvider.notifier).reorder(profiles);
-  }
+  Future<void> reorder(List<Profile> profiles) =>
+      ref.read(profilesProvider.notifier).reorder(profiles);
 
   Future<void> clearEffect(int profileId) async {
     final profilePath = await appPath.getProfilePath(profileId.toString());

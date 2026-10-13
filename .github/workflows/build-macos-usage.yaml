@@ -19,8 +19,20 @@ env:
 
 jobs:
   build:
-    name: Build Apple Silicon DMG
-    runs-on: macos-latest
+    name: Build macOS ${{ matrix.arch }} DMG
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            arch: arm64
+            machine: arm64
+          - runner: macos-15-intel
+            arch: x64
+            machine: x86_64
+    runs-on: ${{ matrix.runner }}
+    env:
+      FLCLASH_TEST_NODE: /private/tmp/flclash-ai-host-node22-${{ matrix.arch }}/Resources/ai/node
     timeout-minutes: 90
     steps:
       - name: Checkout
@@ -54,7 +66,7 @@ jobs:
 
       - name: Verify build environment
         run: |
-          test "$(uname -m)" = arm64
+          test "$(uname -m)" = '${{ matrix.machine }}'
           xcodebuild -version
           flutter --version
           go version
@@ -70,7 +82,14 @@ jobs:
 
       - name: Prepare isolated macOS script test runtime
         working-directory: packages/ai_agent_host
-        run: node scripts/package.mjs --arch arm64 --resources /private/tmp/flclash-ai-host-node22-arm64/Resources
+        run: node scripts/package.mjs --arch ${{ matrix.arch }} --resources /private/tmp/flclash-ai-host-node22-${{ matrix.arch }}/Resources
+
+      - name: Build and test local control runtime
+        working-directory: services/control
+        run: |
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          cargo test --locked
+          cargo build --locked --release
 
       - name: Install Flutter dependencies
         run: flutter pub get
@@ -102,16 +121,24 @@ jobs:
           test "$bundle_id" = 'com.zding.flclash.usage'
           test "$display_name" = 'FlClash Usage'
           executable_name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app_path/Contents/Info.plist")
-          /usr/bin/lipo "$app_path/Contents/MacOS/$executable_name" -verify_arch arm64
+          /usr/bin/lipo "$app_path/Contents/MacOS/$executable_name" -verify_arch '${{ matrix.machine }}'
           resources="$app_path/Contents/Resources"
           test -x "$resources/ai/node"
           test -s "$resources/ai/host.mjs"
           test -s "$resources/ai/script_runner.mjs"
           test -s "$resources/ai/manifest.json"
           test -s "$resources/ai/NODE-LICENSE"
-          /usr/bin/lipo "$resources/ai/node" -verify_arch arm64
+          /usr/bin/lipo "$resources/ai/node" -verify_arch '${{ matrix.machine }}'
           test "$("$resources/ai/node" --version)" = 'v22.23.3'
           /usr/bin/codesign --verify --strict --verbose=2 "$resources/ai/node"
+          test -x "$resources/control/flclashctl"
+          test -s "$resources/control/libflclash_control.dylib"
+          /usr/bin/lipo "$resources/control/flclashctl" -verify_arch '${{ matrix.machine }}'
+          /usr/bin/lipo "$resources/control/libflclash_control.dylib" -verify_arch '${{ matrix.machine }}'
+          "$resources/control/flclashctl" --version
+          "$resources/control/flclashctl" --help
+          /usr/bin/codesign --verify --strict --verbose=2 "$resources/control/flclashctl"
+          /usr/bin/codesign --verify --strict --verbose=2 "$resources/control/libflclash_control.dylib"
           /usr/bin/codesign --verify --deep --strict --verbose=2 "$app_path"
           node packages/ai_agent_host/scripts/verify.mjs --resources "$resources"
           find dist -maxdepth 2 -type f -print
@@ -119,7 +146,7 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: FlClash-Usage-macOS-Apple-Silicon
+          name: FlClash-Usage-macOS-${{ matrix.arch }}
           path: dist/*.dmg
           if-no-files-found: error
           retention-days: 14

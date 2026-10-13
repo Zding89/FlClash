@@ -35,7 +35,17 @@ class _EchoTransport implements AgentTransport {
   @override
   Future<void> write(List<int> bytes) async {
     final frame = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
-    if (frame['type'] == 'prompt') {
+    if (frame['type'] == 'listModels') {
+      prompt = frame;
+      if (!hang) {
+        event('models', {
+          'models': [
+            {'id': 'available-model', 'name': 'Available'},
+          ],
+        });
+        event('done', {'cancelled': false, 'failed': false});
+      }
+    } else if (frame['type'] == 'prompt') {
       prompt = frame;
       if (hang) return;
       if (withTool) {
@@ -106,8 +116,10 @@ void main() {
         find.byKey(const ValueKey('ai-connection-url')),
         'https://new.example/v1',
       );
-      await tester.ensureVisible(find.text(AppLocalizations.current.save));
-      await tester.tap(find.text(AppLocalizations.current.save));
+      await tester.ensureVisible(
+        find.text(AppLocalizations.current.aiSaveAndUse),
+      );
+      await tester.tap(find.text(AppLocalizations.current.aiSaveAndUse));
       await tester.pumpAndSettle();
       expect(find.text(AppLocalizations.current.aiKeyRequired), findsOneWidget);
       expect(
@@ -152,6 +164,94 @@ void main() {
     expect(transport.prompt, isNotNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    });
+    expect(transport.closed, true);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('models can be fetched before entering a name or model', (
+    tester,
+  ) async {
+    final transport = _EchoTransport();
+    await tester.pumpWidget(
+      _EditorApp(
+        child: AiConnectionEditor(
+          hasKey: false,
+          runtimeFactory: () => AgentRuntime(launcher: () async => transport),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('ai-connection-key')),
+      'test-key',
+    );
+    await tester.ensureVisible(find.byKey(const ValueKey('ai-fetch-models')));
+    await tester.tap(find.byKey(const ValueKey('ai-fetch-models')));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(transport.prompt!['type'], 'listModels');
+    expect(transport.prompt!['data']['settings']['model'], '');
+    expect(find.text('available-model'), findsOneWidget);
+    expect(find.text(AppLocalizations.current.aiTestPassed), findsNothing);
+    expect(
+      find.text(AppLocalizations.current.aiInvalidConnection),
+      findsNothing,
+    );
+    await tester.ensureVisible(find.text('available-model'));
+    await tester.tap(find.text('available-model'));
+    await tester.pump();
+    final model = tester.widget<TextFormField>(
+      find.byKey(const ValueKey('ai-connection-model')),
+    );
+    expect(model.controller!.text, 'available-model');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('changing endpoint cancels discovery and ignores late models', (
+    tester,
+  ) async {
+    final transport = _EchoTransport(hang: true);
+    await tester.pumpWidget(
+      _EditorApp(
+        child: AiConnectionEditor(
+          existing: existing,
+          hasKey: false,
+          runtimeFactory: () => AgentRuntime(launcher: () async => transport),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('ai-connection-key')),
+      'old-target-key',
+    );
+    await tester.ensureVisible(find.byKey(const ValueKey('ai-fetch-models')));
+    await tester.tap(find.byKey(const ValueKey('ai-fetch-models')));
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(transport.prompt!['type'], 'listModels');
+    await tester.ensureVisible(find.byKey(const ValueKey('ai-connection-url')));
+    await tester.enterText(
+      find.byKey(const ValueKey('ai-connection-url')),
+      'https://changed.example/v1',
+    );
+    transport.event('models', {
+      'models': [
+        {'id': 'late-model', 'name': 'Late'},
+      ],
+    });
+    await tester.pumpAndSettle();
+    final secret = tester.widget<TextFormField>(
+      find.byKey(const ValueKey('ai-connection-key')),
+    );
+    expect(secret.controller!.text, isEmpty);
+    expect(find.text('late-model'), findsNothing);
     await tester.runAsync(() async {
       await Future<void>.delayed(const Duration(milliseconds: 20));
     });

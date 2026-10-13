@@ -1,3 +1,5 @@
+import 'package:fl_clash/providers/control.dart';
+import 'package:fl_clash/views/control/settings.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/providers/usage.dart';
@@ -368,11 +370,11 @@ class AutoCheckUpdateItem extends ConsumerWidget {
   }
 }
 
-class ApplicationSettingView extends StatelessWidget {
+class ApplicationSettingView extends ConsumerWidget {
   const ApplicationSettingView({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final List<Widget> items = [
       const MinimizeItem(),
       if (system.isDesktop) ...[
@@ -391,6 +393,21 @@ class ApplicationSettingView extends StatelessWidget {
       ],
       if (system.isAndroid) const CrashlyticsItem(),
       const AutoCheckUpdateItem(),
+      if (system.isMacOS)
+        ListTile(
+          leading: const Icon(Icons.terminal_outlined),
+          title: Text(context.appLocalizations.localControlTitle),
+          subtitle: Text(context.appLocalizations.localControlDescription),
+          onTap: () => showExtend(
+            context,
+            builder: (_) => AdaptiveSheetScaffold(
+              title: context.appLocalizations.localControlTitle,
+              body: LocalControlSettings(
+                service: ref.read(localControlServiceProvider),
+              ),
+            ),
+          ),
+        ),
     ];
     return BaseScaffold(
       title: context.appLocalizations.application,

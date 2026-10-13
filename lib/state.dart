@@ -1,3 +1,4 @@
+import 'providers/control.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -334,6 +335,14 @@ class GlobalState {
       await container.read(setupActionProvider.notifier).initStatus();
     }
     container.read(initProvider.notifier).value = true;
+    if (system.isMacOS) {
+      final control = await container
+          .read(workbenchDatabaseProvider)
+          .readSection('localControl');
+      if (control?['enabled'] == true) {
+        await container.read(localControlServiceProvider).enable();
+      }
+    }
     unawaited(
       container.read(profilesActionProvider.notifier).autoUpdateProfiles(),
     );

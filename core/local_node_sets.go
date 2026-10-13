@@ -1,0 +1,432 @@
+package main
+
+import (
+	"errors"
+	"math"
+	"sort"
+	"strings"
+	"time"
+)
+
+type LocalPolicyChoice struct {
+	Type string `json:"type" yaml:"type"`
+	ID   string `json:"id" yaml:"id"`
+}
+type LocalNodeSet struct {
+	ID                 string           `json:"id" yaml:"id"`
+	Label              string           `json:"label" yaml:"label"`
+	SourceIDs          []string         `json:"sourceIds" yaml:"sourceIds"`
+	Regions            []string         `json:"regions" yaml:"regions"`
+	MaxMultiplier      *float64         `json:"maxMultiplier" yaml:"maxMultiplier"`
+	UnknownMultiplier  string           `json:"unknownMultiplier" yaml:"unknownMultiplier"`
+	AllowUnknownRegion bool             `json:"allowUnknownRegion" yaml:"allowUnknownRegion"`
+	Strategy           string           `json:"strategy" yaml:"strategy"`
+	Probe              LocalPolicyProbe `json:"probe" yaml:"probe"`
+	RecoverySeconds    int              `json:"recoverySeconds" yaml:"recoverySeconds"`
+	CooldownSeconds    int              `json:"cooldownSeconds" yaml:"cooldownSeconds"`
+	ImprovementPercent int              `json:"improvementPercent" yaml:"improvementPercent"`
+}
+
+func localProbeMethod(p LocalPolicyProbe) string {
+	if p.Method == "" {
+		return "HEAD"
+	}
+	return p.Method
+}
+func localContains(values []string, id string) bool {
+	for _, value := range values {
+		if value == id {
+			return true
+		}
+	}
+	return false
+}
+func (s LocalNodeSet) effectiveMultiplier(n LocalPolicyNode) *float64 {
+	if n.Multiplier != nil {
+		return n.Multiplier
+	}
+	if s.UnknownMultiplier == "assumeOne" {
+		value := 1.0
+		return &value
+	}
+	return nil
+}
+func (s LocalNodeSet) includes(n LocalPolicyNode) bool {
+	if !localContains(s.SourceIDs, n.SourceID) {
+		return false
+	}
+	if len(s.Regions) > 0 && (n.Region == nil && !s.AllowUnknownRegion || n.Region != nil && !localContains(s.Regions, *n.Region)) {
+		return false
+	}
+	if s.MaxMultiplier != nil {
+		value := s.effectiveMultiplier(n)
+		if value == nil && s.UnknownMultiplier != "allow" || value != nil && *value > *s.MaxMultiplier {
+			return false
+		}
+	}
+	return true
+}
+func localFixedCandidates(p LocalPolicyDefinition) []string {
+	if len(p.Choices) == 0 {
+		return p.CandidateNodeIDs
+	}
+	values := []string{}
+	for _, c := range p.Choices {
+		if c.Type == "node" {
+			values = append(values, c.ID)
+		}
+	}
+	return values
+}
+func localOverrideInSets(c *LocalPolicyConfig, p LocalPolicyDefinition, id string) bool {
+	for _, choice := range p.Choices {
+		if choice.Type == "node" && choice.ID == id {
+			return true
+		}
+		for _, set := range c.NodeSets {
+			if choice.Type == "nodeSet" && choice.ID == set.ID {
+				for _, node := range c.Nodes {
+					if node.ID == id && set.includes(node) {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+func validateLocalNodeSets(c *LocalPolicyConfig) error {
+	fail := func() error { return errors.New("local policy: invalid node set, attributes or check capacity") }
+	if len(c.NodeSets) > 100 {
+		return fail()
+	}
+	sets := map[string]LocalNodeSet{}
+	sources := map[string]bool{}
+	for _, source := range c.Sources {
+		sources[source.ID] = true
+	}
+	validBasis := func(v string) bool {
+		return v == "" || v == "unknown" || v == "name" || v == "subscription" || v == "manual"
+	}
+	for _, node := range c.Nodes {
+		if node.Region != nil && (len(*node.Region) != 2 || strings.ToUpper(*node.Region) != *node.Region) || node.Multiplier != nil && (math.IsNaN(*node.Multiplier) || math.IsInf(*node.Multiplier, 0) || *node.Multiplier <= 0 || *node.Multiplier > 1000) || !validBasis(node.RegionBasis) || !validBasis(node.MultiplierBasis) {
+			return fail()
+		}
+	}
+	for _, set := range c.NodeSets {
+		if set.ID == "" || len(set.ID) > 128 || sets[set.ID].ID != "" || len(set.SourceIDs) == 0 || len(set.SourceIDs) > 20 || len(set.Regions) > 250 || set.MaxMultiplier != nil && (math.IsNaN(*set.MaxMultiplier) || math.IsInf(*set.MaxMultiplier, 0) || *set.MaxMultiplier <= 0 || *set.MaxMultiplier > 1000) || set.UnknownMultiplier != "exclude" && set.UnknownMultiplier != "allow" && set.UnknownMultiplier != "assumeOne" || set.Strategy != "stable" && set.Strategy != "latency" && set.Strategy != "multiplier" || set.ImprovementPercent < 1 || set.ImprovementPercent > 100 || set.RecoverySeconds < 0 || set.RecoverySeconds > 86400 || set.CooldownSeconds < 0 || set.CooldownSeconds > 3600 {
+			return fail()
+		}
+		seen := map[string]bool{}
+		for _, id := range set.SourceIDs {
+			if !sources[id] || seen[id] {
+				return fail()
+			}
+			seen[id] = true
+		}
+		seen = map[string]bool{}
+		for _, region := range set.Regions {
+			if len(region) != 2 || strings.ToUpper(region) != region || seen[region] {
+				return fail()
+			}
+			seen[region] = true
+		}
+		p := LocalPolicyDefinition{ID: "validation", GroupName: "validation", CandidateNodeIDs: []string{"validation"}, Enabled: true, Probe: set.Probe, Guard: LocalPolicyGuard{UnknownBehavior: "allow"}, Fallback: "reject"}
+		probeConfig := &LocalPolicyConfig{SchemaVersion: 1, Policies: []LocalPolicyDefinition{p}}
+		if err := validateLocalPolicyConfig(probeConfig); err != nil {
+			return err
+		}
+		sets[set.ID] = set
+	}
+	tasks := map[localProbeKey]bool{}
+	for _, p := range c.Policies {
+		if localProbeMethod(p.Probe) != "HEAD" && localProbeMethod(p.Probe) != "GET" || p.Probe.RetrySeconds < 0 || p.Probe.RetrySeconds > 86400 || p.Probe.ValiditySeconds < 0 || p.Probe.ValiditySeconds > 86400 || p.Probe.ValiditySeconds > 0 && p.Probe.ValiditySeconds < p.Probe.IntervalSeconds {
+			return fail()
+		}
+		seen := map[string]bool{}
+		for _, choice := range p.Choices {
+			key := choice.Type + ":" + choice.ID
+			if choice.ID == "" || seen[key] || choice.Type != "node" && choice.Type != "nodeSet" {
+				return fail()
+			}
+			seen[key] = true
+			if choice.Type == "nodeSet" && sets[choice.ID].ID == "" {
+				return fail()
+			}
+		}
+		if !p.Enabled {
+			continue
+		}
+		add := func(id string, probe LocalPolicyProbe) {
+			tasks[localProbeKey{nodeID: id, url: probe.URL, method: localProbeMethod(probe), status: probe.ExpectedStatus, timeout: probe.TimeoutSeconds, unknown: p.Guard.UnknownBehavior}] = true
+		}
+		for _, id := range localFixedCandidates(p) {
+			add(id, p.Probe)
+		}
+		for _, choice := range p.Choices {
+			if choice.Type == "nodeSet" {
+				set := sets[choice.ID]
+				for _, node := range c.Nodes {
+					if set.includes(node) {
+						add(node.ID, set.Probe)
+					}
+				}
+			}
+		}
+	}
+	if len(tasks) > 5000 {
+		return fail()
+	}
+	return nil
+}
+func (e *localPolicyEngine) prepareNodeSets(c *LocalPolicyConfig) error {
+	e.sets = map[string]*localPolicyRuntime{}
+	e.setDefinitions = map[string]LocalNodeSet{}
+	referenced := map[string]bool{}
+	for _, p := range c.Policies {
+		if p.Enabled {
+			for _, choice := range p.Choices {
+				if choice.Type == "nodeSet" {
+					referenced[choice.ID] = true
+				}
+			}
+		}
+	}
+	for _, set := range c.NodeSets {
+		if !referenced[set.ID] {
+			continue
+		}
+		ids := []string{}
+		for _, node := range c.Nodes {
+			if set.includes(node) {
+				ids = append(ids, node.ID)
+			}
+		}
+		sort.Strings(ids)
+		r := &localPolicyRuntime{setID: set.ID, definition: LocalPolicyDefinition{ID: set.ID, Label: set.Label, CandidateNodeIDs: ids, Probe: set.Probe, Guard: LocalPolicyGuard{UnknownBehavior: "allow"}, RecoverySeconds: set.RecoverySeconds, CooldownSeconds: set.CooldownSeconds, AutoRecover: true, Fallback: "reject"}, health: map[string]*localNodeHealth{}}
+		for _, id := range ids {
+			r.health[id] = e.sharedHealthLocked(r, id)
+		}
+		e.sets[set.ID] = r
+		e.setDefinitions[set.ID] = set
+	}
+	return nil
+}
+func (e *localPolicyEngine) checkRuntimes() []*localPolicyRuntime {
+	values := []*localPolicyRuntime{}
+	for _, set := range e.config.NodeSets {
+		if r := e.sets[set.ID]; r != nil {
+			values = append(values, r)
+		}
+	}
+	for _, p := range e.config.Policies {
+		if r := e.policies[p.ID]; r != nil {
+			values = append(values, r)
+		}
+	}
+	return values
+}
+func (e *localPolicyEngine) prioritizeProbes(values []localProbeCandidate) []localProbeCandidate {
+	sort.SliceStable(values, func(i, j int) bool {
+		return values[i].nodeID == values[i].runtime.selected && values[j].nodeID != values[j].runtime.selected
+	})
+	return values
+}
+func (e *localPolicyEngine) evaluateSetLocked(r *localPolicyRuntime, now time.Time) {
+	set := e.setDefinitions[r.setID]
+	if e.selectionRoundActive && e.evaluatedSets[r.setID] {
+		return
+	}
+	if e.selectionRoundActive {
+		e.evaluatedSets[r.setID] = true
+	}
+	less := func(a, b string) bool {
+		if set.Strategy == "multiplier" {
+			am, bm := set.effectiveMultiplier(e.nodes[a]), set.effectiveMultiplier(e.nodes[b])
+			if am == nil && bm != nil {
+				return false
+			}
+			if am != nil && bm == nil {
+				return true
+			}
+			if am != nil && bm != nil && *am != *bm {
+				return *am < *bm
+			}
+		}
+		ah, bh := r.health[a].latencyMillis, r.health[b].latencyMillis
+		if ah == nil && bh != nil {
+			return false
+		}
+		if ah != nil && bh == nil {
+			return true
+		}
+		if ah != nil && bh != nil && *ah != *bh {
+			return *ah < *bh
+		}
+		return a < b
+	}
+	desired := ""
+	if set.Strategy == "stable" && r.selected != "" && e.nodeReasonLocked(r, r.selected, now) == "" {
+		desired = r.selected
+	} else {
+		for _, id := range r.definition.CandidateNodeIDs {
+			if e.nodeReasonLocked(r, id, now) == "" && (desired == "" || less(id, desired)) {
+				desired = id
+			}
+		}
+	}
+	old := r.selected
+	valid := old != "" && e.nodeReasonLocked(r, old, now) == ""
+	if valid && desired != old {
+		improve := true
+		if set.Strategy == "stable" {
+			improve = false
+		} else if set.Strategy == "latency" {
+			current, next := r.health[old].latencyMillis, r.health[desired].latencyMillis
+			improve = current != nil && next != nil && *current > 0 && *next < *current && float64(*current-*next)*100 >= float64(*current)*float64(set.ImprovementPercent)
+		}
+		if !improve {
+			desired = old
+			r.optimizationNode = ""
+		} else {
+			if r.optimizationNode != desired {
+				r.optimizationNode = desired
+				r.optimizationSince = now
+			}
+			if now.Sub(r.switched) < time.Duration(set.CooldownSeconds)*time.Second || now.Sub(r.optimizationSince) < time.Duration(set.RecoverySeconds)*time.Second {
+				desired = old
+			}
+		}
+	}
+	reason := "node_set"
+	if desired == "" {
+		reason = "no_eligible_members"
+	}
+	e.recordSelectionLocked(r, desired, reason, now)
+}
+func (e *localPolicyEngine) choiceNodeReasonLocked(r *localPolicyRuntime, index int, id string, now time.Time) string {
+	if reason := e.sourceReasonLocked(id, r.definition, now); reason != "" {
+		return reason
+	}
+	choice := r.definition.Choices[index]
+	if choice.Type == "node" {
+		if id != choice.ID {
+			return "outside_choice"
+		}
+		return e.nodeReasonLocked(r, id, now)
+	}
+	set := e.sets[choice.ID]
+	if set == nil || set.health[id] == nil {
+		return "outside_node_set"
+	}
+	return e.nodeReasonLocked(set, id, now)
+}
+func (e *localPolicyEngine) policyNodeReasonLocked(r *localPolicyRuntime, id string, now time.Time) string {
+	if len(r.definition.Choices) == 0 {
+		return e.nodeReasonLocked(r, id, now)
+	}
+	for i := range r.definition.Choices {
+		if reason := e.choiceNodeReasonLocked(r, i, id, now); reason == "" {
+			return ""
+		}
+	}
+	return "outside_or_ineligible_choice"
+}
+func (e *localPolicyEngine) evaluateChoicesLocked(r *localPolicyRuntime, now time.Time) {
+	if !localPolicyScheduleActive(r.definition.Schedule, now) {
+		r.recoveryNode = ""
+		r.recoverySince = time.Time{}
+		e.recordSelectionLocked(r, "", "schedule_inactive", now)
+		return
+	}
+	desired := ""
+	index := -1
+	reason := "no_eligible_candidates"
+	for _, override := range e.config.Overrides {
+		if override.PolicyID == r.definition.ID && override.ExpiresAt > now.UnixMilli() {
+			for i := range r.definition.Choices {
+				if e.choiceNodeReasonLocked(r, i, override.NodeID, now) == "" {
+					desired = override.NodeID
+					index = i
+					reason = "manual_override"
+					break
+				}
+			}
+		}
+	}
+	if desired == "" {
+		for i, choice := range r.definition.Choices {
+			id := choice.ID
+			if choice.Type == "nodeSet" {
+				set := e.sets[choice.ID]
+				if set == nil {
+					continue
+				}
+				e.evaluateSetLocked(set, now)
+				id = set.selected
+			}
+			if id != "" && e.choiceNodeReasonLocked(r, i, id, now) == "" {
+				desired = id
+				index = i
+				reason = "ordered_choices"
+				break
+			}
+		}
+		oldValid := r.selected != "" && r.selectedChoice >= 0 && r.selectedChoice < len(r.definition.Choices) && e.choiceNodeReasonLocked(r, r.selectedChoice, r.selected, now) == ""
+		if oldValid && index >= 0 && index < r.selectedChoice && desired != r.selected {
+			if r.recoveryNode != desired || r.recoveryChoice != index {
+				r.recoveryNode = desired
+				r.recoveryChoice = index
+				r.recoverySince = now
+			}
+			if !r.definition.AutoRecover || now.Sub(r.switched) < time.Duration(r.definition.CooldownSeconds)*time.Second || now.Sub(r.recoverySince) < time.Duration(r.definition.RecoverySeconds)*time.Second {
+				desired = r.selected
+				index = r.selectedChoice
+				reason = "recovery_hold"
+			} else {
+				r.recoveryNode = ""
+				r.recoverySince = time.Time{}
+			}
+		} else {
+			r.recoveryNode = ""
+			r.recoverySince = time.Time{}
+		}
+	} else {
+		r.recoveryNode = ""
+		r.recoverySince = time.Time{}
+	}
+	r.selectedChoice = index
+	e.recordSelectionLocked(r, desired, reason, now)
+}
+func (e *localPolicyEngine) recordSelectionLocked(r *localPolicyRuntime, id, reason string, now time.Time) {
+	if r.selected == id && r.reason == reason {
+		return
+	}
+	if r.selected != id {
+		r.switched = now
+	}
+	r.selected = id
+	r.reason = reason
+	r.updated = now
+	r.history = append(r.history, LocalPolicyHistory{At: now.UnixMilli(), NodeID: id, Reason: reason})
+	if len(r.history) > 64 {
+		r.history = append([]LocalPolicyHistory{}, r.history[len(r.history)-64:]...)
+	}
+}
+func (e *localPolicyEngine) addSetSnapshotsLocked(result *LocalPolicySnapshot, now time.Time) {
+	result.ChecksInFlight = e.workers
+	result.ChecksWaiting = e.queueWaitingLocked(now)
+	result.NodeSets = []LocalPolicyStatus{}
+	for _, set := range e.config.NodeSets {
+		r := e.sets[set.ID]
+		if r == nil {
+			continue
+		}
+		e.evaluateSetLocked(r, now)
+		status := LocalPolicyStatus{PolicyID: set.ID, SelectedNodeID: r.selected, State: "active", Reason: r.reason, UpdatedAt: r.updated.UnixMilli(), History: localBoundedHistory(r.history), Nodes: []LocalPolicyNodeStatus{}}
+		for _, id := range r.definition.CandidateNodeIDs {
+			localCountStatus(&status.LocalPolicyCounts, e.nodeStatusLocked(r, id, now))
+		}
+		result.NodeSets = append(result.NodeSets, status)
+	}
+}

@@ -714,6 +714,7 @@ void main() {
     Future<Process> launch() async {
       worker = await launchScriptProcess(
         executablePath:
+            Platform.environment['FLCLASH_TEST_NODE'] ??
             '/private/tmp/flclash-ai-host-node22-arm64/Resources/ai/node',
         runnerPath: '${Directory.current.path}/scripts/script_runner.mjs',
       );
@@ -878,6 +879,7 @@ process.stdout.write(JSON.stringify({readCode,writeCode,networkCode, inheritedSe
 ''');
           sandboxed = await launchScriptProcess(
             executablePath:
+                Platform.environment['FLCLASH_TEST_NODE'] ??
                 '/private/tmp/flclash-ai-host-node22-arm64/Resources/ai/node',
             runnerPath: runner.path,
           );

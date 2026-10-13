@@ -1,0 +1,20 @@
+[package]
+name = "flclash_control"
+version = "1.0.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "flclashctl"
+path = "src/bin/flclashctl.rs"
+
+[dependencies]
+libc = "0.2"
+serde_json = "1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

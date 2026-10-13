@@ -66,7 +66,7 @@ class _Controller extends Mock implements WorkbenchController {
 
 void main() {
   testWidgets(
-    'disabling policy retains definitions and rejecting approval prevents apply',
+    'disabling one rule retains definitions and rejecting approval prevents apply',
     (tester) async {
       tester.view.physicalSize = const Size(680, 580);
       tester.view.devicePixelRatio = 1;
@@ -108,10 +108,10 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text(AppLocalizations.current.policyRulesTab));
       await tester.pumpAndSettle();
-      await tester.tap(find.text(AppLocalizations.current.policyEnableRules));
+      await tester.tap(find.byType(Switch).last);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
-      expect(controller.proposed?.policiesEnabled, false);
+      expect(controller.proposed?.policies.single.enabled, false);
       expect(controller.proposed?.policies.single.candidateNodeIds, [
         '1:a',
         '1:b',

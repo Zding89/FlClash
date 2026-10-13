@@ -114,6 +114,50 @@ void main() {
   );
 
   test(
+    'known exhausted and expired facts survive missing metadata and restart',
+    () async {
+      final stamp = DateTime.fromMillisecondsSinceEpoch(200000);
+      final exhausted = profile.copyWith(
+        subscriptionInfo: SubscriptionInfo(
+          total: 100,
+          upload: 40,
+          download: 60,
+          expire: 100,
+          exhausted: true,
+          knownFields: const {'total', 'upload', 'download', 'expire'},
+          observedAt: stamp,
+        ),
+      );
+      final blocked = (await loader.load([exhausted])).single;
+      expect(blocked.remainingBytes, 0);
+      expect(blocked.expiresAt, 100000);
+      final restarted = PolicySourceLoader(
+        store: store,
+        profilePath: (id) async => '/profile/$id',
+        providerCachePath: (id, url) async => '/cache/$id',
+        readFile: (path) async => files[path],
+        fetchFile: (_) => throw StateError('network forbidden'),
+      );
+      final missing = (await restarted.load([profile])).single;
+      expect(missing.remainingBytes, 0);
+      expect(missing.expiresAt, 100000);
+      final fresh = profile.copyWith(
+        subscriptionInfo: SubscriptionInfo(
+          total: 200,
+          upload: 40,
+          download: 60,
+          expire: 1000,
+          knownFields: const {'total', 'upload', 'download', 'expire'},
+          observedAt: DateTime.fromMillisecondsSinceEpoch(300000),
+        ),
+      );
+      final restored = (await restarted.load([fresh])).single;
+      expect(restored.remainingBytes, 100);
+      expect(restored.expiresAt, 1000000);
+    },
+  );
+
+  test(
     'file provider fingerprints change with content and reject symlink escape',
     () async {
       final home = await Directory.systemTemp.createTemp('flclash-source-deps');

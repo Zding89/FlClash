@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'control.dart';
 
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/core/core.dart';

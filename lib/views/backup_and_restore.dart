@@ -22,7 +22,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 class BackupAndRestore extends ConsumerStatefulWidget {
-  const BackupAndRestore({super.key});
+  const BackupAndRestore({
+    super.key,
+    this.requestedAction,
+    this.onComplete,
+    this.canStart,
+  });
+  final String? requestedAction;
+  final Future<bool> Function()? canStart;
+  final Future<void> Function(String status)? onComplete;
 
   @override
   ConsumerState<BackupAndRestore> createState() => _BackupAndRestoreState();
@@ -31,6 +39,33 @@ class BackupAndRestore extends ConsumerStatefulWidget {
 class _BackupAndRestoreState extends ConsumerState<BackupAndRestore>
     with UniqueKeyStateMixin {
   final _davConnection = DAVConnectionController();
+  bool _trackedActive = false;
+  bool _trackedFinished = false;
+
+  Future<void> _complete(String action, String status) async {
+    if (widget.requestedAction != action || _trackedFinished) return;
+    _trackedFinished = true;
+    await widget.onComplete?.call(status);
+  }
+
+  Future<void> _tracked(String action, Future<String> Function() work) async {
+    if (_trackedActive) return;
+    final relevant = widget.requestedAction == action;
+    if (relevant && widget.canStart != null && !await widget.canStart!()) {
+      await _complete(action, 'cancelled');
+      return;
+    }
+    if (relevant) _trackedActive = true;
+    try {
+      final status = await work();
+      await _complete(action, status);
+    } catch (_) {
+      await _complete(action, 'failed');
+      rethrow;
+    } finally {
+      if (relevant) _trackedActive = false;
+    }
+  }
 
   @override
   void initState() {
@@ -46,6 +81,11 @@ class _BackupAndRestoreState extends ConsumerState<BackupAndRestore>
 
   @override
   void dispose() {
+    if (!_trackedActive &&
+        !_trackedFinished &&
+        widget.requestedAction != null) {
+      unawaited(_complete(widget.requestedAction!, 'cancelled'));
+    }
     _davConnection.dispose();
     super.dispose();
   }
@@ -56,7 +96,10 @@ class _BackupAndRestoreState extends ConsumerState<BackupAndRestore>
     );
   }
 
-  Future<void> _backupOnWebDAV() async {
+  Future<void> _backupOnWebDAV() =>
+      _tracked('webdav_upload', () => _performBackupOnWebDAV());
+
+  Future<String> _performBackupOnWebDAV() async {
     final appLocalizations = context.appLocalizations;
     final res = await globalState.loadingRun<bool>(
       () async {
@@ -75,14 +118,18 @@ class _BackupAndRestoreState extends ConsumerState<BackupAndRestore>
       tag: LoadingTag.backup_restore,
       title: appLocalizations.backup,
     );
-    if (res != true) return;
+    if (res != true) return 'failed';
     globalState.showMessage(
       title: appLocalizations.backup,
       message: TextSpan(text: appLocalizations.backupSuccess),
     );
+    return 'completed';
   }
 
-  Future<void> _restoreOnWebDAV(RestoreOption option) async {
+  Future<void> _restoreOnWebDAV(RestoreOption option) =>
+      _tracked('webdav_restore', () => _performRestoreOnWebDAV(option));
+
+  Future<String> _performRestoreOnWebDAV(RestoreOption option) async {
     final appLocalizations = context.appLocalizations;
     final res = await globalState.loadingRun<bool>(
       () async {
@@ -99,23 +146,31 @@ class _BackupAndRestoreState extends ConsumerState<BackupAndRestore>
       tag: LoadingTag.backup_restore,
       title: appLocalizations.restore,
     );
-    if (res != true) return;
+    if (res != true) return 'failed';
     globalState.showMessage(
       title: appLocalizations.restore,
       message: TextSpan(text: appLocalizations.restoreSuccess),
     );
+    return 'completed';
   }
 
   Future<void> _handleRestoreOnWebDAV() async {
     final restoreOption = await globalState.showCommonDialog<RestoreOption>(
       child: const RestoreOptionsDialog(),
     );
-    if (restoreOption == null || !context.mounted) return;
+    if (restoreOption == null || !context.mounted) {
+      await _complete('webdav_restore', 'cancelled');
+      return;
+    }
     _restoreOnWebDAV(restoreOption);
   }
 
-  Future<void> _backupOnLocal() async {
+  Future<void> _backupOnLocal() =>
+      _tracked('backup', () => _performBackupOnLocal());
+
+  Future<String> _performBackupOnLocal() async {
     final appLocalizations = context.appLocalizations;
+    var selectionCancelled = false;
     final res = await globalState.loadingRun<bool>(
       () async {
         final path = await globalState.container
@@ -128,24 +183,31 @@ class _BackupAndRestoreState extends ConsumerState<BackupAndRestore>
           utils.getBackupFileName(),
           path,
         );
-        if (value == null) return false;
+        if (value == null) {
+          selectionCancelled = true;
+          return false;
+        }
         return true;
       },
       title: appLocalizations.backup,
       tag: LoadingTag.backup_restore,
     );
-    if (res != true) return;
+    if (res != true) return selectionCancelled ? 'cancelled' : 'failed';
     globalState.showMessage(
       title: appLocalizations.backup,
       message: TextSpan(text: appLocalizations.backupSuccess),
     );
+    return 'completed';
   }
 
-  Future<void> _restoreOnLocal(RestoreOption option) async {
+  Future<void> _restoreOnLocal(RestoreOption option) =>
+      _tracked('restore', () => _performRestoreOnLocal(option));
+
+  Future<String> _performRestoreOnLocal(RestoreOption option) async {
     final appLocalizations = context.appLocalizations;
     final file = await picker.pickerFile();
     final path = file?.path;
-    if (path == null) return;
+    if (path == null) return 'cancelled';
     await File(path).safeCopy(await appPath.backupFilePath);
     final res = await globalState.loadingRun<bool>(
       () async {
@@ -157,18 +219,22 @@ class _BackupAndRestoreState extends ConsumerState<BackupAndRestore>
       tag: LoadingTag.backup_restore,
       title: appLocalizations.restore,
     );
-    if (res != true) return;
+    if (res != true) return 'failed';
     globalState.showMessage(
       title: appLocalizations.restore,
       message: TextSpan(text: appLocalizations.restoreSuccess),
     );
+    return 'completed';
   }
 
   Future<void> _handleRestoreOnLocal() async {
     final option = await globalState.showCommonDialog<RestoreOption>(
       child: const RestoreOptionsDialog(),
     );
-    if (option == null || !mounted) return;
+    if (option == null || !mounted) {
+      await _complete('restore', 'cancelled');
+      return;
+    }
     _restoreOnLocal(option);
   }
 

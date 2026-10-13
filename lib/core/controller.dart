@@ -99,6 +99,14 @@ class CoreController {
     Map<String, Object?> input,
   ) => _interface.simulateLocalPolicies(input);
 
+  Future<Map<String, Object?>> getLocalPolicyDetails(
+    Map<String, Object?> input,
+  ) => _interface.getLocalPolicyDetails(input);
+
+  Future<Map<String, Object?>> checkLocalPolicyNodes(
+    Map<String, Object?> input,
+  ) => _interface.checkLocalPolicyNodes(input);
+
   Future<Map<String, Object?>> getLocalPolicyStatus() =>
       _interface.getLocalPolicyStatus();
 

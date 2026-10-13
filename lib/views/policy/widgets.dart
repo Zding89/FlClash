@@ -307,3 +307,17 @@ class _OrderedPolicyNodesState extends State<OrderedPolicyNodes> {
     );
   }
 }
+
+String policyReasonLabel(BuildContext context, String reason) {
+  final strings = context.appLocalizations;
+  return switch (reason) {
+    'source_expiring' || 'source_expired' => strings.policySubscriptionExpired,
+    'source_remaining' => strings.policySubscriptionExhausted,
+    'schedule_inactive' => strings.policyScheduleSkip,
+    'missing_node' || 'outside_node_set' => strings.policySourceMissing,
+    'budget_exceeded' || 'budget_limit' => strings.policyBudgetTab,
+    'ledger_untrusted' => strings.policyLedgerUntrusted,
+    'unhealthy' => strings.policyOperationFailed,
+    _ => strings.policyCheckPending,
+  };
+}

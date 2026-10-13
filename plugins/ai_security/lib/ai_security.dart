@@ -1,7 +1,11 @@
 import 'package:flutter/services.dart';
 
 class AiSecurity {
-  const AiSecurity();
+  const AiSecurity() : _namespace = 'ai';
+
+  const AiSecurity.control() : _namespace = 'control';
+
+  final String _namespace;
 
   static const MethodChannel channel = MethodChannel('flclash/ai_security');
   static final RegExp _identifier = RegExp(r'^[A-Za-z0-9_-]{1,96}$');
@@ -13,7 +17,10 @@ class AiSecurity {
 
   Future<String?> get(String id) {
     _validate(id);
-    return channel.invokeMethod<String>('get', {'id': id});
+    return channel.invokeMethod<String>('get', {
+      'id': id,
+      if (_namespace == 'control') 'namespace': _namespace,
+    });
   }
 
   Future<void> set(String id, String secret) async {
@@ -21,11 +28,18 @@ class AiSecurity {
     if (secret.isEmpty || secret.length > 16384) {
       throw ArgumentError('invalidSecret');
     }
-    await channel.invokeMethod<void>('set', {'id': id, 'secret': secret});
+    await channel.invokeMethod<void>('set', {
+      'id': id,
+      'secret': secret,
+      if (_namespace == 'control') 'namespace': _namespace,
+    });
   }
 
   Future<void> delete(String id) async {
     _validate(id);
-    await channel.invokeMethod<void>('delete', {'id': id});
+    await channel.invokeMethod<void>('delete', {
+      'id': id,
+      if (_namespace == 'control') 'namespace': _namespace,
+    });
   }
 }

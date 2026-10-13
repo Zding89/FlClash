@@ -208,7 +208,9 @@ final class PolicySourceLoader {
               'Source profile ${profile.id} has no valid snapshot',
             );
           }
-          sources.add(_source(profile, cached, warning: 'cached_snapshot'));
+          sources.add(
+            await _source(profile, cached, warning: 'cached_snapshot'),
+          );
           continue;
         }
         final raw = policyObject(
@@ -227,24 +229,27 @@ final class PolicySourceLoader {
           isCurrent: isCurrent,
         );
         _checkCurrent(isCurrent);
-        sources.add(_source(profile, resolved));
+        sources.add(await _source(profile, resolved));
         if (persistCache) await store.saveSourceCache(profile.id, resolved);
       } catch (error) {
         _checkCurrent(isCurrent);
         if (error is PolicySourceException) rethrow;
         final cached = await store.readSourceCache(profile.id);
         if (cached == null) rethrow;
-        sources.add(_source(profile, cached, warning: 'cached_snapshot'));
+        sources.add(await _source(profile, cached, warning: 'cached_snapshot'));
       }
     }
     return sources;
   }
 
-  PolicySource _source(
+  Future<PolicySource> metadataSource(Profile profile) =>
+      _source(profile, const {});
+
+  Future<PolicySource> _source(
     Profile profile,
     Map<String, Object?> raw, {
     String? warning,
-  }) {
+  }) async {
     final info = profile.subscriptionInfo;
     final remainingKnown =
         info != null &&
@@ -253,13 +258,64 @@ final class PolicySourceLoader {
     final remaining = remainingKnown
         ? info.total - info.upload - info.download
         : null;
+    final section = 'sourceMetadata:${profile.id}';
+    final metadata = Map<String, Object?>.from(
+      await store.readSection(section) ?? const {},
+    );
+    final previousDigest = policyDigest(metadata);
+    final expireStamp =
+        info?.expireObservedAt?.millisecondsSinceEpoch ??
+        info?.observedAt?.millisecondsSinceEpoch;
+    final remainingStamp =
+        info?.remainingObservedAt?.millisecondsSinceEpoch ??
+        info?.observedAt?.millisecondsSinceEpoch;
+    if (info != null &&
+        info.expire > 0 &&
+        (info.knownFields.contains('expire') ||
+            metadata['expiresAt'] == null)) {
+      if (expireStamp != null &&
+          (metadata['expiresObservedAt'] is! int ||
+              expireStamp >= (metadata['expiresObservedAt'] as int))) {
+        metadata['expiresAt'] = info.expire * 1000;
+        metadata['expiresObservedAt'] = expireStamp;
+      }
+    }
+    if (remainingKnown &&
+        remainingStamp != null &&
+        (metadata['remainingObservedAt'] is! int ||
+            remainingStamp >= (metadata['remainingObservedAt'] as int))) {
+      metadata['remainingBytes'] = remaining!.clamp(0, 9007199254740991);
+      metadata['remainingObservedAt'] = remainingStamp;
+    }
+    if (info?.exhausted == true) {
+      metadata['remainingBytes'] = 0;
+    }
+    if (metadata.isNotEmpty && policyDigest(metadata) != previousDigest) {
+      await store.writeSection(section, metadata);
+    }
+    final expires = metadata['expiresAt'] is int
+        ? metadata['expiresAt'] as int
+        : info != null && info.expire > 0
+        ? info.expire * 1000
+        : null;
+    final currentRemaining = remainingKnown
+        ? remaining?.clamp(0, 9007199254740991)
+        : null;
+    final retainedExhaustion = metadata['remainingBytes'] == 0;
+    final stamps = [
+      if (metadata['expiresObservedAt'] is int)
+        metadata['expiresObservedAt'] as int,
+      if (metadata['remainingObservedAt'] is int)
+        metadata['remainingObservedAt'] as int,
+    ]..sort();
     return PolicySource(
       id: '${profile.id}',
       label: profile.realLabel,
       raw: raw,
-      expiresAt: info != null && info.expire > 0 ? info.expire * 1000 : null,
-      remainingBytes: remaining?.clamp(0, 9007199254740991),
-      observedAt: info?.observedAt?.millisecondsSinceEpoch,
+      expiresAt: expires,
+      remainingBytes: retainedExhaustion ? 0 : currentRemaining,
+      observedAt:
+          stamps.firstOrNull ?? info?.observedAt?.millisecondsSinceEpoch,
       warning: warning,
     );
   }

@@ -331,7 +331,7 @@ func TestLocalPolicyBudgetPersistenceCrashClockAndFailure(t *testing.T) {
 	if reason := crash.reason("a", now, "exclude"); reason != "budget_untrusted" {
 		t.Fatal(reason)
 	}
-	if reason := crash.reason("a", now, "allow"); reason != "" {
+	if reason := crash.reason("a", now, "allow"); reason != "budget_untrusted" {
 		t.Fatal(reason)
 	}
 	later := now.AddDate(0, 1, 0)

@@ -158,7 +158,7 @@ Future<void> _editKey(WidgetTester tester) async {
     find.byKey(const ValueKey('ai-connection-key')),
     'new-secret',
   );
-  await tester.tap(find.text(AppLocalizations.current.save));
+  await tester.tap(find.text(AppLocalizations.current.aiSaveAndUse));
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 400));
 }

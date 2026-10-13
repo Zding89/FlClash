@@ -23,7 +23,9 @@ class FakeTransport implements AgentTransport {
   }
 
   void send(String type, Map<String, Object?> data, {int? generation}) {
-    final prompt = frames.firstWhere((frame) => frame['type'] == 'prompt');
+    final prompt = frames.firstWhere(
+      (frame) => frame['type'] == 'prompt' || frame['type'] == 'listModels',
+    );
     final encoded = jsonEncode({
       ...prompt,
       'generation': generation ?? prompt['generation'],
@@ -53,6 +55,47 @@ const tool = AgentToolDefinition(
 Future<void> tick() => Future<void>.delayed(Duration.zero);
 
 void main() {
+  test(
+    'model discovery is independent of prompts and rejects stale replies',
+    () async {
+      final transport = FakeTransport();
+      final runtime = AgentRuntime(launcher: () async => transport);
+      final models = runtime.listModels(
+        settings: const AgentConnectionSettings(
+          provider: 'deepseek',
+          model: '',
+        ),
+        key: 'test-key',
+      );
+      await tick();
+      expect(transport.frames.single['type'], 'listModels');
+      transport.send('models', {
+        'models': [
+          {'id': 'stale', 'name': 'Stale'},
+        ],
+      }, generation: 99);
+      transport.send('models', {
+        'models': [
+          {'id': 'real-result', 'name': 'Result'},
+        ],
+      });
+      transport.send('done', {'cancelled': false, 'failed': false});
+      expect((await models).single.id, 'real-result');
+      await runtime.close();
+    },
+  );
+
+  test('closing discovery settles it as cancelled without a result', () async {
+    final transport = FakeTransport();
+    final runtime = AgentRuntime(launcher: () async => transport);
+    final models = runtime.listModels(settings: settings, key: 'test-key');
+    final check = expectLater(models, throwsA(isA<AgentRuntimeException>()));
+    await tick();
+    await runtime.close();
+    await check;
+    expect(transport.closed, true);
+  });
+
   test('streams replies and rejects stale-generation tool requests', () async {
     final transport = FakeTransport();
     final runtime = AgentRuntime(launcher: () async => transport);

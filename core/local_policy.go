@@ -28,6 +28,7 @@ import (
 )
 
 type LocalPolicyConfig struct {
+	TargetID         string                  `json:"targetId" yaml:"targetId"`
 	DocumentRevision *int64                  `json:"documentRevision,omitempty" yaml:"documentRevision,omitempty"`
 	SchemaVersion    int                     `json:"schemaVersion" yaml:"schemaVersion"`
 	Revision         int64                   `json:"revision" yaml:"revision"`
@@ -36,6 +37,7 @@ type LocalPolicyConfig struct {
 	Nodes            []LocalPolicyNode       `json:"nodes" yaml:"nodes"`
 	Budgets          []LocalPolicyBudget     `json:"budgets" yaml:"budgets"`
 	Policies         []LocalPolicyDefinition `json:"policies" yaml:"policies"`
+	NodeSets         []LocalNodeSet          `json:"nodeSets" yaml:"nodeSets"`
 	Overrides        []LocalPolicyOverride   `json:"overrides" yaml:"overrides"`
 }
 type LocalPolicySource struct {
@@ -143,7 +145,9 @@ func (e *localPolicyEngine) refreshSource(input LocalPolicySourceRefresh) string
 	if s.ExpiresAt != nil {
 		current.ExpiresAt = clone(s.ExpiresAt)
 	}
-	current.RemainingBytes = clone(s.RemainingBytes)
+	if s.RemainingBytes != nil || current.RemainingBytes == nil || *current.RemainingBytes > 0 {
+		current.RemainingBytes = clone(s.RemainingBytes)
+	}
 	current.ObservedAt = clone(s.ObservedAt)
 	e.sources[s.ID] = current
 	for index := range e.config.Sources {
@@ -186,9 +190,13 @@ func (e *localPolicyEngine) refreshSource(input LocalPolicySourceRefresh) string
 }
 
 type LocalPolicyNode struct {
-	ID        string `json:"id" yaml:"id"`
-	SourceID  string `json:"sourceId" yaml:"sourceId"`
-	ProxyName string `json:"proxyName" yaml:"proxyName"`
+	ID              string   `json:"id" yaml:"id"`
+	SourceID        string   `json:"sourceId" yaml:"sourceId"`
+	ProxyName       string   `json:"proxyName" yaml:"proxyName"`
+	Region          *string  `json:"region" yaml:"region"`
+	Multiplier      *float64 `json:"multiplier" yaml:"multiplier"`
+	RegionBasis     string   `json:"regionBasis" yaml:"regionBasis"`
+	MultiplierBasis string   `json:"multiplierBasis" yaml:"multiplierBasis"`
 }
 type LocalPolicyBudget struct {
 	SourceID   string `json:"sourceId" yaml:"sourceId"`
@@ -206,6 +214,10 @@ type LocalPolicySchedule struct {
 	Windows  []LocalPolicyScheduleWindow `json:"windows" yaml:"windows"`
 }
 type LocalPolicyProbe struct {
+	Method           string `json:"method" yaml:"method"`
+	Automatic        *bool  `json:"automatic" yaml:"automatic"`
+	RetrySeconds     int    `json:"retrySeconds" yaml:"retrySeconds"`
+	ValiditySeconds  int    `json:"validitySeconds" yaml:"validitySeconds"`
 	ExpectedStatus   string `json:"expectedStatus" yaml:"expectedStatus"`
 	URL              string `json:"url" yaml:"url"`
 	IntervalSeconds  int    `json:"intervalSeconds" yaml:"intervalSeconds"`
@@ -225,6 +237,7 @@ type LocalPolicyDefinition struct {
 	Label                           string               `json:"label" yaml:"label"`
 	Enabled                         bool                 `json:"enabled" yaml:"enabled"`
 	GroupName                       string               `json:"groupName" yaml:"groupName"`
+	Choices                         []LocalPolicyChoice  `json:"choices" yaml:"choices"`
 	CandidateNodeIDs                []string             `json:"candidateNodeIds" yaml:"candidateNodeIds"`
 	Probe                           LocalPolicyProbe     `json:"probe" yaml:"probe"`
 	Guard                           LocalPolicyGuard     `json:"guard" yaml:"guard"`
@@ -276,7 +289,7 @@ func parseLocalPolicyConfig(data []byte) (*LocalPolicyConfig, error) {
 
 func validateLocalPolicyConfig(c *LocalPolicyConfig) error {
 	fail := func(message string) error { return fmt.Errorf("local policy: %s", message) }
-	if c.SchemaVersion != 1 || c.Revision < 0 || (c.DocumentRevision != nil && *c.DocumentRevision < 0) {
+	if (c.SchemaVersion != 1 && c.SchemaVersion != 2) || c.Revision < 0 || (c.DocumentRevision != nil && *c.DocumentRevision < 0) {
 		return fail("unsupported schema or invalid revision")
 	}
 	if len(c.Sources) > 20 || len(c.Nodes) > 5000 || len(c.Policies) > 100 || len(c.Budgets) > 20 || len(c.Overrides) > 100 {
@@ -315,7 +328,7 @@ func validateLocalPolicyConfig(c *LocalPolicyConfig) error {
 		if !validID(p.ID) || policies[p.ID].ID != "" || !validID(p.GroupName) || groups[p.GroupName] || names[p.GroupName] || len(p.Label) > 1024 {
 			return fail("invalid or duplicate policy/group")
 		}
-		if len(p.CandidateNodeIDs) == 0 || len(p.CandidateNodeIDs) > 10 {
+		if (len(p.CandidateNodeIDs) == 0 && len(p.Choices) == 0) || len(p.CandidateNodeIDs) > 10 || len(p.Choices) > 10 || (len(p.CandidateNodeIDs) > 0 && len(p.Choices) > 0) {
 			return fail("candidate count must be 1..10")
 		}
 		seen := map[string]bool{}
@@ -382,23 +395,24 @@ func validateLocalPolicyConfig(c *LocalPolicyConfig) error {
 				found = true
 			}
 		}
-		if p.ID == "" || !found || overrides[o.PolicyID] || o.ExpiresAt <= 0 {
+		if p.ID == "" || (!found && !localOverrideInSets(c, p, o.NodeID)) || overrides[o.PolicyID] || o.ExpiresAt <= 0 {
 			return fail("invalid override")
 		}
 		overrides[o.PolicyID] = true
 	}
-	return nil
+	return validateLocalNodeSets(c)
 }
 
 type localNodeHealth struct {
-	healthy      bool
-	recovering   bool
-	failures     int
-	successes    int
-	healthySince time.Time
-	lastProbe    time.Time
-	nextProbe    time.Time
-	pending      bool
+	healthy       bool
+	recovering    bool
+	failures      int
+	successes     int
+	healthySince  time.Time
+	lastProbe     time.Time
+	nextProbe     time.Time
+	pending       bool
+	latencyMillis *int64
 }
 type LocalPolicyHistory struct {
 	At     int64  `json:"at"`
@@ -413,8 +427,10 @@ type LocalPolicyNodeStatus struct {
 	Reason           string `json:"reason"`
 	Healthy          bool   `json:"healthy"`
 	LastProbeAt      *int64 `json:"lastProbeAt"`
+	LatencyMillis    *int64 `json:"latencyMillis"`
 }
 type LocalPolicyStatus struct {
+	LocalPolicyCounts
 	TerminationError string                  `json:"terminationError,omitempty"`
 	PolicyID         string                  `json:"policyId"`
 	GroupName        string                  `json:"groupName"`
@@ -433,22 +449,36 @@ type LocalBudgetStatus struct {
 	Trusted     bool   `json:"trusted"`
 }
 type LocalPolicySnapshot struct {
-	DocumentRevision int64               `json:"documentRevision"`
-	Revision         int64               `json:"revision"`
-	Enabled          bool                `json:"enabled"`
-	Policies         []LocalPolicyStatus `json:"policies"`
-	Budgets          []LocalBudgetStatus `json:"budgets"`
-	PersistenceError string              `json:"persistenceError"`
+	TargetID                     string              `json:"targetId"`
+	DocumentRevision             int64               `json:"documentRevision"`
+	Revision                     int64               `json:"revision"`
+	Enabled                      bool                `json:"enabled"`
+	Policies                     []LocalPolicyStatus `json:"policies"`
+	Budgets                      []LocalBudgetStatus `json:"budgets"`
+	PersistenceError             string              `json:"persistenceError"`
+	ChecksInFlight               int                 `json:"checksInFlight"`
+	ChecksWaiting                int                 `json:"checksWaiting"`
+	CheckTaskCount               int                 `json:"checkTaskCount"`
+	MaxCheckTimeoutSeconds       int                 `json:"maxCheckTimeoutSeconds"`
+	RecommendedCheckCycleSeconds int                 `json:"recommendedCheckCycleSeconds"`
+	NodeSets                     []LocalPolicyStatus `json:"nodeSets"`
 }
 type localPolicyRuntime struct {
-	terminationError string
-	definition       LocalPolicyDefinition
-	health           map[string]*localNodeHealth
-	selected         string
-	reason           string
-	updated          time.Time
-	switched         time.Time
-	history          []LocalPolicyHistory
+	terminationError  string
+	definition        LocalPolicyDefinition
+	setID             string
+	selectedChoice    int
+	optimizationNode  string
+	optimizationSince time.Time
+	recoveryNode      string
+	recoveryChoice    int
+	recoverySince     time.Time
+	health            map[string]*localNodeHealth
+	selected          string
+	reason            string
+	updated           time.Time
+	switched          time.Time
+	history           []LocalPolicyHistory
 }
 
 var localConnections = struct {
@@ -464,6 +494,7 @@ type localPolicyConnection struct {
 }
 type localProbeKey struct {
 	nodeID  string
+	method  string
 	url     string
 	status  string
 	timeout int
@@ -474,25 +505,32 @@ type localProbeCandidate struct {
 	nodeID  string
 }
 type localPolicyEngine struct {
-	mu              sync.Mutex
-	config          LocalPolicyConfig
-	sources         map[string]LocalPolicySource
-	sourceSequences map[string]int64
-	nodes           map[string]LocalPolicyNode
-	proxies         map[string]C.Proxy
-	policies        map[string]*localPolicyRuntime
-	ledger          *localBudgetLedger
-	now             func() time.Time
-	probe           func(context.Context, C.Proxy, LocalPolicyProbe) error
-	ctx             context.Context
-	cancel          context.CancelFunc
-	wg              sync.WaitGroup
-	workers         int
-	lastTick        time.Time
-	probeCursor     int
-	inFlight        map[localProbeKey][]localProbeCandidate
-	epoch           uint64
-	stopped         bool
+	mu                   sync.Mutex
+	config               LocalPolicyConfig
+	sources              map[string]LocalPolicySource
+	sourceSequences      map[string]int64
+	nodes                map[string]LocalPolicyNode
+	proxies              map[string]C.Proxy
+	policies             map[string]*localPolicyRuntime
+	sets                 map[string]*localPolicyRuntime
+	setDefinitions       map[string]LocalNodeSet
+	ledger               *localBudgetLedger
+	now                  func() time.Time
+	probe                func(context.Context, C.Proxy, LocalPolicyProbe) error
+	ctx                  context.Context
+	cancel               context.CancelFunc
+	wg                   sync.WaitGroup
+	workers              int
+	lastTick             time.Time
+	probeCursor          int
+	inFlight             map[localProbeKey][]localProbeCandidate
+	epoch                uint64
+	checks               map[string]*localPolicyCheck
+	checkSequence        uint64
+	healthPool           map[localHealthKey]*localNodeHealth
+	evaluatedSets        map[string]bool
+	selectionRoundActive bool
+	stopped              bool
 }
 
 type localPolicyAdmissionKey struct{}
@@ -559,6 +597,10 @@ func prepareLocalPolicy(c *LocalPolicyConfig, cfg *config.Config, ledger *localB
 		e.nodes[n.ID] = n
 		e.proxies[n.ID] = p
 	}
+	if err := e.prepareNodeSets(c); err != nil {
+		e.cancel()
+		return nil, err
+	}
 	for _, p := range c.Policies {
 		if !p.Enabled {
 			continue
@@ -568,8 +610,8 @@ func prepareLocalPolicy(c *LocalPolicyConfig, cfg *config.Config, ledger *localB
 			return nil, fmt.Errorf("local policy group %s is missing or not select", p.GroupName)
 		}
 		r := &localPolicyRuntime{definition: p, health: map[string]*localNodeHealth{}}
-		for _, id := range p.CandidateNodeIDs {
-			r.health[id] = &localNodeHealth{}
+		for _, id := range localFixedCandidates(p) {
+			r.health[id] = e.sharedHealthLocked(r, id)
 		}
 		e.policies[p.ID] = r
 	}
@@ -602,7 +644,7 @@ func (e *localPolicyEngine) sourceReasonLocked(nodeID string, p LocalPolicyDefin
 	if s.ExpiresAt != nil && *s.ExpiresAt-now.UnixMilli() <= p.Guard.ExpiryMarginSeconds*1000 {
 		return "source_expiring"
 	}
-	if p.Guard.MinRemainingBytes > 0 && s.RemainingBytes != nil && *s.RemainingBytes <= p.Guard.MinRemainingBytes {
+	if s.RemainingBytes != nil && *s.RemainingBytes <= p.Guard.MinRemainingBytes {
 		return "source_remaining"
 	}
 	if reason := e.ledger.reason(n.SourceID, now, p.Guard.UnknownBehavior); reason != "" {
@@ -623,17 +665,14 @@ func (e *localPolicyEngine) sourceReasonLocked(nodeID string, p LocalPolicyDefin
 }
 func (e *localPolicyEngine) nodeReasonLocked(r *localPolicyRuntime, id string, now time.Time) string {
 	if reason := e.sourceReasonLocked(id, r.definition, now); reason != "" {
-		if h := r.health[id]; h != nil {
-			h.healthy = false
-			h.successes = 0
-			h.healthySince = time.Time{}
-			h.recovering = true
-		}
 		return reason
 	}
 	h := r.health[id]
 	if h == nil {
 		return "missing_node"
+	}
+	if h.healthy && r.definition.Probe.ValiditySeconds > 0 && now.Sub(h.lastProbe) >= time.Duration(r.definition.Probe.ValiditySeconds)*time.Second {
+		return "probe_expired"
 	}
 	if !h.healthy {
 		if h.lastProbe.IsZero() {
@@ -644,6 +683,14 @@ func (e *localPolicyEngine) nodeReasonLocked(r *localPolicyRuntime, id string, n
 	return ""
 }
 func (e *localPolicyEngine) evaluateLocked(r *localPolicyRuntime, now time.Time) {
+	if r.setID != "" {
+		e.evaluateSetLocked(r, now)
+		return
+	}
+	if len(r.definition.Choices) > 0 {
+		e.evaluateChoicesLocked(r, now)
+		return
+	}
 	old := r.selected
 	for _, id := range r.definition.CandidateNodeIDs {
 		_ = e.nodeReasonLocked(r, id, now)
@@ -711,6 +758,7 @@ func (e *localPolicyEngine) selectProxy(policyID string) (C.Proxy, string, error
 	if r == nil {
 		return nil, "", errors.New("local policy missing")
 	}
+	defer e.beginSelectionRoundLocked()()
 	e.evaluateLocked(r, e.now())
 	if r.selected == "" {
 		if r.definition.Fallback == "direct" {
@@ -726,10 +774,10 @@ func (e *localPolicyEngine) register(policyID, nodeID string, closer io.Closer) 
 	if e.stopped {
 		return 0, errors.New("local policy stopped")
 	}
-	if source := e.sources[e.nodes[nodeID].SourceID]; source.ExpiresAt != nil && *source.ExpiresAt <= e.now().UnixMilli() {
+	if source := e.sources[e.nodes[nodeID].SourceID]; (source.ExpiresAt != nil && *source.ExpiresAt <= e.now().UnixMilli()) || (source.RemainingBytes != nil && *source.RemainingBytes <= 0) {
 		return 0, errors.New("local source rejected: source_expired")
 	}
-	if policyID != "" && (!localPolicyScheduleActive(e.policies[policyID].definition.Schedule, e.now()) || e.nodeReasonLocked(e.policies[policyID], nodeID, e.now()) != "") {
+	if policyID != "" && (!localPolicyScheduleActive(e.policies[policyID].definition.Schedule, e.now()) || e.policyNodeReasonLocked(e.policies[policyID], nodeID, e.now()) != "") {
 		return 0, errors.New("local policy candidate excluded during dial")
 	}
 	localConnections.Lock()
@@ -756,7 +804,7 @@ func (e *localPolicyEngine) tick() {
 	}
 	if !e.lastTick.IsZero() && now.Sub(e.lastTick) > 5*time.Second {
 		e.epoch++
-		for _, r := range e.policies {
+		for _, r := range e.checkRuntimes() {
 			for _, h := range r.health {
 				h.healthy = false
 				h.failures = 0
@@ -768,8 +816,9 @@ func (e *localPolicyEngine) tick() {
 		}
 	}
 	e.lastTick = now
+	finishRound := e.beginSelectionRoundLocked()
 	var closeList []localPolicyConnection
-	for _, r := range e.policies {
+	for _, r := range e.checkRuntimes() {
 		e.evaluateLocked(r, now)
 	}
 	localConnections.Lock()
@@ -781,13 +830,21 @@ func (e *localPolicyEngine) tick() {
 	}
 	localConnections.Unlock()
 	candidates := make([]localProbeCandidate, 0, len(e.nodes))
-	for _, p := range e.config.Policies {
-		if r := e.policies[p.ID]; r != nil {
-			for _, id := range p.CandidateNodeIDs {
-				candidates = append(candidates, localProbeCandidate{runtime: r, nodeID: id})
+	queuedHealth := map[*localNodeHealth]bool{}
+	for _, r := range e.checkRuntimes() {
+		for _, id := range localFixedCandidates(r.definition) {
+			if r.definition.Probe.Automatic != nil && !*r.definition.Probe.Automatic && !e.manualCheckNeeded(r, id) {
+				continue
 			}
+			health := r.health[id]
+			if queuedHealth[health] {
+				continue
+			}
+			queuedHealth[health] = true
+			candidates = append(candidates, localProbeCandidate{runtime: r, nodeID: id})
 		}
 	}
+	candidates = e.prioritizeProbes(candidates)
 	if len(candidates) > 0 {
 		start := e.probeCursor % len(candidates)
 		for offset := 0; offset < len(candidates); offset++ {
@@ -804,7 +861,7 @@ func (e *localPolicyEngine) tick() {
 			if expected == "" {
 				expected = "200-399"
 			}
-			key := localProbeKey{nodeID: id, url: p.Probe.URL, status: expected, timeout: p.Probe.TimeoutSeconds, unknown: p.Guard.UnknownBehavior}
+			key := localProbeKey{nodeID: id, method: localProbeMethod(p.Probe), url: p.Probe.URL, status: expected, timeout: p.Probe.TimeoutSeconds, unknown: p.Guard.UnknownBehavior}
 			if shared, ok := e.inFlight[key]; ok {
 				e.inFlight[key] = append(shared, candidate)
 				h.pending = true
@@ -824,6 +881,7 @@ func (e *localPolicyEngine) tick() {
 		}
 	}
 
+	finishRound()
 	e.mu.Unlock()
 	for _, connection := range closeList {
 		if err := connection.closer.Close(); err != nil {
@@ -839,6 +897,11 @@ func (e *localPolicyEngine) tick() {
 func (e *localPolicyEngine) applyProbeLocked(r *localPolicyRuntime, id string, err error, now time.Time) {
 	h := r.health[id]
 	h.lastProbe = now
+	interval := r.definition.Probe.IntervalSeconds
+	if err != nil && r.definition.Probe.RetrySeconds > 0 {
+		interval = r.definition.Probe.RetrySeconds
+	}
+	h.nextProbe = now.Add(time.Duration(interval) * time.Second)
 	if err != nil {
 		h.failures++
 		h.successes = 0
@@ -858,6 +921,7 @@ func (e *localPolicyEngine) applyProbeLocked(r *localPolicyRuntime, id string, e
 			h.recovering = false
 		}
 	}
+	defer e.beginSelectionRoundLocked()()
 	e.evaluateLocked(r, now)
 }
 func (e *localPolicyEngine) runProbe(r *localPolicyRuntime, id string, proxy C.Proxy) {
@@ -881,7 +945,7 @@ func (e *localPolicyEngine) runSharedProbe(key localProbeKey, proxy C.Proxy, epo
 	defer cancel()
 	ctx = context.WithValue(ctx, localPolicyAdmissionKey{}, key.unknown)
 	started := e.now()
-	err := e.probe(ctx, proxy, LocalPolicyProbe{URL: key.url, ExpectedStatus: key.status, TimeoutSeconds: key.timeout})
+	err := e.probe(ctx, proxy, LocalPolicyProbe{Method: key.method, URL: key.url, ExpectedStatus: key.status, TimeoutSeconds: key.timeout})
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.workers--
@@ -894,7 +958,19 @@ func (e *localPolicyEngine) runSharedProbe(key localProbeKey, proxy C.Proxy, epo
 	if e.stopped || e.ctx.Err() != nil || epoch != e.epoch || now.UnixMilli()-started.UnixMilli() > int64(key.timeout+5)*1000 {
 		return
 	}
+	seen := map[*localNodeHealth]bool{}
 	for _, candidate := range candidates {
+		h := candidate.runtime.health[candidate.nodeID]
+		if seen[h] {
+			continue
+		}
+		seen[h] = true
+		if err == nil {
+			elapsed := now.Sub(started).Milliseconds()
+			candidate.runtime.health[candidate.nodeID].latencyMillis = &elapsed
+		} else {
+			candidate.runtime.health[candidate.nodeID].latencyMillis = nil
+		}
 		e.applyProbeLocked(candidate.runtime, candidate.nodeID, err, now)
 	}
 }
@@ -931,11 +1007,12 @@ func (e *localPolicyEngine) snapshot() LocalPolicySnapshot {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	now := e.now()
+	defer e.beginSelectionRoundLocked()()
 	documentRevision := e.config.Revision
 	if e.config.DocumentRevision != nil {
 		documentRevision = *e.config.DocumentRevision
 	}
-	result := LocalPolicySnapshot{DocumentRevision: documentRevision, Revision: e.config.Revision, Enabled: !e.stopped, Policies: []LocalPolicyStatus{}, Budgets: e.ledger.status(now), PersistenceError: e.ledger.errorMessage()}
+	result := LocalPolicySnapshot{TargetID: e.config.TargetID, DocumentRevision: documentRevision, Revision: e.config.Revision, Enabled: !e.stopped, Policies: []LocalPolicyStatus{}, Budgets: e.ledger.status(now), PersistenceError: e.ledger.errorMessage()}
 	for _, p := range e.config.Policies {
 		r := e.policies[p.ID]
 		if r == nil {
@@ -946,19 +1023,34 @@ func (e *localPolicyEngine) snapshot() LocalPolicySnapshot {
 		if r.selected == "" {
 			state = p.Fallback
 		}
-		status := LocalPolicyStatus{TerminationError: r.terminationError, PolicyID: p.ID, GroupName: p.GroupName, SelectedNodeID: r.selected, State: state, Reason: r.reason, UpdatedAt: r.updated.UnixMilli(), History: append([]LocalPolicyHistory{}, r.history...), Nodes: []LocalPolicyNodeStatus{}}
-		for _, id := range p.CandidateNodeIDs {
-			h := r.health[id]
-			var at *int64
-			if !h.lastProbe.IsZero() {
-				value := h.lastProbe.UnixMilli()
-				at = &value
-			}
-			reason := e.nodeReasonLocked(r, id, now)
-			delayed := !h.pending && ((h.nextProbe.IsZero() && e.workers >= 8) || (!h.nextProbe.IsZero() && now.After(h.nextProbe.Add(time.Second)))) && (reason == "" || reason == "probing" || reason == "unhealthy")
-			status.Nodes = append(status.Nodes, LocalPolicyNodeStatus{ProbePending: h.pending, DetectionDelayed: delayed, NodeID: id, Eligible: reason == "", Reason: reason, Healthy: h.healthy, LastProbeAt: at})
+		if r.reason == "schedule_inactive" {
+			state = "skipped"
+		}
+		status := LocalPolicyStatus{TerminationError: r.terminationError, PolicyID: p.ID, GroupName: p.GroupName, SelectedNodeID: r.selected, State: state, Reason: r.reason, UpdatedAt: r.updated.UnixMilli(), History: localBoundedHistory(r.history), Nodes: []LocalPolicyNodeStatus{}}
+		ids := append([]string{}, localFixedCandidates(p)...)
+		if r.selected != "" && !localContains(ids, r.selected) {
+			ids = append(ids, r.selected)
+		}
+		for _, id := range ids {
+			status.Nodes = append(status.Nodes, e.nodeStatusLocked(r, id, now))
 		}
 		result.Policies = append(result.Policies, status)
+	}
+	e.addSetSnapshotsLocked(&result, now)
+	tasks := map[localProbeKey]bool{}
+	maxWait := 0
+	for _, runtime := range e.checkRuntimes() {
+		for _, id := range localFixedCandidates(runtime.definition) {
+			tasks[localNetworkProbeKey(runtime, id)] = true
+			probe := runtime.definition.Probe
+			result.MaxCheckTimeoutSeconds = max(result.MaxCheckTimeoutSeconds, probe.TimeoutSeconds)
+			maxWait = max(maxWait, probe.IntervalSeconds, probe.RetrySeconds)
+		}
+	}
+	result.CheckTaskCount = len(tasks)
+	if result.CheckTaskCount > 0 {
+		seconds := ((result.CheckTaskCount+7)/8)*(result.MaxCheckTimeoutSeconds+1) + maxWait
+		result.RecommendedCheckCycleSeconds = ((seconds + 59) / 60) * 60
 	}
 	return result
 }
@@ -1098,7 +1190,7 @@ func (l *localBudgetLedger) reason(id string, now time.Time, unknown string) str
 		return ""
 	}
 	r := l.resetLocked(id, now)
-	if (!r.Trusted || !l.storageHealthy) && unknown != "allow" {
+	if !r.Trusted || !l.storageHealthy {
 		return "budget_untrusted"
 	}
 	if r.UsedBytes >= b.LimitBytes {
@@ -1255,7 +1347,7 @@ func probeLocalPolicyNode(ctx context.Context, proxy C.Proxy, probe LocalPolicyP
 	}, DisableKeepAlives: true, MaxConnsPerHost: 1}
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	request, err := http.NewRequestWithContext(ctx, http.MethodHead, probe.URL, nil)
+	request, err := http.NewRequestWithContext(ctx, localProbeMethod(probe), probe.URL, nil)
 	if err != nil {
 		return err
 	}
@@ -1263,7 +1355,10 @@ func probeLocalPolicyNode(ctx context.Context, proxy C.Proxy, probe LocalPolicyP
 	if err != nil {
 		return err
 	}
-	_ = response.Body.Close()
+	defer response.Body.Close()
+	if _, err := io.Copy(io.Discard, io.LimitReader(response.Body, 65537)); err != nil {
+		return err
+	}
 	if !ranges.Check(uint16(response.StatusCode)) {
 		return fmt.Errorf("probe returned unexpected status %d", response.StatusCode)
 	}

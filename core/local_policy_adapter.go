@@ -32,7 +32,7 @@ func (a *localSourceAdapter) admission(ctx context.Context) error {
 	if a.engine.stopped {
 		return errors.New("local policy stopped")
 	}
-	if source := a.engine.sources[a.node.SourceID]; source.ExpiresAt != nil && *source.ExpiresAt <= a.engine.now().UnixMilli() {
+	if source := a.engine.sources[a.node.SourceID]; (source.ExpiresAt != nil && *source.ExpiresAt <= a.engine.now().UnixMilli()) || (source.RemainingBytes != nil && *source.RemainingBytes <= 0) {
 		return errors.New("local source rejected: source_expired")
 	}
 	if reason := a.engine.ledger.reason(a.node.SourceID, a.engine.now(), localUnknownBehavior(ctx)); reason != "" {
@@ -86,6 +86,16 @@ type localManagedAdapter struct {
 	engine   *localPolicyEngine
 	policyID string
 	direct   C.Proxy
+}
+
+func (a *localManagedAdapter) Type() C.AdapterType {
+	a.engine.mu.Lock()
+	defer a.engine.mu.Unlock()
+	r := a.engine.policies[a.policyID]
+	if r != nil && !localPolicyScheduleActive(r.definition.Schedule, a.engine.now()) {
+		return C.Pass
+	}
+	return C.Selector
 }
 
 func (a *localManagedAdapter) DialContext(ctx context.Context, m *C.Metadata) (C.Conn, error) {

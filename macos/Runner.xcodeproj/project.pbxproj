@@ -457,10 +457,10 @@
 			files = ();
 			inputPaths = ();
 			outputPaths = ();
-			name = "Bundle AI Runtime";
+			name = "Bundle AI Runtime and CLI";
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"$PROJECT_DIR/../packages/ai_agent_host/scripts/package_macos.sh\"\n";
+			shellScript = "\"$PROJECT_DIR/../packages/ai_agent_host/scripts/package_macos.sh\"\n\"$PROJECT_DIR/../services/control/scripts/package_macos.sh\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

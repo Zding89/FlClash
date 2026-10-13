@@ -69,7 +69,10 @@ final class LocalPolicyCompiler {
           'Nodes with nested dialer-proxy dependencies are not supported',
         );
       }
-      final identity = Map<String, Object?>.from(raw)..remove('name');
+      final identity = Map<String, Object?>.from(raw)
+        ..remove('name')
+        ..remove('flclash-region')
+        ..remove('flclash-multiplier');
       final id = '${source.id}:${policyDigest(identity)}';
       if (!identities.add(id)) continue;
       nodes.add(
@@ -80,6 +83,7 @@ final class LocalPolicyCompiler {
           sourceLabel: source.label,
           protocol: protocol,
           raw: raw,
+          attributes: NodeAttributes.infer(label, raw),
         ),
       );
     }
@@ -94,7 +98,7 @@ final class LocalPolicyCompiler {
     bool enforceCandidateReferences = true,
   }) {
     document.validate();
-    final integration = document.integrationEnabled
+    final integration = document.moduleEnabled && document.integrationEnabled
         ? document.activeIntegration
         : null;
     final targetId = integration?.targetId ?? 'profile:$profileId';
@@ -111,31 +115,58 @@ final class LocalPolicyCompiler {
         selectedSources.length != integration.sourceProfileIds.length) {
       throw const FormatException('An integration source is missing');
     }
-    final nodes = selectedSources.expand(extractNodes).where((node) {
-      if (integration == null) return true;
-      if (integration.excludedNodeIds.contains(node.id)) return false;
-      final filter = integration.nameFilter;
-      return filter == null ||
-          filter.isEmpty ||
-          node.label.toLowerCase().contains(filter.toLowerCase());
-    }).toList();
+    final nodes = selectedSources
+        .expand(extractNodes)
+        .map(
+          (node) => LocalNode(
+            id: node.id,
+            sourceId: node.sourceId,
+            label: node.label,
+            sourceLabel: node.sourceLabel,
+            protocol: node.protocol,
+            raw: node.raw,
+            attributes: document.nodeAttributes[node.id] ?? node.attributes,
+          ),
+        )
+        .where((node) {
+          if (integration == null) return true;
+          if (integration.excludedNodeIds.contains(node.id)) return false;
+          final filter = integration.nameFilter;
+          return filter == null ||
+              filter.isEmpty ||
+              node.label.toLowerCase().contains(filter.toLowerCase());
+        })
+        .toList();
     if (nodes.length > 5000) {
       throw const FormatException('At most 5000 nodes are supported');
     }
-    final policies = document.policiesEnabled
+    final policies = document.moduleEnabled && document.policiesEnabled
         ? document.policies
               .where((policy) => policy.enabled && policy.targetId == targetId)
               .toList()
         : <LocalPolicy>[];
     policies.sort((a, b) => a.priority.compareTo(b.priority));
     final usedSourceIds = selectedSources.map((source) => source.id).toSet();
-    final budgets = document.budgetsEnabled
+    final budgets = document.moduleEnabled && document.budgetsEnabled
         ? document.budgets
               .where((budget) => usedSourceIds.contains(budget.sourceId))
               .toList()
         : <SourceBudget>[];
-    final managed = policies.isNotEmpty || budgets.isNotEmpty;
-    if (policies.isNotEmpty &&
+    final referencedSets = policies
+        .expand((p) => p.choices)
+        .where((c) => c.type == PolicyChoiceType.nodeSet)
+        .map((c) => c.id)
+        .toSet();
+    final sets = document.nodeSets
+        .where((s) => referencedSets.contains(s.id))
+        .toList();
+    for (final set in sets) {
+      if (!usedSourceIds.containsAll(set.sourceIds)) {
+        throw const FormatException('Node set sources are outside the target');
+      }
+    }
+    final managed = policies.isNotEmpty || budgets.isNotEmpty || integration != null;
+    if ((policies.isNotEmpty || integration != null) &&
         baseConfig['mode'] != null &&
         baseConfig['mode'] != 'rule') {
       throw const FormatException('Local policies require rule mode');
@@ -147,9 +178,12 @@ final class LocalPolicyCompiler {
     ];
     final configuredIds = nodes.map((node) => node.id).toSet();
     for (final policy in policies) {
-      final missing = policy.candidateNodeIds
-          .where((id) => !configuredIds.contains(id))
-          .toList();
+      final missing = [
+        ...policy.candidateNodeIds,
+        ...policy.choices
+            .where((c) => c.type == PolicyChoiceType.node)
+            .map((c) => c.id),
+      ].where((id) => !configuredIds.contains(id)).toList();
       if (missing.isNotEmpty && enforceCandidateReferences) {
         throw FormatException(
           'Policy ${policy.label} has missing candidates: ${missing.join(', ')}',
@@ -227,7 +261,10 @@ final class LocalPolicyCompiler {
         if (label is! String) {
           throw const FormatException('Invalid generated node name');
         }
-        final identity = Map<String, Object?>.from(proxy)..remove('name');
+        final identity = Map<String, Object?>.from(proxy)
+          ..remove('name')
+          ..remove('flclash-region')
+          ..remove('flclash-multiplier');
         final alias = aliasesById['${source.id}:${policyDigest(identity)}'];
         if (alias == null) {
           throw const FormatException(
@@ -250,7 +287,10 @@ final class LocalPolicyCompiler {
       for (final proxy in existingProxies) {
         addAlias(proxy);
         effectiveIds.add(
-          '${source.id}:${policyDigest(Map<String, Object?>.from(proxy)..remove('name'))}',
+          '${source.id}:${policyDigest(Map<String, Object?>.from(proxy)
+            ..remove('name')
+            ..remove('flclash-region')
+            ..remove('flclash-multiplier'))}',
         );
       }
       final inline = source.raw['flclash-inline-node-ids'];
@@ -341,7 +381,10 @@ final class LocalPolicyCompiler {
         );
       }
       existingProxies.add(
-        Map<String, Object?>.from(node.raw)..['name'] = node.proxyName,
+        Map<String, Object?>.from(node.raw)
+          ..remove('flclash-region')
+          ..remove('flclash-multiplier')
+          ..['name'] = node.proxyName,
       );
     }
     final aliasById = {for (final node in aliasNodes) node.id: node.proxyName};
@@ -370,9 +413,24 @@ final class LocalPolicyCompiler {
         'type': 'select',
         'proxies': [
           'REJECT',
-          ...policy.candidateNodeIds
-              .map((id) => aliasById[id])
-              .whereType<String>(),
+          ...{
+            ...policy.candidateNodeIds,
+            ...policy.choices
+                .where((c) => c.type == PolicyChoiceType.node)
+                .map((c) => c.id),
+            for (final choice in policy.choices.where(
+              (c) => c.type == PolicyChoiceType.nodeSet,
+            ))
+              ...nodes
+                  .where(
+                    (n) =>
+                        sets
+                            .firstWhere((s) => s.id == choice.id)
+                            .exclusion(n) ==
+                        null,
+                  )
+                  .map((n) => n.id),
+          }.map((id) => aliasById[id]).whereType<String>(),
         ],
       });
     }
@@ -395,7 +453,9 @@ final class LocalPolicyCompiler {
       final usedSources = aliasNodes.map((node) => node.sourceId).toSet();
       final relevantIds = policies.map((policy) => policy.id).toSet();
       raw['flclash-local-policy'] = {
-        'schemaVersion': 1,
+        'schemaVersion': 2,
+        'targetId': targetId,
+        'nodeSets': sets.map((s) => s.toCoreJson()).toList(),
         'revision': document.revision,
         'enabled': true,
         'sources': selectedSources
@@ -408,6 +468,7 @@ final class LocalPolicyCompiler {
                 'id': node.id,
                 'sourceId': node.sourceId,
                 'proxyName': node.proxyName,
+                ...node.attributes.toJson(),
               },
             )
             .toList(),

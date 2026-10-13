@@ -1,3 +1,4 @@
+import 'package:fl_clash/capabilities/runtime_events.dart';
 import 'dart:async';
 
 import 'package:fl_clash/common/common.dart';
@@ -159,6 +160,7 @@ class _CoreContainerState extends ConsumerState<CoreManager>
 
   @override
   void onGeoUpdate(String geoType, bool updating, bool skipped, String? error) {
+    capabilityRuntimeEvents.reportGeo(geoType, updating, skipped, error);
     final geoResource = GeoResource.fromJson(geoType.toLowerCase());
     final key = geoResource.updatingKey;
     final l10n = currentAppLocalizations;

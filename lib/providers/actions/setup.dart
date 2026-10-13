@@ -65,7 +65,8 @@ class SetupAction extends _$SetupAction {
               .whereType<String>()
               .toSet()
         : {};
-    _integratedSelection = document.integrationEnabled;
+    _integratedSelection =
+        (document.moduleEnabled && document.integrationEnabled);
   }
 
   void fullSetup() {
@@ -336,7 +337,7 @@ class SetupAction extends _$SetupAction {
         ? policyDocument ??
               await ref.read(workbenchDatabaseProvider).readPolicies()
         : const LocalPolicyDocument();
-    final integrated = document.integrationEnabled;
+    final integrated = (document.moduleEnabled && document.integrationEnabled);
     if (profileId == null && !integrated) return const VM2('', '');
     final defaultUA = globalState.packageInfo.ua;
     final networkVM2 = ref.read(
@@ -393,8 +394,8 @@ class SetupAction extends _$SetupAction {
     );
     if (!system.isMacOS ||
         (!integrated &&
-            !document.policiesEnabled &&
-            !document.budgetsEnabled)) {
+            !(document.moduleEnabled && document.policiesEnabled) &&
+            !(document.moduleEnabled && document.budgetsEnabled))) {
       return res;
     }
     final raw = policyObject(

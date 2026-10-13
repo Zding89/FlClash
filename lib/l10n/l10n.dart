@@ -5234,10 +5234,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Test connection and tools`
+  /// `Test tool calling`
   String get aiTestConnection {
     return Intl.message(
-      'Test connection and tools',
+      'Test tool calling',
       name: 'aiTestConnection',
       desc: '',
       args: [],
@@ -6806,6 +6806,1041 @@ class AppLocalizations {
       name: 'policyUnsupportedSourceOption',
       desc: '',
       args: [option],
+    );
+  }
+
+  /// `AI`
+  String get aiAssistant {
+    return Intl.message('AI', name: 'aiAssistant', desc: '', args: []);
+  }
+
+  /// `Fetch models`
+  String get aiFetchModels {
+    return Intl.message(
+      'Fetch models',
+      name: 'aiFetchModels',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `No models returned. Enter a model ID manually.`
+  String get aiModelsEmpty {
+    return Intl.message(
+      'No models returned. Enter a model ID manually.',
+      name: 'aiModelsEmpty',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `This service does not support model discovery. Enter a model ID manually.`
+  String get aiModelsUnsupported {
+    return Intl.message(
+      'This service does not support model discovery. Enter a model ID manually.',
+      name: 'aiModelsUnsupported',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Fetched {count} models`
+  String aiModelsFetched(int count) {
+    return Intl.message(
+      'Fetched $count models',
+      name: 'aiModelsFetched',
+      desc: '',
+      args: [count],
+    );
+  }
+
+  /// `Search models`
+  String get aiSearchModels {
+    return Intl.message(
+      'Search models',
+      name: 'aiSearchModels',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Model ID (manual entry available)`
+  String get aiManualModel {
+    return Intl.message(
+      'Model ID (manual entry available)',
+      name: 'aiManualModel',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Fetching models does not verify chat or tool calling. You can also enter a model ID manually.`
+  String get aiModelFetchHint {
+    return Intl.message(
+      'Fetching models does not verify chat or tool calling. You can also enter a model ID manually.',
+      name: 'aiModelFetchHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Save and use`
+  String get aiSaveAndUse {
+    return Intl.message(
+      'Save and use',
+      name: 'aiSaveAndUse',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Current connection`
+  String get aiCurrentConnection {
+    return Intl.message(
+      'Current connection',
+      name: 'aiCurrentConnection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Local CLI`
+  String get localControlTitle {
+    return Intl.message(
+      'Local CLI',
+      name: 'localControlTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Control FlClash using local commands`
+  String get localControlDescription {
+    return Intl.message(
+      'Control FlClash using local commands',
+      name: 'localControlDescription',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Ready, local access only`
+  String get localControlReady {
+    return Intl.message(
+      'Ready, local access only',
+      name: 'localControlReady',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Disabled`
+  String get localControlDisabled {
+    return Intl.message(
+      'Disabled',
+      name: 'localControlDisabled',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Service unavailable. Retry.`
+  String get localControlUnavailable {
+    return Intl.message(
+      'Service unavailable. Retry.',
+      name: 'localControlUnavailable',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `CLI password`
+  String get localControlPassword {
+    return Intl.message(
+      'CLI password',
+      name: 'localControlPassword',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Generated randomly on first use and retained after restart. Saving a new password invalidates the old one.`
+  String get localControlPasswordHint {
+    return Intl.message(
+      'Generated randomly on first use and retained after restart. Saving a new password invalidates the old one.',
+      name: 'localControlPasswordHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Change password`
+  String get localControlChangePassword {
+    return Intl.message(
+      'Change password',
+      name: 'localControlChangePassword',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Generate a new random password`
+  String get localControlRandomPassword {
+    return Intl.message(
+      'Generate a new random password',
+      name: 'localControlRandomPassword',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Use 12–128 Unicode characters without control characters.`
+  String get localControlPasswordValidation {
+    return Intl.message(
+      'Use 12–128 Unicode characters without control characters.',
+      name: 'localControlPasswordValidation',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Usage`
+  String get localControlUsage {
+    return Intl.message('Usage', name: 'localControlUsage', desc: '', args: []);
+  }
+
+  /// `Enter the password when running a command. Scripts can supply it through stdin or a separate file descriptor.`
+  String get localControlUsageHint {
+    return Intl.message(
+      'Enter the password when running a command. Scripts can supply it through stdin or a separate file descriptor.',
+      name: 'localControlUsageHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Copy tool path`
+  String get localControlCopyPath {
+    return Intl.message(
+      'Copy tool path',
+      name: 'localControlCopyPath',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `View commands`
+  String get localControlCommands {
+    return Intl.message(
+      'View commands',
+      name: 'localControlCommands',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Security and operation approval`
+  String get localControlSecurity {
+    return Intl.message(
+      'Security and operation approval',
+      name: 'localControlSecurity',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Configuration changes require preview and confirmation. System permissions use system prompts.`
+  String get localControlSecurityHint {
+    return Intl.message(
+      'Configuration changes require preview and confirmation. System permissions use system prompts.',
+      name: 'localControlSecurityHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `CLI is unavailable after the app exits. Hiding the window does not affect it.`
+  String get localControlExitHint {
+    return Intl.message(
+      'CLI is unavailable after the app exits. Hiding the window does not affect it.',
+      name: 'localControlExitHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Saving or secure shutdown failed. The original password remains valid.`
+  String get localControlSaveFailed {
+    return Intl.message(
+      'Saving or secure shutdown failed. The original password remains valid.',
+      name: 'localControlSaveFailed',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Local rules module`
+  String get policyModule {
+    return Intl.message(
+      'Local rules module',
+      name: 'policyModule',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Local subscription collection`
+  String get policyLocalCollection {
+    return Intl.message(
+      'Local subscription collection',
+      name: 'policyLocalCollection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Select and use`
+  String get policySelectCollection {
+    return Intl.message(
+      'Select and use',
+      name: 'policySelectCollection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Selected; used when connected`
+  String get policySelectedOffline {
+    return Intl.message(
+      'Selected; used when connected',
+      name: 'policySelectedOffline',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Not configured`
+  String get policyCollectionPending {
+    return Intl.message(
+      'Not configured',
+      name: 'policyCollectionPending',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Rules, node sets and budget records remain when disabled`
+  String get policyModuleOffHint {
+    return Intl.message(
+      'Rules, node sets and budget records remain when disabled',
+      name: 'policyModuleOffHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Checked top to bottom; the first match is used`
+  String get policyRuleOrderHint {
+    return Intl.message(
+      'Checked top to bottom; the first match is used',
+      name: 'policyRuleOrderHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Node sets`
+  String get policyNodeSets {
+    return Intl.message(
+      'Node sets',
+      name: 'policyNodeSets',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Sources and collection`
+  String get policySourcesCollection {
+    return Intl.message(
+      'Sources and collection',
+      name: 'policySourcesCollection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Preferred`
+  String get policyPreferred {
+    return Intl.message(
+      'Preferred',
+      name: 'policyPreferred',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Add fallback`
+  String get policyAddBackup {
+    return Intl.message(
+      'Add fallback',
+      name: 'policyAddBackup',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Specific node`
+  String get policyFixedNode {
+    return Intl.message(
+      'Specific node',
+      name: 'policyFixedNode',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Node set`
+  String get policyNodeSet {
+    return Intl.message('Node set', name: 'policyNodeSet', desc: '', args: []);
+  }
+
+  /// `More settings`
+  String get policyMoreSettings {
+    return Intl.message(
+      'More settings',
+      name: 'policyMoreSettings',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Remaining traffic`
+  String get policyRemainingTraffic {
+    return Intl.message(
+      'Remaining traffic',
+      name: 'policyRemainingTraffic',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Website`
+  String get policyWebsite {
+    return Intl.message('Website', name: 'policyWebsite', desc: '', args: []);
+  }
+
+  /// `Application`
+  String get policyApplication {
+    return Intl.message(
+      'Application',
+      name: 'policyApplication',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Combined conditions`
+  String get policyCombinedConditions {
+    return Intl.message(
+      'Combined conditions',
+      name: 'policyCombinedConditions',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Node selection preview; no real request verification`
+  String get policyPreviewHint {
+    return Intl.message(
+      'Node selection preview; no real request verification',
+      name: 'policyPreviewHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Treat unknown multiplier as 1×`
+  String get policyUnknownOne {
+    return Intl.message(
+      'Treat unknown multiplier as 1×',
+      name: 'policyUnknownOne',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `For filtering and sorting only; still marked unknown`
+  String get policyUnknownOneHint {
+    return Intl.message(
+      'For filtering and sorting only; still marked unknown',
+      name: 'policyUnknownOneHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Allow unknown without assuming a multiplier`
+  String get policyUnknownMultiplierAllowed {
+    return Intl.message(
+      'Allow unknown without assuming a multiplier',
+      name: 'policyUnknownMultiplierAllowed',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Multiplier limit`
+  String get policyMultiplierLimit {
+    return Intl.message(
+      'Multiplier limit',
+      name: 'policyMultiplierLimit',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Regions`
+  String get policyRegions {
+    return Intl.message('Regions', name: 'policyRegions', desc: '', args: []);
+  }
+
+  /// `Stability first`
+  String get policyStableFirst {
+    return Intl.message(
+      'Stability first',
+      name: 'policyStableFirst',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Lowest latency first`
+  String get policyLatencyFirst {
+    return Intl.message(
+      'Lowest latency first',
+      name: 'policyLatencyFirst',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Lowest multiplier first`
+  String get policyMultiplierFirst {
+    return Intl.message(
+      'Lowest multiplier first',
+      name: 'policyMultiplierFirst',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Automatically hide unavailable nodes`
+  String get policyHideUnavailable {
+    return Intl.message(
+      'Automatically hide unavailable nodes',
+      name: 'policyHideUnavailable',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Automatic checks`
+  String get policyAutoCheck {
+    return Intl.message(
+      'Automatic checks',
+      name: 'policyAutoCheck',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Check now`
+  String get policyCheckNow {
+    return Intl.message(
+      'Check now',
+      name: 'policyCheckNow',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Request method`
+  String get policyMethod {
+    return Intl.message(
+      'Request method',
+      name: 'policyMethod',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Retry unavailable nodes (seconds)`
+  String get policyRetrySeconds {
+    return Intl.message(
+      'Retry unavailable nodes (seconds)',
+      name: 'policyRetrySeconds',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Measurement validity (seconds)`
+  String get policyValiditySeconds {
+    return Intl.message(
+      'Measurement validity (seconds)',
+      name: 'policyValiditySeconds',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Latency improvement threshold (%)`
+  String get policyImprovementPercent {
+    return Intl.message(
+      'Latency improvement threshold (%)',
+      name: 'policyImprovementPercent',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Check endpoint preset`
+  String get policyCheckPreset {
+    return Intl.message(
+      'Check endpoint preset',
+      name: 'policyCheckPreset',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Custom`
+  String get policyCustomCheck {
+    return Intl.message(
+      'Custom',
+      name: 'policyCustomCheck',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Unknown`
+  String get policyUnknownAttribute {
+    return Intl.message(
+      'Unknown',
+      name: 'policyUnknownAttribute',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Detected from name`
+  String get policyNameAttribute {
+    return Intl.message(
+      'Detected from name',
+      name: 'policyNameAttribute',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Declared by subscription`
+  String get policyDeclaredAttribute {
+    return Intl.message(
+      'Declared by subscription',
+      name: 'policyDeclaredAttribute',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Manually confirmed`
+  String get policyManualAttribute {
+    return Intl.message(
+      'Manually confirmed',
+      name: 'policyManualAttribute',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Member preview`
+  String get policyMemberPreview {
+    return Intl.message(
+      'Member preview',
+      name: 'policyMemberPreview',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `No matching members; fallback or final handling will be used`
+  String get policyNoMembers {
+    return Intl.message(
+      'No matching members; fallback or final handling will be used',
+      name: 'policyNoMembers',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Source or node missing; select again`
+  String get policySourceMissing {
+    return Intl.message(
+      'Source or node missing; select again',
+      name: 'policySourceMissing',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Unsaved changes`
+  String get policyUnsavedTitle {
+    return Intl.message(
+      'Unsaved changes',
+      name: 'policyUnsavedTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Continue editing`
+  String get policyContinueEditing {
+    return Intl.message(
+      'Continue editing',
+      name: 'policyContinueEditing',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Discard changes`
+  String get policyDiscardChanges {
+    return Intl.message(
+      'Discard changes',
+      name: 'policyDiscardChanges',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Check and save`
+  String get policyCheckSave {
+    return Intl.message(
+      'Check and save',
+      name: 'policyCheckSave',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `AI generated`
+  String get policyAiOrigin {
+    return Intl.message(
+      'AI generated',
+      name: 'policyAiOrigin',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Manually added`
+  String get policyManualOrigin {
+    return Intl.message(
+      'Manually added',
+      name: 'policyManualOrigin',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Check and recover`
+  String get policyRecoveryCheck {
+    return Intl.message(
+      'Check and recover',
+      name: 'policyRecoveryCheck',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Keep the checked current settings`
+  String get policyRecoveryKeep {
+    return Intl.message(
+      'Keep the checked current settings',
+      name: 'policyRecoveryKeep',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Not running`
+  String get policyNotRunning {
+    return Intl.message(
+      'Not running',
+      name: 'policyNotRunning',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Usage awaiting verification`
+  String get policyUsageUnknown {
+    return Intl.message(
+      'Usage awaiting verification',
+      name: 'policyUsageUnknown',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Measures connectivity and request latency, not download speed`
+  String get policyCheckMeasurementHint {
+    return Intl.message(
+      'Measures connectivity and request latency, not download speed',
+      name: 'policyCheckMeasurementHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Changes to a shared set affect rules referencing it`
+  String get policySharedSetImpact {
+    return Intl.message(
+      'Changes to a shared set affect rules referencing it',
+      name: 'policySharedSetImpact',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Generate a plan with AI`
+  String get policyAiGenerate {
+    return Intl.message(
+      'Generate a plan with AI',
+      name: 'policyAiGenerate',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Rule type`
+  String get policyRuleType {
+    return Intl.message(
+      'Rule type',
+      name: 'policyRuleType',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Include subdomains`
+  String get policyIncludeSubdomains {
+    return Intl.message(
+      'Include subdomains',
+      name: 'policyIncludeSubdomains',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Process detection depends on system permissions and connection mode`
+  String get policyProcessHint {
+    return Intl.message(
+      'Process detection depends on system permissions and connection mode',
+      name: 'policyProcessHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Outside the schedule, skip to subsequent rules`
+  String get policyScheduleSkip {
+    return Intl.message(
+      'Outside the schedule, skip to subsequent rules',
+      name: 'policyScheduleSkip',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Saved; not currently running`
+  String get policySavedInactive {
+    return Intl.message(
+      'Saved; not currently running',
+      name: 'policySavedInactive',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Awaiting check`
+  String get policyCheckPending {
+    return Intl.message(
+      'Awaiting check',
+      name: 'policyCheckPending',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Subscription expired`
+  String get policySubscriptionExpired {
+    return Intl.message(
+      'Subscription expired',
+      name: 'policySubscriptionExpired',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Subscription traffic exhausted`
+  String get policySubscriptionExhausted {
+    return Intl.message(
+      'Subscription traffic exhausted',
+      name: 'policySubscriptionExhausted',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Unknown origin`
+  String get policyUnknownNameOrigin {
+    return Intl.message(
+      'Unknown origin',
+      name: 'policyUnknownNameOrigin',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Read the existing rules, nodes and subscription sources for target {target}, then create a reviewable proposal to add rules using those resources. Preserve the existing order; do not reorder existing rules or add another remaining-traffic rule. Create a draft and wait for my confirmation before applying it.`
+  String policyAiGenerationRequest(String target) {
+    return Intl.message(
+      'Read the existing rules, nodes and subscription sources for target $target, then create a reviewable proposal to add rules using those resources. Preserve the existing order; do not reorder existing rules or add another remaining-traffic rule. Create a draft and wait for my confirmation before applying it.',
+      name: 'policyAiGenerationRequest',
+      desc: '',
+      args: [target],
+    );
+  }
+
+  /// `Last valid reading: {sampleAt}`
+  String policyBudgetLastSample(String sampleAt) {
+    return Intl.message(
+      'Last valid reading: $sampleAt',
+      name: 'policyBudgetLastSample',
+      desc: '',
+      args: [sampleAt],
+    );
+  }
+
+  /// `Period started: {startAt}`
+  String policyBudgetPeriod(String startAt) {
+    return Intl.message(
+      'Period started: $startAt',
+      name: 'policyBudgetPeriod',
+      desc: '',
+      args: [startAt],
+    );
+  }
+
+  /// `Subscription remaining quota`
+  String get policySourceQuota {
+    return Intl.message(
+      'Subscription remaining quota',
+      name: 'policySourceQuota',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Subscription expiry`
+  String get policySourceExpiry {
+    return Intl.message(
+      'Subscription expiry',
+      name: 'policySourceExpiry',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Available members`
+  String get policyAvailableMembers {
+    return Intl.message(
+      'Available members',
+      name: 'policyAvailableMembers',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Pending checks`
+  String get policyPendingMembers {
+    return Intl.message(
+      'Pending checks',
+      name: 'policyPendingMembers',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Restricted members`
+  String get policyRestrictedMembers {
+    return Intl.message(
+      'Restricted members',
+      name: 'policyRestrictedMembers',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Show all members`
+  String get policyShowUnavailable {
+    return Intl.message(
+      'Show all members',
+      name: 'policyShowUnavailable',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Queued checks`
+  String get policyChecksWaiting {
+    return Intl.message(
+      'Queued checks',
+      name: 'policyChecksWaiting',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Checks in progress`
+  String get policyChecksInFlight {
+    return Intl.message(
+      'Checks in progress',
+      name: 'policyChecksInFlight',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Status sampled at`
+  String get policyPageSampleAt {
+    return Intl.message(
+      'Status sampled at',
+      name: 'policyPageSampleAt',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Capacity estimate: at least {seconds} seconds of validity is recommended; actual completion can take longer.`
+  String policyCheckCapacityHint(int seconds) {
+    return Intl.message(
+      'Capacity estimate: at least $seconds seconds of validity is recommended; actual completion can take longer.',
+      name: 'policyCheckCapacityHint',
+      desc: '',
+      args: [seconds],
     );
   }
 }

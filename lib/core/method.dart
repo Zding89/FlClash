@@ -40,6 +40,8 @@ enum CoreMethod {
   readUsageBatch,
   ackUsageBatch,
   getLocalPolicyStatus,
+  checkLocalPolicyNodes,
+  getLocalPolicyDetails,
   simulateLocalPolicies,
   refreshLocalPolicySource,
 }

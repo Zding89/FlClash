@@ -125,9 +125,8 @@ class _AiSettingsViewState extends ConsumerState<AiSettingsView> {
         if (existing == null) draft.connection,
       ];
       final next = AgentSettings(
-        enabled: before.enabled,
-        selectedConnectionId:
-            before.selectedConnectionId ?? draft.connection.id,
+        enabled: true,
+        selectedConnectionId: draft.connection.id,
         connections: connections,
       );
       ConfigurationProposal? proposal;
@@ -469,6 +468,12 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
   String? _testMessage;
   AgentRuntime? _testRuntime;
   int _testEpoch = 0;
+  int _modelEpoch = 0;
+  bool _fetching = false;
+  List<AgentModel> _models = const [];
+  String? _modelMessage;
+  String _modelSearch = '';
+  AgentRuntime? _modelRuntime;
 
   @override
   void initState() {
@@ -495,6 +500,9 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
   @override
   void dispose() {
     _testEpoch++;
+    _modelEpoch++;
+    _modelRuntime?.cancel();
+    unawaited(_modelRuntime?.close() ?? Future<void>.value());
     _testRuntime?.cancel();
     unawaited(_testRuntime?.close() ?? Future<void>.value());
     for (final controller in [
@@ -538,6 +546,84 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
         _testMessage = context.appLocalizations.aiInvalidConnection;
       });
       return null;
+    }
+  }
+
+  void _invalidateModels({bool clearKey = false}) {
+    _modelEpoch++;
+    _modelRuntime?.cancel();
+    unawaited(_modelRuntime?.close() ?? Future<void>.value());
+    _modelRuntime = null;
+    setState(() {
+      _fetching = false;
+      _models = const [];
+      _modelMessage = null;
+      if (clearKey) {
+        _secret.clear();
+        _model.clear();
+      }
+      _testPassed = null;
+      _testMessage = null;
+    });
+  }
+
+  Future<void> _fetchModels() async {
+    if (_fetching || _testing) return;
+    final epoch = ++_modelEpoch;
+    setState(() {
+      _fetching = true;
+      _models = const [];
+      _modelMessage = null;
+    });
+    AgentRuntime? runtime;
+    try {
+      final secret = _secret.text.trim().isNotEmpty
+          ? _secret.text.trim()
+          : !_targetChanged && widget.existing != null
+          ? await ref
+                .read(workbenchControllerProvider)
+                .credentials
+                .read(widget.existing!.credentialId)
+          : null;
+      if (!mounted || epoch != _modelEpoch) return;
+      if (secret == null || secret.isEmpty) {
+        throw const AgentRuntimeException('keyMissing');
+      }
+      runtime = widget.runtimeFactory();
+      _modelRuntime = runtime;
+      final settings = AgentConnectionSettings(
+        provider: _provider,
+        model: '',
+        baseUrl: _url.text.trim(),
+        api: _api,
+        proxyUrl: _useProxy
+            ? 'http://127.0.0.1:${ref.read(patchClashConfigProvider).mixedPort}'
+            : null,
+        timeoutSeconds: int.parse(_timeout.text),
+        maxTokens: int.parse(_tokens.text),
+      );
+      final models = await runtime.listModels(settings: settings, key: secret);
+      if (!mounted || epoch != _modelEpoch) return;
+      setState(() {
+        _models = models;
+        _modelMessage = models.isEmpty
+            ? context.appLocalizations.aiModelsEmpty
+            : context.appLocalizations.aiModelsFetched(models.length);
+      });
+    } catch (error) {
+      if (mounted && epoch == _modelEpoch) {
+        setState(() {
+          _modelMessage =
+              error is AgentRuntimeException &&
+                  error.code == 'modelsUnsupported'
+              ? context.appLocalizations.aiModelsUnsupported
+              : aiErrorText(context, error);
+        });
+      }
+    } finally {
+      await runtime?.close();
+      if (identical(_modelRuntime, runtime)) _modelRuntime = null;
+      if (mounted && epoch == _modelEpoch) setState(() => _fetching = false);
     }
   }
 
@@ -685,7 +771,7 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
             : strings.aiEditConnection,
       ),
       content: SizedBox(
-        width: 520,
+        width: 720,
         child: SingleChildScrollView(
           child: Form(
             key: _form,
@@ -707,6 +793,7 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                 DropdownButtonFormField<String>(
                   initialValue: _provider,
                   isExpanded: true,
+                  key: const ValueKey('ai-connection-provider'),
                   decoration: InputDecoration(labelText: strings.aiProvider),
                   items: [
                     for (final id in agentProviderPresets.keys)
@@ -722,8 +809,10 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                       ? null
                       : (value) {
                           if (value == null) return;
+                          _invalidateModels(clearKey: true);
                           setState(() {
                             _provider = value;
+                            _model.clear();
                             _url.clear();
                             _secret.clear();
                             _testMessage = null;
@@ -735,19 +824,6 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                                 : 'openai-completions';
                           });
                         },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  key: const ValueKey('ai-connection-model'),
-                  controller: _model,
-                  enabled: !_testing,
-                  maxLength: 200,
-                  decoration: InputDecoration(
-                    labelText: strings.aiModel,
-                    counterText: '',
-                  ),
-                  validator: requiredText,
-                  onChanged: (_) => _invalidateTest(),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -764,7 +840,7 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                   ),
                   validator: (value) =>
                       _provider == 'custom' ? requiredText(value) : null,
-                  onChanged: (_) => _invalidateTest(),
+                  onChanged: (_) => _invalidateModels(clearKey: true),
                 ),
                 if (_provider == 'custom') ...[
                   const SizedBox(height: 12),
@@ -793,6 +869,7 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                         : (value) {
                             if (value != null) {
                               setState(() {
+                                _invalidateModels(clearKey: true);
                                 _api = value;
                                 _testPassed = null;
                                 _testMessage = null;
@@ -832,9 +909,100 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                           (!widget.hasKey || _targetChanged)
                       ? strings.aiKeyRequired
                       : null,
-                  onChanged: (_) => _invalidateTest(),
+                  onChanged: (_) => _invalidateModels(),
                 ),
                 if (_targetChanged) Text(strings.aiTargetChanged),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        strings.aiModel,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    FilledButton.tonalIcon(
+                      key: const ValueKey('ai-fetch-models'),
+                      onPressed: _testing || _fetching ? null : _fetchModels,
+                      icon: const Icon(Icons.refresh),
+                      label: Text(strings.aiFetchModels),
+                    ),
+                  ],
+                ),
+                if (_fetching) ...[
+                  const SizedBox(height: 8),
+                  const LinearProgressIndicator(),
+                  TextButton(
+                    onPressed: () {
+                      _invalidateModels();
+                      setState(() => _modelMessage = strings.aiCancelled);
+                    },
+                    child: Text(strings.aiStop),
+                  ),
+                ],
+                if (_modelMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(_modelMessage!),
+                  ),
+                if (_models.isNotEmpty) ...[
+                  TextField(
+                    key: const ValueKey('ai-search-models'),
+                    decoration: InputDecoration(
+                      hintText: strings.aiSearchModels,
+                      prefixIcon: const Icon(Icons.search),
+                    ),
+                    onChanged: (value) =>
+                        setState(() => _modelSearch = value.toLowerCase()),
+                  ),
+                  SizedBox(
+                    height: 160,
+                    child: ListView(
+                      children: [
+                        for (final model in _models)
+                          if ('${model.id} ${model.name}'
+                              .toLowerCase()
+                              .contains(_modelSearch))
+                            ListTile(
+                              selected: model.id == _model.text,
+                              leading: Icon(
+                                model.id == _model.text
+                                    ? Icons.radio_button_checked
+                                    : Icons.radio_button_unchecked,
+                              ),
+                              title: Text(model.id),
+                              subtitle: model.name == model.id
+                                  ? null
+                                  : Text(model.name),
+                              onTap: _testing
+                                  ? null
+                                  : () {
+                                      _model.text = model.id;
+                                      _invalidateTest();
+                                    },
+                            ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                TextFormField(
+                  key: const ValueKey('ai-connection-model'),
+                  controller: _model,
+                  enabled: !_testing,
+                  maxLength: 200,
+                  decoration: InputDecoration(
+                    labelText: strings.aiManualModel,
+                    counterText: '',
+                  ),
+                  validator: requiredText,
+                  onChanged: (_) => _invalidateTest(),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  strings.aiModelFetchHint,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
                 const SizedBox(height: 8),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
@@ -843,6 +1011,7 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                   onChanged: _testing
                       ? null
                       : (value) => setState(() {
+                          _invalidateModels();
                           _useProxy = value;
                           _testPassed = null;
                           _testMessage = null;
@@ -886,7 +1055,7 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
-                  onPressed: _testing ? null : _test,
+                  onPressed: _testing || _fetching ? null : _test,
                   icon: const Icon(Icons.fact_check_outlined),
                   label: Text(strings.aiTestConnection),
                 ),
@@ -922,7 +1091,7 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
           child: Text(strings.cancel),
         ),
         FilledButton(
-          onPressed: _testing
+          onPressed: _testing || _fetching
               ? null
               : () {
                   final connection = _connection();
@@ -937,7 +1106,7 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                     );
                   }
                 },
-          child: Text(strings.save),
+          child: Text(strings.aiSaveAndUse),
         ),
       ],
     );

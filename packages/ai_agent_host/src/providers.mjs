@@ -15,8 +15,8 @@ export const presets = Object.freeze({
   anthropic: ['https://api.anthropic.com', 'anthropic-messages'],
   xai: ['https://api.x.ai/v1', 'openai-completions'],
 });
-export function resolveSettings(settings) {
-  if (!settings || typeof settings.model !== 'string' || !settings.model.trim() || settings.model.length > 200) throw new Error('invalidSettings');
+export function resolveSettings(settings, { requireModel = true } = {}) {
+  if (!settings || (requireModel && (typeof settings.model !== 'string' || !settings.model.trim() || settings.model.length > 200))) throw new Error('invalidSettings');
   const preset = presets[settings.provider];
   if (!preset && settings.provider !== 'custom') throw new Error('invalidProvider');
   const baseUrl = settings.baseUrl || preset?.[0];
@@ -44,4 +44,54 @@ export function requestTransport(proxyUrl) {
   if (!proxyUrl) return { fetch: (url, init) => globalThis.fetch(url, { ...init, redirect: 'error' }), close: async () => {} };
   const agent = new ProxyAgent(proxyUrl);
   return { fetch: (url, init) => proxyFetch(url, { ...init, dispatcher: agent, redirect: 'error' }), close: () => agent.destroy() };
+}
+
+export function modelListRequest(settings, key) {
+  const resolved = resolveSettings(settings, { requireModel: false });
+  if (settings.provider.startsWith('glm-')) throw new Error('modelsUnsupported');
+  if (typeof key !== 'string' || !key || key.length > 16384 || /[\r\n]/.test(key)) throw new Error('keyMissing');
+  const url = new URL(resolved.model.baseUrl);
+  const anthropicApi = resolved.model.api === 'anthropic-messages' && settings.provider !== 'kimi-coding';
+  const path = url.pathname.replace(/\/$/, '');
+  url.pathname = path + (anthropicApi || settings.provider === 'kimi-coding' ? (path.endsWith('/v1') ? '/models' : '/v1/models') : '/models');
+  const headers = anthropicApi
+    ? { 'x-api-key': key, 'anthropic-version': '2023-06-01', accept: 'application/json' }
+    : { authorization: `Bearer ${key}`, accept: 'application/json' };
+  if (anthropicApi) url.searchParams.set('limit', '100');
+  return { url, headers, anthropicApi, ...resolved };
+}
+
+export async function fetchModels(request, network, signal) {
+  const models = new Map();
+  let bytes = 0;
+  const cursors = new Set();
+  for (let page = 0; page < 20; page++) {
+    signal.throwIfAborted();
+    const response = await network.fetch(request.url, { method: 'GET', headers: request.headers, signal });
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw new Error(response.status === 404 || response.status === 405 ? 'modelsUnsupported' : `HTTP ${response.status}`);
+    }
+    const chunks = [];
+    for await (const chunk of response.body ?? []) {
+      bytes += chunk.byteLength;
+      if (bytes > 512 * 1024) { await response.body?.cancel().catch(() => {}); throw new Error('modelListLimit'); }
+      chunks.push(Buffer.from(chunk));
+    }
+    signal.throwIfAborted();
+    const data = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    if (!data || !Array.isArray(data.data)) throw new Error('invalidModelList');
+    for (const model of data.data) {
+      if (!model || typeof model.id !== 'string' || !model.id.trim() || model.id.length > 200 || /[\x00-\x1f\x7f]/.test(model.id)) throw new Error('invalidModelList');
+      const name = model.display_name ?? model.name ?? model.id;
+      if (typeof name !== 'string' || name.length > 200 || /[\x00-\x1f\x7f]/.test(name)) throw new Error('invalidModelList');
+      models.set(model.id, { id: model.id, name });
+      if (models.size > 1000) throw new Error('modelListLimit');
+    }
+    if (!request.anthropicApi || data.has_more !== true) return [...models.values()];
+    if (typeof data.last_id !== 'string' || !data.last_id || data.last_id.length > 200 || cursors.has(data.last_id)) throw new Error('invalidModelList');
+    cursors.add(data.last_id);
+    request.url.searchParams.set('after_id', data.last_id);
+  }
+  throw new Error('modelListLimit');
 }

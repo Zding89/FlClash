@@ -1,3 +1,4 @@
+import 'package:fl_clash/capabilities/runtime_events.dart';
 import 'package:fl_clash/common/proxy.dart';
 import 'package:fl_clash/configuration/barrier.dart';
 import 'package:fl_clash/common/print.dart';
@@ -29,6 +30,10 @@ class _ProxyManagerState extends ConsumerState<ProxyManager> {
     } else {
       result = await proxy?.stopProxy();
     }
+    capabilityRuntimeEvents.reportProxy(
+      enabled: isStart && systemProxy,
+      applied: result == true,
+    );
     if (result == false) {
       commonPrint.log('update system proxy failed', logLevel: LogLevel.warning);
     }

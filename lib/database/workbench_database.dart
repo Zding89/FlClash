@@ -153,6 +153,12 @@ class WorkbenchDatabase extends _$WorkbenchDatabase {
             ..orderBy([(table) => OrderingTerm.asc(table.createdAt)]))
           .get();
 
+  Future<List<WorkbenchChange>> recoveryChanges() =>
+      (select(workbenchChanges)
+            ..where((t) => t.status.equals('recovery_required'))
+            ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
+          .get();
+
   Future<Map<String, Object?>?> readSourceCache(int profileId) async {
     final row = await (select(
       workbenchSourceCaches,

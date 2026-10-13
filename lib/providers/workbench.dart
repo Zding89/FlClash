@@ -84,6 +84,13 @@ final localPolicyNodesProvider = FutureProvider.family<List<LocalNode>, String>(
   },
 );
 
+final localBudgetHistoryProvider = StreamProvider<Map<String, Object?>>(
+  (ref) => ref
+      .watch(workbenchDatabaseProvider)
+      .watchSection('localBudgetHistory')
+      .map((value) => value ?? const {}),
+);
+
 final localPolicyStatusProvider = StreamProvider<Map<String, Object?>>((
   ref,
 ) async* {
@@ -100,7 +107,29 @@ final localPolicyStatusProvider = StreamProvider<Map<String, Object?>>((
   ref.onDispose(() => disposed = true);
   while (!disposed) {
     try {
-      yield await coreController.getLocalPolicyStatus();
+      final snapshot = await coreController.getLocalPolicyStatus();
+      if (disposed) return;
+      final rows = snapshot['budgets'];
+      if (snapshot['enabled'] == true && rows is List && rows.isNotEmpty) {
+        final store = ref.read(workbenchDatabaseProvider);
+        final history = Map<String, Object?>.from(
+          await store.readSection('localBudgetHistory') ?? const {},
+        );
+        final now = DateTime.now().millisecondsSinceEpoch;
+        for (final row in rows.whereType<Map>()) {
+          final id = row['sourceId'];
+          if (id is String &&
+              row['usedBytes'] is int &&
+              row['periodStart'] is int) {
+            history[id] = {...Map<String, Object?>.from(row), 'sampleAt': now};
+          }
+        }
+        while (history.length > 100) {
+          history.remove(history.keys.first);
+        }
+        await store.writeSection('localBudgetHistory', history);
+      }
+      if (!disposed) yield snapshot;
     } catch (_) {
       yield {
         'enabled': false,
@@ -121,6 +150,8 @@ class WorkbenchController {
   late final ConfigurationChangeService changes;
   late final ResourceChangeService resources;
   AgentRuntime? _runtime;
+  final ConfigurationChangeQueue _targetQueue = ConfigurationChangeQueue();
+  int _targetIntent = 0;
 
   WorkbenchController(
     this.ref, {
@@ -163,9 +194,9 @@ class WorkbenchController {
   Future<Response<Uint8List>> fetchSourceResponse(String url) async {
     final document = await readPolicies();
     final managed =
-        document.integrationEnabled ||
-        document.policiesEnabled ||
-        document.budgetsEnabled;
+        (document.moduleEnabled && document.integrationEnabled) ||
+        (document.moduleEnabled && document.policiesEnabled) ||
+        (document.moduleEnabled && document.budgetsEnabled);
     String? route;
     if (managed) {
       if (document.sourceUpdateRoute == SourceUpdateRoute.direct) {
@@ -196,9 +227,9 @@ class WorkbenchController {
     required bool Function() isCurrent,
   }) async {
     final document = await readPolicies();
-    if (!document.integrationEnabled &&
-        !document.policiesEnabled &&
-        !document.budgetsEnabled) {
+    if (!(document.moduleEnabled && document.integrationEnabled) &&
+        !(document.moduleEnabled && document.policiesEnabled) &&
+        !(document.moduleEnabled && document.budgetsEnabled)) {
       return;
     }
     final content = utf8.decode(bytes);
@@ -244,14 +275,11 @@ class WorkbenchController {
     Profile profile, {
     required bool Function() isCurrent,
   }) async {
+    if (!isCurrent()) return;
+    final source = await profiles.loader.metadataSource(profile);
     if (!isCurrent() || ref.read(coreStatusProvider) != CoreStatus.connected) {
       return;
     }
-    final info = profile.subscriptionInfo;
-    final remainingKnown =
-        info != null &&
-        info.total > 0 &&
-        info.knownFields.containsAll({'total', 'upload', 'download'});
     final sequence = _nextSourceRefreshSequence();
     for (var attempt = 0; attempt < 2; attempt++) {
       final status = await coreController.getLocalPolicyStatus();
@@ -261,16 +289,9 @@ class WorkbenchController {
         'sequence': sequence,
         'source': {
           'id': '${profile.id}',
-          'expiresAt': info != null && info.expire > 0
-              ? info.expire * 1000
-              : null,
-          'remainingBytes': remainingKnown
-              ? (info.total - info.upload - info.download).clamp(
-                  0,
-                  9007199254740991,
-                )
-              : null,
-          'observedAt': info?.observedAt?.millisecondsSinceEpoch,
+          'expiresAt': source.expiresAt,
+          'remainingBytes': source.remainingBytes,
+          'observedAt': source.observedAt,
         },
       });
       if (error.isEmpty ||
@@ -321,11 +342,145 @@ class WorkbenchController {
     final current = LocalPolicyDocument.fromJson(
       policyObject(snapshot['policies'], 'policies'),
     );
-    snapshot['policies'] = document.withRevision(current.revision + 1).toJson();
+    final validOverrides = <PolicyOverride>[];
+    for (final override in document.overrides) {
+      if (override.expiresAt <= DateTime.now().millisecondsSinceEpoch) continue;
+      final policy = document.policies
+          .where((p) => p.id == override.policyId)
+          .firstOrNull;
+      if (policy == null) continue;
+      final nodes = await loadNodes(policy.targetId, document: document);
+      final node = nodes.where((n) => n.id == override.nodeId).firstOrNull;
+      if (node == null) continue;
+      final allowed =
+          policy.candidateNodeIds.contains(node.id) ||
+          policy.choices.any(
+            (c) => c.type == PolicyChoiceType.node
+                ? c.id == node.id
+                : document.nodeSets
+                          .where((s) => s.id == c.id)
+                          .firstOrNull
+                          ?.exclusion(node) ==
+                      null,
+          );
+      if (allowed) validOverrides.add(override);
+    }
+    final normalized = LocalPolicyDocument.fromJson({
+      ...document.toJson(),
+      'overrides': validOverrides.map((o) => o.toJson()).toList(),
+    });
+    snapshot['policies'] = normalized
+        .withRevision(current.revision + 1)
+        .toJson();
     return changes.propose(
       category: 'policies',
       summary: currentAppLocalizations.localPolicies,
       candidate: snapshot,
+    );
+  }
+
+  Future<Map<String, Object?>> selectPolicyTarget({
+    int? profileId,
+    String? integrationId,
+    bool? moduleEnabled,
+    required ConfigurationApproval approve,
+  }) {
+    final intent = ++_targetIntent;
+    return _targetQueue.run(() async {
+      if (intent != _targetIntent) return {'status': 'superseded'};
+      final snapshot = await backend.readState();
+      final document = LocalPolicyDocument.fromJson(
+        policyObject(snapshot['policies'], 'policies'),
+      );
+      final config = policyObject(snapshot['config'], 'config');
+      final next = Map<String, Object?>.from(document.toJson());
+      var requiresApproval = false;
+      if (moduleEnabled != null) {
+        next['moduleEnabled'] = moduleEnabled;
+        if (!moduleEnabled && document.integrationEnabled) {
+          final previous = config['currentProfileId'];
+          if (previous == null ||
+              !ref
+                  .read(profilesProvider)
+                  .any((p) => '${p.id}' == '$previous')) {
+            throw const ConfigurationChangeException(
+              'configuration_return_profile_required',
+            );
+          }
+          next['integrationEnabled'] = false;
+        }
+      }
+      if (integrationId != null) {
+        if (!document.moduleEnabled ||
+            !document.integrations.any((i) => i.id == integrationId)) {
+          throw const ConfigurationChangeException(
+            'configuration_integration_unavailable',
+          );
+        }
+        next['integrationEnabled'] = true;
+        next['activeIntegrationId'] = integrationId;
+        final rules = document.policies.where(
+          (p) => p.enabled && p.targetId == 'integration:$integrationId',
+        );
+        requiresApproval = !document.policiesEnabled || rules.isEmpty;
+      }
+      if (profileId != null) {
+        if (!ref.read(profilesProvider).any((p) => p.id == profileId)) {
+          throw const ConfigurationChangeException(
+            'configuration_profile_missing',
+          );
+        }
+        config['currentProfileId'] = profileId;
+        next['integrationEnabled'] = false;
+        snapshot['config'] = config;
+      }
+      snapshot['policies'] = LocalPolicyDocument.fromJson(
+        next,
+      ).withRevision(document.revision + 1).toJson();
+      final proposal = await changes.propose(
+        category: 'target',
+        summary: currentAppLocalizations.policyTarget,
+        candidate: snapshot,
+      );
+      if (intent != _targetIntent) return {'status': 'superseded'};
+      return commit(
+        proposal,
+        approve: (value) =>
+            requiresApproval ||
+                value.validation['requiresScriptExecutionApproval'] == true
+            ? approve(value)
+            : Future.value(true),
+        isCurrent: () => intent == _targetIntent,
+      );
+    });
+  }
+
+  Future<ConfigurationProposal> proposeRecoveryToProfile(
+    String id,
+    int profileId,
+  ) async {
+    final row = await store.readChange(id);
+    if (row == null ||
+        row.status != 'recovery_required' ||
+        row.category.startsWith('resource:')) {
+      throw const ConfigurationChangeException(
+        'configuration_recovery_missing',
+      );
+    }
+    if (!ref.read(profilesProvider).any((p) => p.id == profileId)) {
+      throw const ConfigurationChangeException('configuration_profile_missing');
+    }
+    final state = await backend.readState();
+    final config = policyObject(state['config'], 'config')
+      ..['currentProfileId'] = profileId;
+    final document = LocalPolicyDocument.fromJson({
+      ...policyObject(state['policies'], 'policies'),
+      'moduleEnabled': false,
+      'integrationEnabled': false,
+    });
+    return changes.proposeRecovery(
+      id,
+      replacement: {...state, 'config': config, 'policies': document.toJson()},
     );
   }
 
@@ -397,8 +552,9 @@ class WorkbenchController {
   Future<List<LocalNode>> loadNodes(
     String targetId, {
     bool refresh = false,
+    LocalPolicyDocument? document,
   }) async => profiles.nodesForTarget(
-    document: await store.readPolicies(),
+    document: document ?? await store.readPolicies(),
     profiles: ref.read(profilesProvider),
     targetId: targetId,
     refresh: refresh,
@@ -410,7 +566,8 @@ class FlutterConfigurationBackend
         ConfigurationBackend,
         ApprovedConfigurationValidator,
         ConfigurationRecoveryBackend,
-        ConfigurationCommitBackend {
+        ConfigurationCommitBackend,
+        ConfigurationRecoveryValidator {
   final Ref ref;
   final WorkbenchDatabase store;
   final PolicyProfileService profiles;
@@ -511,7 +668,26 @@ class FlutterConfigurationBackend
   }
 
   @override
-  Future<Map<String, Object?>> validate(Map<String, Object?> candidate) async {
+  Future<Map<String, Object?>> validate(Map<String, Object?> candidate) =>
+      _validate(candidate);
+
+  @override
+  Future<Map<String, Object?>> validateRecovery(
+    Map<String, Object?> candidate,
+  ) async => {
+    ...await _validate(candidate, force: true),
+    'forceActivation': true,
+  };
+
+  @override
+  Future<Map<String, Object?>> validateRecoveryApproved(
+    Map<String, Object?> candidate,
+  ) async => {...await validateApproved(candidate), 'forceActivation': true};
+
+  Future<Map<String, Object?>> _validate(
+    Map<String, Object?> candidate, {
+    bool force = false,
+  }) async {
     policyKeys(candidate, {'config', 'policies', 'ai', 'profilesSignature'});
     final config = catalog.validate(
       policyObject(candidate['config'], 'config'),
@@ -527,14 +703,16 @@ class FlutterConfigurationBackend
       throw const ConfigurationChangeException('configuration_profile_missing');
     }
     for (final integration in document.integrations) {
-      if (!ids.containsAll(integration.sourceProfileIds)) {
+      if (document.moduleEnabled &&
+          !ids.containsAll(integration.sourceProfileIds)) {
         throw const ConfigurationChangeException(
           'configuration_source_missing',
         );
       }
     }
     for (final policy in document.policies) {
-      if (policy.targetId.startsWith('profile:') &&
+      if (document.moduleEnabled &&
+          policy.targetId.startsWith('profile:') &&
           !ids.contains(int.tryParse(policy.targetId.split(':').last))) {
         throw const ConfigurationChangeException(
           'configuration_policy_target_missing',
@@ -551,6 +729,7 @@ class FlutterConfigurationBackend
     final currentConfig = policyObject(current['config'], 'config');
     final candidateConfig = policyObject(candidate['config'], 'config');
     final needsCore =
+        force ||
         policyDigest(current['policies']) !=
             policyDigest(candidate['policies']) ||
         [
@@ -569,7 +748,7 @@ class FlutterConfigurationBackend
     );
     if (setupState.overwriteType == OverwriteType.script &&
         setupState.script != null &&
-        !document.integrationEnabled) {
+        !(document.moduleEnabled && document.integrationEnabled)) {
       return {
         'validated': true,
         'finalConfigValidated': false,
@@ -594,27 +773,34 @@ class FlutterConfigurationBackend
         );
       }
     }
-    final active = document.integrationEnabled
+    final active = (document.moduleEnabled && document.integrationEnabled)
         ? document.activeIntegration?.targetId
         : 'profile:${config.currentProfileId}';
     final activePolicies = document.policies
         .where((policy) => policy.enabled && policy.targetId == active)
         .toList();
-    if (document.policiesEnabled &&
+    if ((document.moduleEnabled && document.policiesEnabled) &&
         activePolicies.isNotEmpty &&
         config.patchClashConfig.mode != Mode.rule) {
       throw const ConfigurationChangeException(
         'configuration_policies_require_rule_mode',
       );
     }
-    for (final policy in document.policies.where((policy) => policy.enabled)) {
+    for (final policy in document.policies.where(
+      (policy) => document.moduleEnabled && policy.enabled,
+    )) {
       final available = await profiles.nodesForTarget(
         document: document,
         profiles: allProfiles,
         targetId: policy.targetId,
       );
       final availableIds = available.map((node) => node.id).toSet();
-      if (!availableIds.containsAll(policy.candidateNodeIds)) {
+      if (!availableIds.containsAll([
+        ...policy.candidateNodeIds,
+        ...policy.choices
+            .where((c) => c.type == PolicyChoiceType.node)
+            .map((c) => c.id),
+      ])) {
         throw const ConfigurationChangeException(
           'configuration_policy_node_missing',
         );
@@ -780,7 +966,16 @@ class FlutterConfigurationBackend
       _providedYaml = yaml;
     }
     try {
-      await activate(after);
+      if (validation['forceActivation'] == true) {
+        _activating = true;
+        try {
+          await _activate(after, force: true);
+        } finally {
+          _activating = false;
+        }
+      } else {
+        await activate(after);
+      }
     } finally {
       _providedYaml = null;
     }
@@ -926,7 +1121,10 @@ class FlutterConfigurationBackend
     }
   }
 
-  Future<void> _activate(Map<String, Object?> candidate) async {
+  Future<void> _activate(
+    Map<String, Object?> candidate, {
+    bool force = false,
+  }) async {
     if (policyDigest(await readState()) != policyDigest(candidate)) {
       throw const ConfigurationChangeException(
         'configuration_version_conflict',
@@ -937,6 +1135,7 @@ class FlutterConfigurationBackend
         ? null
         : policyObject(_lastActivated!['config'], 'config');
     final networkChanged =
+        force ||
         old == null ||
         policyDigest(_lastActivated!['policies']) !=
             policyDigest(candidate['policies']) ||
@@ -970,6 +1169,30 @@ class FlutterConfigurationBackend
             approvedProfileYaml: approvedYaml,
             requireTunAuthorization: true,
           );
+      final document = LocalPolicyDocument.fromJson(
+        policyObject(candidate['policies'], 'policies'),
+      );
+      final target = document.moduleEnabled && document.integrationEnabled
+          ? document.activeIntegration?.targetId
+          : 'profile:${config.currentProfileId}';
+      final managed =
+          document.moduleEnabled &&
+          (document.integrationEnabled ||
+              document.budgetsEnabled ||
+              document.policiesEnabled &&
+                  document.policies.any(
+                    (p) => p.enabled && p.targetId == target,
+                  ));
+      if (managed) {
+        final status = await coreController.getLocalPolicyStatus();
+        if (status['enabled'] != true ||
+            status['documentRevision'] != document.revision ||
+            status['targetId'] != target) {
+          throw const ConfigurationChangeException(
+            'configuration_runtime_version_unconfirmed',
+          );
+        }
+      }
       final state = ref.read(proxyStateProvider);
       final result = state.isStart && state.systemProxy
           ? await proxy?.startProxy(state.port, state.bassDomain)

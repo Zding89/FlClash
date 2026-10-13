@@ -47,6 +47,7 @@ class _Controller extends Mock implements WorkbenchController {
   List<Map<String, Object?>>? simulationSteps;
   Map<String, Object?>? settingsPatch;
   LocalPolicyDocument? proposedDocument;
+  LocalPolicyDocument currentDocument = const LocalPolicyDocument();
   ConfigurationProposal get proposal => const ConfigurationProposal(
     id: 'fixture-proposal',
     summary: 'fixture',
@@ -72,8 +73,7 @@ class _Controller extends Mock implements WorkbenchController {
   }
 
   @override
-  Future<LocalPolicyDocument> readPolicies() async =>
-      const LocalPolicyDocument();
+  Future<LocalPolicyDocument> readPolicies() async => currentDocument;
   @override
   Future<PolicySimulationResult> simulatePolicies({
     required LocalPolicyDocument document,
@@ -251,6 +251,65 @@ void main() {
     String name, [
     Map<String, Object?> args = const {},
   ]) => tools.execute(request(name, args));
+
+  test(
+    'AI proposals retain origins, dynamic references and the terminal rule order',
+    () async {
+      controller.currentDocument = LocalPolicyDocument.fromJson({
+        'policies': [
+          {
+            'id': 'terminal',
+            'label': 'Remaining',
+            'targetId': 'profile:7',
+            'origin': 'manual',
+            'candidateNodeIds': ['fixed'],
+          },
+        ],
+      });
+      final result = await execute('policies_propose', {
+        'patch': {
+          'moduleEnabled': true,
+          'nodeSets': [
+            {
+              'id': 'japan',
+              'label': 'Japan set',
+              'targetId': 'profile:7',
+              'sourceIds': ['7'],
+              'regions': ['JP'],
+              'unknownMultiplier': 'assumeOne',
+            },
+          ],
+          'policies': [
+            {'id': 'terminal', 'label': 'Keep remaining', 'origin': 'ai'},
+            {
+              'id': 'new-ai',
+              'label': 'Example traffic',
+              'targetId': 'profile:7',
+              'scope': {
+                'type': 'domainSuffix',
+                'values': ['example.test'],
+              },
+              'choices': [
+                {'type': 'nodeSet', 'id': 'japan'},
+              ],
+            },
+          ],
+        },
+      });
+      expect(result.isError, false, reason: '${result.value}');
+      final proposed = controller.proposedDocument!;
+      expect(proposed.schemaVersion, 2);
+      expect(
+        proposed.nodeSets.single.unknownMultiplier,
+        UnknownMultiplier.assumeOne,
+      );
+      expect(proposed.policies.last.id, 'terminal');
+      expect(proposed.policies.last.origin, PolicyOrigin.manual);
+      expect(proposed.policies.first.origin, PolicyOrigin.ai);
+      expect(proposed.policies.first.choices.single.id, 'japan');
+      expect(approvals, 0);
+    },
+  );
 
   test('tool surface has safe names and no arbitrary execution or paths', () {
     expect(
@@ -603,6 +662,7 @@ void main() {
         Map<String, dynamic>.from(dto),
         launcher: () => launchScriptProcess(
           executablePath:
+              Platform.environment['FLCLASH_TEST_NODE'] ??
               '/private/tmp/flclash-ai-host-node22-arm64/Resources/ai/node',
           runnerPath: '${Directory.current.path}/scripts/script_runner.mjs',
         ),

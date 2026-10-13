@@ -117,7 +117,7 @@ func simulateLocalPolicies(input LocalPolicySimulationInput) (LocalPolicySimulat
 	if err = applyUsage(input.LocalUsage, true); err != nil {
 		return result, err
 	}
-	for _, runtime := range e.policies {
+	for _, runtime := range e.checkRuntimes() {
 		for id, health := range runtime.health {
 			if state := input.Health[id]; state != nil {
 				health.healthy = *state
@@ -150,6 +150,12 @@ func simulateLocalPolicies(input LocalPolicySimulationInput) (LocalPolicySimulat
 				return result, errors.New("invalid simulated source metadata")
 			}
 			source.Label = original.Label
+			if source.ExpiresAt == nil {
+				source.ExpiresAt = original.ExpiresAt
+			}
+			if source.RemainingBytes == nil && original.RemainingBytes != nil && *original.RemainingBytes <= 0 {
+				source.RemainingBytes = original.RemainingBytes
+			}
 			e.sources[source.ID] = source
 		}
 		if err = applyUsage(step.Usage, false); err != nil {
@@ -163,8 +169,10 @@ func simulateLocalPolicies(input LocalPolicySimulationInput) (LocalPolicySimulat
 			if !probe.Success {
 				probeError = errors.New("simulated probe failure")
 			}
-			for _, runtime := range e.policies {
-				if runtime.health[probe.NodeID] != nil {
+			seenHealth := map[*localNodeHealth]bool{}
+			for _, runtime := range e.checkRuntimes() {
+				if h := runtime.health[probe.NodeID]; h != nil && !seenHealth[h] {
+					seenHealth[h] = true
 					e.applyProbeLocked(runtime, probe.NodeID, probeError, now)
 				}
 			}

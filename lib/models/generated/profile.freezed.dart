@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$SubscriptionInfo {
 
- int get upload; int get download; int get total; int get expire; Set<String> get knownFields; DateTime? get observedAt;
+ int get upload; int get download; int get total; int get expire; Set<String> get knownFields; DateTime? get observedAt; DateTime? get expireObservedAt; DateTime? get remainingObservedAt; bool get exhausted;
 /// Create a copy of SubscriptionInfo
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $SubscriptionInfoCopyWith<SubscriptionInfo> get copyWith => _$SubscriptionInfoCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubscriptionInfo&&(identical(other.upload, upload) || other.upload == upload)&&(identical(other.download, download) || other.download == download)&&(identical(other.total, total) || other.total == total)&&(identical(other.expire, expire) || other.expire == expire)&&const DeepCollectionEquality().equals(other.knownFields, knownFields)&&(identical(other.observedAt, observedAt) || other.observedAt == observedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubscriptionInfo&&(identical(other.upload, upload) || other.upload == upload)&&(identical(other.download, download) || other.download == download)&&(identical(other.total, total) || other.total == total)&&(identical(other.expire, expire) || other.expire == expire)&&const DeepCollectionEquality().equals(other.knownFields, knownFields)&&(identical(other.observedAt, observedAt) || other.observedAt == observedAt)&&(identical(other.expireObservedAt, expireObservedAt) || other.expireObservedAt == expireObservedAt)&&(identical(other.remainingObservedAt, remainingObservedAt) || other.remainingObservedAt == remainingObservedAt)&&(identical(other.exhausted, exhausted) || other.exhausted == exhausted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,upload,download,total,expire,const DeepCollectionEquality().hash(knownFields),observedAt);
+int get hashCode => Object.hash(runtimeType,upload,download,total,expire,const DeepCollectionEquality().hash(knownFields),observedAt,expireObservedAt,remainingObservedAt,exhausted);
 
 @override
 String toString() {
-  return 'SubscriptionInfo(upload: $upload, download: $download, total: $total, expire: $expire, knownFields: $knownFields, observedAt: $observedAt)';
+  return 'SubscriptionInfo(upload: $upload, download: $download, total: $total, expire: $expire, knownFields: $knownFields, observedAt: $observedAt, expireObservedAt: $expireObservedAt, remainingObservedAt: $remainingObservedAt, exhausted: $exhausted)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $SubscriptionInfoCopyWith<$Res>  {
   factory $SubscriptionInfoCopyWith(SubscriptionInfo value, $Res Function(SubscriptionInfo) _then) = _$SubscriptionInfoCopyWithImpl;
 @useResult
 $Res call({
- int upload, int download, int total, int expire, Set<String> knownFields, DateTime? observedAt
+ int upload, int download, int total, int expire, Set<String> knownFields, DateTime? observedAt, DateTime? expireObservedAt, DateTime? remainingObservedAt, bool exhausted
 });
 
 
@@ -65,7 +65,7 @@ class _$SubscriptionInfoCopyWithImpl<$Res>
 
 /// Create a copy of SubscriptionInfo
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? upload = null,Object? download = null,Object? total = null,Object? expire = null,Object? knownFields = null,Object? observedAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? upload = null,Object? download = null,Object? total = null,Object? expire = null,Object? knownFields = null,Object? observedAt = freezed,Object? expireObservedAt = freezed,Object? remainingObservedAt = freezed,Object? exhausted = null,}) {
   return _then(_self.copyWith(
 upload: null == upload ? _self.upload : upload // ignore: cast_nullable_to_non_nullable
 as int,download: null == download ? _self.download : download // ignore: cast_nullable_to_non_nullable
@@ -73,7 +73,10 @@ as int,total: null == total ? _self.total : total // ignore: cast_nullable_to_no
 as int,expire: null == expire ? _self.expire : expire // ignore: cast_nullable_to_non_nullable
 as int,knownFields: null == knownFields ? _self.knownFields : knownFields // ignore: cast_nullable_to_non_nullable
 as Set<String>,observedAt: freezed == observedAt ? _self.observedAt : observedAt // ignore: cast_nullable_to_non_nullable
-as DateTime?,
+as DateTime?,expireObservedAt: freezed == expireObservedAt ? _self.expireObservedAt : expireObservedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,remainingObservedAt: freezed == remainingObservedAt ? _self.remainingObservedAt : remainingObservedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,exhausted: null == exhausted ? _self.exhausted : exhausted // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 
@@ -158,10 +161,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int upload,  int download,  int total,  int expire,  Set<String> knownFields,  DateTime? observedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int upload,  int download,  int total,  int expire,  Set<String> knownFields,  DateTime? observedAt,  DateTime? expireObservedAt,  DateTime? remainingObservedAt,  bool exhausted)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _SubscriptionInfo() when $default != null:
-return $default(_that.upload,_that.download,_that.total,_that.expire,_that.knownFields,_that.observedAt);case _:
+return $default(_that.upload,_that.download,_that.total,_that.expire,_that.knownFields,_that.observedAt,_that.expireObservedAt,_that.remainingObservedAt,_that.exhausted);case _:
   return orElse();
 
 }
@@ -179,10 +182,10 @@ return $default(_that.upload,_that.download,_that.total,_that.expire,_that.known
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int upload,  int download,  int total,  int expire,  Set<String> knownFields,  DateTime? observedAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int upload,  int download,  int total,  int expire,  Set<String> knownFields,  DateTime? observedAt,  DateTime? expireObservedAt,  DateTime? remainingObservedAt,  bool exhausted)  $default,) {final _that = this;
 switch (_that) {
 case _SubscriptionInfo():
-return $default(_that.upload,_that.download,_that.total,_that.expire,_that.knownFields,_that.observedAt);case _:
+return $default(_that.upload,_that.download,_that.total,_that.expire,_that.knownFields,_that.observedAt,_that.expireObservedAt,_that.remainingObservedAt,_that.exhausted);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -199,10 +202,10 @@ return $default(_that.upload,_that.download,_that.total,_that.expire,_that.known
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int upload,  int download,  int total,  int expire,  Set<String> knownFields,  DateTime? observedAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int upload,  int download,  int total,  int expire,  Set<String> knownFields,  DateTime? observedAt,  DateTime? expireObservedAt,  DateTime? remainingObservedAt,  bool exhausted)?  $default,) {final _that = this;
 switch (_that) {
 case _SubscriptionInfo() when $default != null:
-return $default(_that.upload,_that.download,_that.total,_that.expire,_that.knownFields,_that.observedAt);case _:
+return $default(_that.upload,_that.download,_that.total,_that.expire,_that.knownFields,_that.observedAt,_that.expireObservedAt,_that.remainingObservedAt,_that.exhausted);case _:
   return null;
 
 }
@@ -214,7 +217,7 @@ return $default(_that.upload,_that.download,_that.total,_that.expire,_that.known
 @JsonSerializable()
 
 class _SubscriptionInfo implements SubscriptionInfo {
-  const _SubscriptionInfo({this.upload = 0, this.download = 0, this.total = 0, this.expire = 0, final  Set<String> knownFields = const {}, this.observedAt}): _knownFields = knownFields;
+  const _SubscriptionInfo({this.upload = 0, this.download = 0, this.total = 0, this.expire = 0, final  Set<String> knownFields = const {}, this.observedAt, this.expireObservedAt, this.remainingObservedAt, this.exhausted = false}): _knownFields = knownFields;
   factory _SubscriptionInfo.fromJson(Map<String, dynamic> json) => _$SubscriptionInfoFromJson(json);
 
 @override@JsonKey() final  int upload;
@@ -229,6 +232,9 @@ class _SubscriptionInfo implements SubscriptionInfo {
 }
 
 @override final  DateTime? observedAt;
+@override final  DateTime? expireObservedAt;
+@override final  DateTime? remainingObservedAt;
+@override@JsonKey() final  bool exhausted;
 
 /// Create a copy of SubscriptionInfo
 /// with the given fields replaced by the non-null parameter values.
@@ -243,16 +249,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubscriptionInfo&&(identical(other.upload, upload) || other.upload == upload)&&(identical(other.download, download) || other.download == download)&&(identical(other.total, total) || other.total == total)&&(identical(other.expire, expire) || other.expire == expire)&&const DeepCollectionEquality().equals(other._knownFields, _knownFields)&&(identical(other.observedAt, observedAt) || other.observedAt == observedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubscriptionInfo&&(identical(other.upload, upload) || other.upload == upload)&&(identical(other.download, download) || other.download == download)&&(identical(other.total, total) || other.total == total)&&(identical(other.expire, expire) || other.expire == expire)&&const DeepCollectionEquality().equals(other._knownFields, _knownFields)&&(identical(other.observedAt, observedAt) || other.observedAt == observedAt)&&(identical(other.expireObservedAt, expireObservedAt) || other.expireObservedAt == expireObservedAt)&&(identical(other.remainingObservedAt, remainingObservedAt) || other.remainingObservedAt == remainingObservedAt)&&(identical(other.exhausted, exhausted) || other.exhausted == exhausted));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,upload,download,total,expire,const DeepCollectionEquality().hash(_knownFields),observedAt);
+int get hashCode => Object.hash(runtimeType,upload,download,total,expire,const DeepCollectionEquality().hash(_knownFields),observedAt,expireObservedAt,remainingObservedAt,exhausted);
 
 @override
 String toString() {
-  return 'SubscriptionInfo(upload: $upload, download: $download, total: $total, expire: $expire, knownFields: $knownFields, observedAt: $observedAt)';
+  return 'SubscriptionInfo(upload: $upload, download: $download, total: $total, expire: $expire, knownFields: $knownFields, observedAt: $observedAt, expireObservedAt: $expireObservedAt, remainingObservedAt: $remainingObservedAt, exhausted: $exhausted)';
 }
 
 
@@ -263,7 +269,7 @@ abstract mixin class _$SubscriptionInfoCopyWith<$Res> implements $SubscriptionIn
   factory _$SubscriptionInfoCopyWith(_SubscriptionInfo value, $Res Function(_SubscriptionInfo) _then) = __$SubscriptionInfoCopyWithImpl;
 @override @useResult
 $Res call({
- int upload, int download, int total, int expire, Set<String> knownFields, DateTime? observedAt
+ int upload, int download, int total, int expire, Set<String> knownFields, DateTime? observedAt, DateTime? expireObservedAt, DateTime? remainingObservedAt, bool exhausted
 });
 
 
@@ -280,7 +286,7 @@ class __$SubscriptionInfoCopyWithImpl<$Res>
 
 /// Create a copy of SubscriptionInfo
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? upload = null,Object? download = null,Object? total = null,Object? expire = null,Object? knownFields = null,Object? observedAt = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? upload = null,Object? download = null,Object? total = null,Object? expire = null,Object? knownFields = null,Object? observedAt = freezed,Object? expireObservedAt = freezed,Object? remainingObservedAt = freezed,Object? exhausted = null,}) {
   return _then(_SubscriptionInfo(
 upload: null == upload ? _self.upload : upload // ignore: cast_nullable_to_non_nullable
 as int,download: null == download ? _self.download : download // ignore: cast_nullable_to_non_nullable
@@ -288,7 +294,10 @@ as int,total: null == total ? _self.total : total // ignore: cast_nullable_to_no
 as int,expire: null == expire ? _self.expire : expire // ignore: cast_nullable_to_non_nullable
 as int,knownFields: null == knownFields ? _self._knownFields : knownFields // ignore: cast_nullable_to_non_nullable
 as Set<String>,observedAt: freezed == observedAt ? _self.observedAt : observedAt // ignore: cast_nullable_to_non_nullable
-as DateTime?,
+as DateTime?,expireObservedAt: freezed == expireObservedAt ? _self.expireObservedAt : expireObservedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,remainingObservedAt: freezed == remainingObservedAt ? _self.remainingObservedAt : remainingObservedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,exhausted: null == exhausted ? _self.exhausted : exhausted // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 

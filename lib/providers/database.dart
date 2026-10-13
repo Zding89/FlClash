@@ -102,7 +102,7 @@ class Profiles extends _$Profiles {
     );
   }
 
-  void reorder(List<Profile> profiles) {
+  Future<void> reorder(List<Profile> profiles) async {
     final previous = List<Profile>.from(state);
     final next = List<Profile>.from(profiles);
     final needUpdate = <ProfilesCompanion>[];
@@ -112,12 +112,10 @@ class Profiles extends _$Profiles {
       }
     });
     state = next;
-    unawaited(
-      withRollback(
-        snapshot: previous,
-        action: () => database.profilesDao.putAll(needUpdate),
-        rollback: (v) => state = v,
-      ),
+    await withRollback(
+      snapshot: previous,
+      action: () => database.profilesDao.putAll(needUpdate),
+      rollback: (v) => state = v,
     );
   }
 

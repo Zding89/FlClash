@@ -33,6 +33,12 @@ class AgentConnectionSettings {
   };
 }
 
+class AgentModel {
+  const AgentModel({required this.id, required this.name});
+  final String id;
+  final String name;
+}
+
 class AgentToolDefinition {
   const AgentToolDefinition({
     required this.name,
@@ -171,6 +177,7 @@ class AgentRuntime {
   int _outputBytes = 0;
   String? _requestId;
   String? _failureCode;
+  List<AgentModel>? _models;
   Completer<void>? _completion;
   AgentToolExecutor? _executeTool;
   Set<String> _allowedTools = {};
@@ -296,6 +303,35 @@ class AgentRuntime {
     await completion.future;
   }
 
+  Future<List<AgentModel>> listModels({
+    required AgentConnectionSettings settings,
+    required String key,
+  }) async {
+    await start();
+    if (_closed || isRunning) throw StateError('runtimeUnavailable');
+    if (key.isEmpty || key.length > 16384) throw ArgumentError('invalidKey');
+    _generation++;
+    _requestId = _newId();
+    _cancelled = false;
+    _failureCode = null;
+    _models = null;
+    _allowedTools = {};
+    final completion = Completer<void>();
+    _completion = completion;
+    _watchdog = Timer(
+      Duration(seconds: settings.timeoutSeconds + 5),
+      () => _fail('timeout'),
+    );
+    try {
+      await _send('listModels', {'settings': settings.toJson(), 'key': key});
+    } catch (_) {
+      _fail('hostTransportFailed');
+    }
+    await completion.future;
+    if (_cancelled) throw const AgentRuntimeException('cancelled');
+    return _models ?? (throw const AgentRuntimeException('invalidModelList'));
+  }
+
   Future<void> _send(
     String type,
     Map<String, Object?> data, {
@@ -373,7 +409,14 @@ class AgentRuntime {
     }
     final type = frame['type'] as String;
     final data = Map<String, Object?>.from(frame['data'] as Map);
-    if (!['text', 'status', 'error', 'done', 'toolRequest'].contains(type)) {
+    if (![
+      'text',
+      'models',
+      'status',
+      'error',
+      'done',
+      'toolRequest',
+    ].contains(type)) {
       throw const FormatException();
     }
     if (type == 'status' && data['status'] is! String ||
@@ -382,6 +425,24 @@ class AgentRuntime {
         type == 'done' &&
             (data['cancelled'] is! bool || data['failed'] is! bool)) {
       throw const FormatException();
+    }
+    if (type == 'models') {
+      final models = data['models'];
+      if (models is! List || models.length > 1000) {
+        throw const FormatException();
+      }
+      _models = [
+        for (final model in models)
+          if (model is Map &&
+              model['id'] is String &&
+              (model['id'] as String).isNotEmpty &&
+              (model['id'] as String).length <= 200 &&
+              model['name'] is String &&
+              (model['name'] as String).length <= 200)
+            AgentModel(id: model['id'] as String, name: model['name'] as String)
+          else
+            throw const FormatException(),
+      ];
     }
     if (type == 'text') {
       if (data['text'] is! String) throw const FormatException();

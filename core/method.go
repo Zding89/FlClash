@@ -110,6 +110,31 @@ func handleMethodCall(call *MethodCall, response MethodResponse) {
 		}
 		response.success(result)
 		return
+	case checkLocalPolicyNodesMethod:
+		input := LocalPolicyCheckInput{}
+		if !decodeMethodArguments(call, response, &input) {
+			return
+		}
+		result, err := handleLocalPolicyCheck(input)
+		if err != nil {
+			response.failure("local_policy_check_failed", err.Error(), nil)
+			return
+		}
+		response.success(result)
+		return
+	case getLocalPolicyDetailsMethod:
+		input, err := decodeLocalPolicyDetails(call.Arguments)
+		if err != nil {
+			response.failure("local_policy_details_invalid", err.Error(), nil)
+			return
+		}
+		result, err := handleGetLocalPolicyDetails(input)
+		if err != nil {
+			response.failure("local_policy_details_failed", err.Error(), nil)
+			return
+		}
+		response.success(result)
+		return
 	case getLocalPolicyStatusMethod:
 		response.success(handleGetLocalPolicyStatus())
 		return

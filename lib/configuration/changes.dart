@@ -41,6 +41,37 @@ abstract interface class ConfigurationCommitBackend {
   Future<void> endCommit(String id);
 }
 
+abstract interface class ConfigurationRecoveryValidator {
+  Future<Map<String, Object?>> validateRecovery(Map<String, Object?> candidate);
+  Future<Map<String, Object?>> validateRecoveryApproved(
+    Map<String, Object?> candidate,
+  );
+}
+
+Map<String, Object?> configurationRecoveryState(
+  Map<String, Object?> before,
+  Map<String, Object?> after,
+  Map<String, Object?> current,
+) {
+  Object? restore(Object? original, Object? changed, Object? live) {
+    if (policyDigest(original) == policyDigest(changed)) return live;
+    if (original is Map && changed is Map && live is Map) {
+      final result = Map<String, Object?>.from(live);
+      for (final key in {...original.keys, ...changed.keys}) {
+        result['$key'] = restore(original[key], changed[key], live[key]);
+      }
+      return result;
+    }
+    if (policyDigest(live) == policyDigest(changed) ||
+        policyDigest(live) == policyDigest(original)) {
+      return original;
+    }
+    throw const ConfigurationChangeException('configuration_recovery_conflict');
+  }
+
+  return policyObject(restore(before, after, current), 'recovery');
+}
+
 bool configurationRestoredMatches(
   Object? before,
   Object? after,
@@ -102,7 +133,7 @@ List<ConfigurationDifference> configurationDifferences(
     }
   } else if (policyDigest(before) != policyDigest(after)) {
     final sensitive = RegExp(
-      r'(password|secret|token|credential|api.?key|authorization)',
+      r'(password|secret|token|credential|api.?key|authorization|protectedContent)',
       caseSensitive: false,
     ).hasMatch(path);
     differences.add(
@@ -201,17 +232,32 @@ final class ConfigurationChangeService {
     required String summary,
     required Map<String, Object?> candidate,
   }) => _serial(() async {
+    if (!category.startsWith('recovery:') &&
+        !category.startsWith('repair:') &&
+        (await store.recoveryChanges()).isNotEmpty) {
+      throw const ConfigurationChangeException(
+        'configuration_recovery_required',
+      );
+    }
     final before = await backend.readState();
     final snapshot = policyObject(
       jsonDecode(jsonEncode(candidate)),
       'candidate',
     );
-    final validation = await backend.validate(snapshot);
+    final validation =
+        category.startsWith('recovery:') &&
+            backend is ConfigurationRecoveryValidator
+        ? await (backend as ConfigurationRecoveryValidator).validateRecovery(
+            snapshot,
+          )
+        : await backend.validate(snapshot);
     final differences = configurationDifferences(before, snapshot);
-    if (differences.isEmpty) {
+    if (differences.isEmpty && !category.startsWith('recovery:')) {
       throw const ConfigurationChangeException('configuration_unchanged');
     }
-    final highRisk = backend.isHighRisk(before, snapshot);
+    final highRisk =
+        category.startsWith('recovery:') ||
+        backend.isHighRisk(before, snapshot);
     final now = clock();
     final id = _id();
     final expiresAt = now.add(proposalLifetime).millisecondsSinceEpoch;
@@ -254,7 +300,11 @@ final class ConfigurationChangeService {
       validation: policyObject(
         _prepared[id]?['validation'] ??
             (row.status == 'draft'
-                ? await backend.validate(after)
+                ? row.category.startsWith('recovery:') &&
+                          backend is ConfigurationRecoveryValidator
+                      ? await (backend as ConfigurationRecoveryValidator)
+                            .validateRecovery(after)
+                      : await backend.validate(after)
                 : <String, Object?>{}),
         'validation',
       ),
@@ -295,7 +345,13 @@ final class ConfigurationChangeService {
       }
       return readProposal(id);
     }
-    final validation = await backend.validate(candidate);
+    final validation =
+        row.category.startsWith('recovery:') &&
+            backend is ConfigurationRecoveryValidator
+        ? await (backend as ConfigurationRecoveryValidator).validateRecovery(
+            candidate,
+          )
+        : await backend.validate(candidate);
     if (validation['requiresScriptExecutionApproval'] != true) {
       return readProposal(id);
     }
@@ -364,8 +420,13 @@ final class ConfigurationChangeService {
           'configuration_script_preview_unavailable',
         );
       }
-      final prepared = await (validator as ApprovedConfigurationValidator)
-          .validateApproved(candidate);
+      final prepared =
+          row.category.startsWith('recovery:') &&
+              validator is ConfigurationRecoveryValidator
+          ? await (validator as ConfigurationRecoveryValidator)
+                .validateRecoveryApproved(candidate)
+          : await (validator as ApprovedConfigurationValidator)
+                .validateApproved(candidate);
       if (isCurrent?.call() == false) {
         throw const ConfigurationChangeException('configuration_cancelled');
       }
@@ -449,7 +510,13 @@ final class ConfigurationChangeService {
           'configuration_version_conflict',
         );
       }
-      final validation = await backend.validate(after);
+      final validation =
+          row.category.startsWith('recovery:') &&
+              backend is ConfigurationRecoveryValidator
+          ? await (backend as ConfigurationRecoveryValidator).validateRecovery(
+              after,
+            )
+          : await backend.validate(after);
       final prepared = _prepared[id];
       final matchesPrepared =
           prepared != null &&
@@ -588,9 +655,76 @@ final class ConfigurationChangeService {
     );
   }
 
+  Future<ConfigurationProposal> proposeRecovery(
+    String id, {
+    bool keepCurrent = false,
+    Map<String, Object?>? replacement,
+  }) async {
+    final row = await store.readChange(id);
+    if (row == null ||
+        row.status != 'recovery_required' ||
+        row.category.startsWith('resource:')) {
+      throw const ConfigurationChangeException(
+        'configuration_recovery_missing',
+      );
+    }
+    final current = await backend.readState();
+    final candidate =
+        replacement ??
+        (keepCurrent
+            ? current
+            : configurationRecoveryState(
+                policyObject(jsonDecode(row.beforePayload), 'before'),
+                policyObject(jsonDecode(row.afterPayload), 'after'),
+                current,
+              ));
+    return propose(
+      category: 'recovery:$id',
+      summary: row.summary,
+      candidate: candidate,
+    );
+  }
+
+  Future<Map<String, Object?>> commitRecovery(
+    ConfigurationProposal proposal, {
+    required ConfigurationApproval approve,
+  }) async {
+    final row = await store.readChange(proposal.id);
+    if (row == null || !row.category.startsWith('recovery:')) {
+      throw const ConfigurationChangeException(
+        'configuration_recovery_missing',
+      );
+    }
+    final originalId = row.category.substring('recovery:'.length);
+    final original = await store.readChange(originalId);
+    if (original?.status != 'recovery_required') {
+      throw const ConfigurationChangeException(
+        'configuration_recovery_conflict',
+      );
+    }
+    final prepared = await prepareApprovedValidation(
+      id: proposal.id,
+      approve: approve,
+    );
+    final result = await commit(id: prepared.id, approve: approve);
+    if (result['status'] == 'applied') {
+      await store.changeStatus(originalId, 'resolved', error: original!.error);
+    }
+    return {...result, 'recoveryOf': originalId};
+  }
+
   Future<void> recoverInterrupted() => _serial(() async {
     for (final row in await store.interruptedChanges()) {
-      if (row.category.startsWith('resource:')) continue;
+      if (row.category.startsWith('resource:') ||
+          row.category.startsWith('repair:')) {
+        continue;
+      }
+      if (row.category.startsWith('recovery:')) {
+        final original = await store.readChange(
+          row.category.substring('recovery:'.length),
+        );
+        if (original?.category.startsWith('resource:') == true) continue;
+      }
       try {
         final before = policyObject(jsonDecode(row.beforePayload), 'before');
         final after = policyObject(jsonDecode(row.afterPayload), 'after');

@@ -25,6 +25,7 @@ import 'package:yaml/yaml.dart';
 import 'barrier.dart';
 import 'changes.dart';
 import 'settings.dart';
+import 'recovery_source.dart';
 
 enum ResourceKind { profile, rules, groups, script }
 
@@ -164,7 +165,8 @@ final class ResourceConfigurationBackend
         ConfigurationBackend,
         ApprovedConfigurationValidator,
         ConfigurationRecoveryBackend,
-        ConfigurationCommitBackend {
+        ConfigurationCommitBackend,
+        ConfigurationRecoveryValidator {
   final ResourceScope scope;
   final ResourceEnvironment environment;
   String? _validatedFingerprint;
@@ -271,6 +273,20 @@ final class ResourceConfigurationBackend
     }
     return result.summary;
   }
+
+  @override
+  Future<Map<String, Object?>> validateRecovery(
+    Map<String, Object?> candidate,
+  ) async {
+    _validatedFingerprint = null;
+    _validation = null;
+    return validate(candidate);
+  }
+
+  @override
+  Future<Map<String, Object?>> validateRecoveryApproved(
+    Map<String, Object?> candidate,
+  ) => validateApproved(candidate);
 
   @override
   Future<Map<String, Object?>> validateApproved(
@@ -451,10 +467,16 @@ final class ResourceConfigurationBackend
 final class ResourceChangeService {
   final WorkbenchDatabase store;
   final ResourceEnvironment environment;
+  final Future<String> Function(String)? validateRecoveryContent;
   final Map<String, ConfigurationChangeService> _services = {};
   final _ResourceArtifactCache _artifacts = _ResourceArtifactCache();
+  final Map<String, ConfigurationChangeService> _repairServices = {};
 
-  ResourceChangeService({required this.store, required this.environment});
+  ResourceChangeService({
+    required this.store,
+    required this.environment,
+    this.validateRecoveryContent,
+  });
 
   ConfigurationChangeService service(ResourceScope scope) =>
       _services.putIfAbsent(
@@ -477,10 +499,104 @@ final class ResourceChangeService {
     scope,
   ).propose(category: scope.category, summary: summary, candidate: candidate);
 
+  ConfigurationChangeService _repairService(String recoveryId, int profileId) =>
+      _repairServices.putIfAbsent(
+        '$recoveryId:$profileId',
+        () => ConfigurationChangeService(
+          store: store,
+          backend: RecoverySourceBackend(
+            scope: ResourceScope(ResourceKind.profile, profileId),
+            recoveryId: recoveryId,
+            store: store,
+            environment: environment,
+            validateContent: validateRecoveryContent,
+          ),
+        ),
+      );
+
+  Future<ConfigurationProposal> proposeRepairSource(
+    String recoveryId,
+    int profileId, {
+    required String content,
+    String? label,
+  }) async {
+    final scoped = _repairService(recoveryId, profileId);
+    final before = await scoped.backend.readState();
+    final resource = policyObject(before['resource'], 'resource');
+    resource['profile'] = Profile(
+      id: profileId,
+      autoUpdateDuration: const Duration(days: 1),
+      label: label ?? currentAppLocalizations.policySources,
+      overwriteType: OverwriteType.standard,
+    ).toJson();
+    resource['protectedContent'] = content;
+    return scoped.propose(
+      category: 'repair:$recoveryId:$profileId',
+      summary: currentAppLocalizations.policySources,
+      candidate: {...before, 'resource': resource},
+    );
+  }
+
+  Future<ConfigurationProposal> proposeRecovery(
+    String id, {
+    bool keepCurrent = false,
+    Map<String, Object?>? replacement,
+  }) async {
+    final row = await store.readChange(id);
+    if (row == null ||
+        row.status != 'recovery_required' ||
+        !row.category.startsWith('resource:')) {
+      throw const ConfigurationChangeException(
+        'configuration_recovery_missing',
+      );
+    }
+    final scope = ResourceScope.fromCategory(row.category);
+    final current = await environment.read(scope);
+    final before = policyObject(jsonDecode(row.beforePayload), 'before');
+    final after = policyObject(jsonDecode(row.afterPayload), 'after');
+    if (!keepCurrent &&
+        replacement == null &&
+        !resourcePartialRecoveryMatches(before, after, current)) {
+      throw const ConfigurationChangeException(
+        'configuration_recovery_conflict',
+      );
+    }
+    return service(scope).propose(
+      category: 'recovery:$id',
+      summary: row.summary,
+      candidate: replacement ?? (keepCurrent ? current : before),
+    );
+  }
+
   Future<void> recoverInterrupted({bool activate = false}) async {
     for (final row in await store.interruptedChanges()) {
-      if (!row.category.startsWith('resource:')) continue;
-      final scope = ResourceScope.fromCategory(row.category);
+      if (row.category.startsWith('repair:')) {
+        final parts = row.category.split(':');
+        final service = _repairService(parts[1], int.parse(parts[2]));
+        try {
+          await (service.backend as ConfigurationRecoveryBackend).restore(
+            policyObject(jsonDecode(row.beforePayload), 'before'),
+            policyObject(jsonDecode(row.afterPayload), 'after'),
+          );
+          await store.changeStatus(row.id, 'restored');
+        } catch (_) {
+          await store.changeStatus(
+            row.id,
+            'recovery_required',
+            error: 'resource_recovery_failed',
+          );
+        }
+        continue;
+      }
+      var category = row.category;
+      if (category.startsWith('recovery:')) {
+        final original = await store.readChange(
+          category.substring('recovery:'.length),
+        );
+        category = original?.category ?? '';
+      }
+      if (!category.startsWith('resource:')) continue;
+      final scope = ResourceScope.fromCategory(category);
       final before = policyObject(jsonDecode(row.beforePayload), 'before');
       final after = policyObject(jsonDecode(row.afterPayload), 'after');
       final current = await environment.read(scope);
@@ -518,6 +634,39 @@ final class ResourceChangeService {
     if (row == null) {
       throw const ConfigurationChangeException(
         'configuration_proposal_missing',
+      );
+    }
+    if (row.category.startsWith('repair:')) {
+      final parts = row.category.split(':');
+      final scoped = _repairService(parts[1], int.parse(parts[2]));
+      final prepared = await scoped.prepareApprovedValidation(
+        id: id,
+        approve: approve,
+        isCurrent: isCurrent,
+      );
+      return {
+        ...await scoped.commit(
+          id: prepared.id,
+          approve: approve,
+          isCurrent: isCurrent,
+        ),
+        'preparationOnly': true,
+        'recoveryPending': true,
+      };
+    }
+    if (row.category.startsWith('recovery:')) {
+      final original = await store.readChange(
+        row.category.substring('recovery:'.length),
+      );
+      if (original == null || !original.category.startsWith('resource:')) {
+        throw const ConfigurationChangeException(
+          'configuration_recovery_missing',
+        );
+      }
+      final scoped = service(ResourceScope.fromCategory(original.category));
+      return scoped.commitRecovery(
+        await scoped.readProposal(id),
+        approve: approve,
       );
     }
     final scoped = service(ResourceScope.fromCategory(row.category));
@@ -1122,7 +1271,8 @@ final class FlutterResourceEnvironment
       }
     }
     final integrated =
-        document.integrationEnabled && document.activeIntegration != null;
+        (document.moduleEnabled && document.integrationEnabled) &&
+        document.activeIntegration != null;
     if (profile.overwriteType == OverwriteType.script && !integrated) {
       if (profile.scriptId == null ||
           data['protectedScriptContent'] is! String) {
@@ -1189,9 +1339,9 @@ final class FlutterResourceEnvironment
       ),
     );
     var yaml = generated.a;
-    if (document.integrationEnabled ||
-        document.policiesEnabled ||
-        document.budgetsEnabled) {
+    if ((document.moduleEnabled && document.integrationEnabled) ||
+        (document.moduleEnabled && document.policiesEnabled) ||
+        (document.moduleEnabled && document.budgetsEnabled)) {
       final controller = ref.read(workbenchControllerProvider);
       final currentProfiles = await readProfiles();
       final replacements =
@@ -1398,7 +1548,7 @@ final class FlutterResourceEnvironment
         : Profile.fromJson(policyObject(candidate['profile'], 'profile'));
     final activeScript =
         scope.kind == ResourceKind.script &&
-        !document.integrationEnabled &&
+        !(document.moduleEnabled && document.integrationEnabled) &&
         (await readProfiles()).any(
           (profile) =>
               profile.id == ref.read(currentProfileIdProvider) &&
@@ -1409,13 +1559,13 @@ final class FlutterResourceEnvironment
         _resourceUsesProfile(
           scope,
           targetProfile,
-          document.integrationEnabled,
+          (document.moduleEnabled && document.integrationEnabled),
         ) &&
         (scope.id == 0 ||
             scope.id == ref.read(currentProfileIdProvider) ||
             previousSnapshot?['selectedProfileId'] == scope.id ||
             activeScript ||
-            document.integrationEnabled &&
+            (document.moduleEnabled && document.integrationEnabled) &&
                 (document.activeIntegration?.sourceProfileIds.contains(
                       scope.id,
                     ) ??

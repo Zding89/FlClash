@@ -38,7 +38,8 @@ final class LocalPolicySimulation {
     List<Map<String, Object?>> steps = const [],
   }) async {
     final parts = targetId.split(':');
-    if (parts.length != 2 || !{'profile', 'integration'}.contains(parts.first)) {
+    if (parts.length != 2 ||
+        !{'profile', 'integration'}.contains(parts.first)) {
       throw const FormatException('Invalid simulation target');
     }
     final integrated = parts.first == 'integration';
@@ -48,6 +49,7 @@ final class LocalPolicySimulation {
     }
     final targetDocument = LocalPolicyDocument.fromJson({
       ...document.toJson(),
+      'moduleEnabled': true,
       'integrationEnabled': integrated,
       'activeIntegrationId': integrated
           ? parts.last
@@ -110,7 +112,7 @@ final class LocalPolicySimulation {
       maximum: 33,
     );
     final results = policyItems(snapshot, 'policies', (json) {
-      final nodes = policyItems(json, 'nodes', (node) => node, maximum: 10);
+      final nodes = policyItems(json, 'nodes', (node) => node, maximum: 5000);
       final selected = json['selectedNodeId'];
       return {
         'policyId': json['policyId'],

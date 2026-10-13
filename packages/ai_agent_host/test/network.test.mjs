@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { AgentHost } from '../src/host.mjs';
-import { requestTransport, resolveSettings } from '../src/providers.mjs';
+import { requestTransport, resolveSettings, modelListRequest, fetchModels } from '../src/providers.mjs';
 const listen = server => new Promise((resolve, reject) => { server.once('error', reject); server.listen(40291, '127.0.0.1', resolve); });
 const close = server => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); });
 const waitFor = async predicate => { for (let i = 0; i < 3000; i++) { if (predicate()) return; await new Promise(r => setTimeout(r, 1)); } throw new Error('test timeout'); };
@@ -47,5 +47,21 @@ test('request scoped proxy routes through loopback and validates its boundary', 
     assert.equal(target, 'http://127.0.0.1:40292/test');
     assert.throws(() => resolveSettings({ provider: 'deepseek', model: 'test', proxyUrl: 'http://remote.example:1234' }));
     assert.throws(() => resolveSettings({ provider: 'deepseek', model: 'test', proxyUrl: 'http://secret@127.0.0.1:1234' }));
+  } finally { await network.close(); await close(server); }
+});
+
+test('model discovery refuses redirects before sending credentials to a new path', async () => {
+  const requests = [];
+  const server = createServer((req, res) => {
+    requests.push(req.url);
+    if (req.url === '/v1/models') { res.writeHead(302, { location: '/credential-target' }); res.end(); }
+    else res.end(JSON.stringify({ data: [{ id: 'unexpected' }] }));
+  });
+  await listen(server);
+  const network = requestTransport();
+  try {
+    const request = modelListRequest({ provider: 'custom', baseUrl: 'http://127.0.0.1:40291/v1' }, 'test-secret');
+    await assert.rejects(fetchModels(request, network, AbortSignal.timeout(2000)));
+    assert.deepEqual(requests, ['/v1/models']);
   } finally { await network.close(); await close(server); }
 });

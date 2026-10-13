@@ -26,6 +26,7 @@ class _Controller extends Mock implements WorkbenchController {
   Future<List<LocalNode>> loadNodes(
     String targetId, {
     bool refresh = false,
+    LocalPolicyDocument? document,
   }) async => [
     LocalNode(
       id: '1:a',

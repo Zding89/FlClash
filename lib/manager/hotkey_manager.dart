@@ -1,5 +1,6 @@
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/configuration/barrier.dart';
+import 'package:fl_clash/capabilities/runtime_events.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/common.dart';
 import 'package:fl_clash/providers/action.dart';
@@ -83,7 +84,12 @@ Future<void> _handleHotKeyAction(HotAction action) async {
 }
 
 Future<void> applyHotKeyActions(List<HotKeyAction> hotKeyActions) async {
-  await hotKeyManager.unregisterAll();
+  try {
+    await hotKeyManager.unregisterAll();
+  } catch (_) {
+    capabilityRuntimeEvents.reportHotkeys(applied: false, count: null);
+    rethrow;
+  }
   final hotkeyActionHandles = hotKeyActions
       .where((hotKeyAction) {
         return hotKeyAction.key != null && hotKeyAction.modifiers.isNotEmpty;
@@ -103,5 +109,16 @@ Future<void> applyHotKeyActions(List<HotKeyAction> hotKeyActions) async {
           },
         );
       });
-  await Future.wait(hotkeyActionHandles);
+  try {
+    await Future.wait(hotkeyActionHandles);
+    capabilityRuntimeEvents.reportHotkeys(
+      applied: true,
+      count: hotKeyActions
+          .where((action) => action.key != null && action.modifiers.isNotEmpty)
+          .length,
+    );
+  } catch (_) {
+    capabilityRuntimeEvents.reportHotkeys(applied: false, count: null);
+    rethrow;
+  }
 }

@@ -16,9 +16,14 @@ public class AiSecurityPlugin: NSObject, FlutterPlugin {
             result(FlutterError(code: "invalidCredentialId", message: nil, details: nil))
             return
         }
+        let namespace = arguments["namespace"] as? String ?? "ai"
+        guard namespace == "ai" || namespace == "control" else {
+            result(FlutterError(code: "invalidNamespace", message: nil, details: nil))
+            return
+        }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: bundleId + ".ai.credentials",
+            kSecAttrService as String: bundleId + "." + namespace + ".credentials",
             kSecAttrAccount as String: id,
             kSecAttrSynchronizable as String: false
         ]

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:collection/collection.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/configuration/changes.dart';
+import 'package:fl_clash/capabilities/service.dart';
 import 'package:fl_clash/configuration/resources.dart';
 import 'package:fl_clash/core/controller.dart';
 import 'package:fl_clash/database/workbench_database.dart';
@@ -151,12 +152,14 @@ final class FlutterAgentResourceGateway implements AgentResourceGateway {
 final class AgentTools {
   final WorkbenchController controller;
   final ConfigurationApproval approve;
+  final bool exposeApplication;
   late final ResourceChangeService resources;
   late final AgentResourceGateway gateway;
 
   AgentTools({
     required this.controller,
     required this.approve,
+    this.exposeApplication = true,
     ResourceChangeService? resources,
     AgentResourceGateway? gateway,
   }) {
@@ -212,6 +215,25 @@ final class AgentTools {
   );
 
   List<AgentToolDefinition> get definitions => [
+    if (exposeApplication) ...[
+      _definition(
+        'application_catalog',
+        'Discover all typed macOS capabilities, input schemas, authorization and completion contracts.',
+        {},
+      ),
+      _definition(
+        'application_invoke',
+        'Invoke a discovered application capability. Mutations retain local approval; never supply passwords, shell commands or arbitrary Core RPC.',
+        {'command': _string, 'params': _object, 'idempotencyKey': _string},
+        ['command', 'params'],
+      ),
+      _definition(
+        'application_operation',
+        'Query durable operation completion, failure, pending user input or recovery.',
+        {'operationId': _string},
+        ['operationId'],
+      ),
+    ],
     _definition(
       'settings_catalog',
       'Read validated setting capabilities and types.',
@@ -245,6 +267,11 @@ final class AgentTools {
       {
         'patch': _object,
         'removePolicyIds': {'type': 'array', 'items': _string, 'maxItems': 100},
+        'removeNodeSetIds': {
+          'type': 'array',
+          'items': _string,
+          'maxItems': 100,
+        },
         'removeIntegrationIds': {
           'type': 'array',
           'items': _string,
@@ -264,6 +291,12 @@ final class AgentTools {
         'steps': {'type': 'array', 'items': _object, 'maxItems': 32},
       },
       ['targetId'],
+    ),
+    _definition(
+      'changes_recover_propose',
+      'Create a version-bound, fully validated recovery proposal for a failed change. Keep-current is an explicit checked decision; failure evidence remains.',
+      {'id': _string, 'keepCurrent': _boolean},
+      ['id'],
     ),
     _definition(
       'changes_commit',
@@ -418,7 +451,28 @@ final class AgentTools {
     }
   }
 
-  void _checkArgument(Object? value, Map<String, Object?> schema) {
+  static void validateArguments(
+    AgentToolDefinition definition,
+    Map<String, Object?> arguments,
+  ) {
+    final properties = policyObject(
+      definition.parameters['properties'],
+      'properties',
+    );
+    policyKeys(arguments, properties.keys.toSet());
+    final required = definition.parameters['required'] as List;
+    if (required.any((key) => !arguments.containsKey(key))) {
+      throw const FormatException('Missing argument');
+    }
+    for (final entry in arguments.entries) {
+      _checkArgument(
+        entry.value,
+        policyObject(properties[entry.key], 'schema'),
+      );
+    }
+  }
+
+  static void _checkArgument(Object? value, Map<String, Object?> schema) {
     final type = schema['type'];
     if (type is List) {
       if (value == null && type.contains('null')) return;
@@ -604,6 +658,36 @@ final class AgentTools {
   Future<Map<String, Object?>> _execute(AgentToolRequest request) async {
     final args = request.arguments;
     switch (request.name) {
+      case 'application_catalog':
+        return controller.ref
+            .read(applicationCapabilityServiceProvider)
+            .execute(
+              'capabilities',
+              {},
+              origin: 'agent',
+              isCurrent: request.isCurrent,
+              approve: approve,
+            );
+      case 'application_invoke':
+        return controller.ref
+            .read(applicationCapabilityServiceProvider)
+            .execute(
+              policyString(args, 'command', maximum: 96),
+              policyObject(args['params'], 'params'),
+              idempotencyKey: args['idempotencyKey'] as String?,
+              origin: 'agent',
+              isCurrent: request.isCurrent,
+              approve: approve,
+            );
+      case 'application_operation':
+        return controller.ref
+            .read(applicationCapabilityServiceProvider)
+            .execute(
+              'operation_query',
+              {'operationId': policyString(args, 'operationId', maximum: 96)},
+              origin: 'agent',
+              isCurrent: request.isCurrent,
+            );
       case 'settings_catalog':
         return {
           'settings': controller.backend.catalog.capabilities.values
@@ -665,6 +749,9 @@ final class AgentTools {
         _current(request);
         final patch = policyObject(args['patch'], 'patch');
         policyKeys(patch, {
+          'moduleEnabled',
+          'nodeSets',
+          'nodeAttributes',
           'policiesEnabled',
           'integrationEnabled',
           'budgetsEnabled',
@@ -679,6 +766,7 @@ final class AgentTools {
         for (final entry in patch.entries) {
           if ({
             'policies',
+            'nodeSets',
             'integrations',
             'budgets',
             'overrides',
@@ -709,18 +797,39 @@ final class AgentTools {
               final id = policyString(object, key);
               final index = existing.indexWhere((item) => item[key] == id);
               if (index == -1) {
-                existing.add(object);
+                if (entry.key == 'policies') {
+                  final inserted = insertPolicy(
+                    existing.map(LocalPolicy.fromJson).toList(),
+                    LocalPolicy.fromJson({...object, 'origin': 'ai'}),
+                    generated: true,
+                  );
+                  existing
+                    ..clear()
+                    ..addAll(inserted.map((policy) => policy.toJson()));
+                } else {
+                  existing.add(object);
+                }
               } else {
-                existing[index] = _merge(existing[index], object);
+                existing[index] = _merge(existing[index], {
+                  ...object,
+                  if (entry.key == 'policies')
+                    'origin': existing[index]['origin'] ?? 'unknown',
+                });
               }
             }
             candidate[entry.key] = existing;
+          } else if (entry.key == 'nodeAttributes') {
+            candidate[entry.key] = _merge(
+              policyObject(candidate[entry.key], 'nodeAttributes'),
+              policyObject(entry.value, 'nodeAttributes'),
+            );
           } else {
             candidate[entry.key] = entry.value;
           }
         }
         for (final pair in [
           ('removePolicyIds', 'policies'),
+          ('removeNodeSetIds', 'nodeSets'),
           ('removeIntegrationIds', 'integrations'),
         ]) {
           final ids = policyStrings(
@@ -797,6 +906,26 @@ final class AgentTools {
           'results': simulation.results,
           if (simulation.timeline.isNotEmpty) 'timeline': simulation.timeline,
         };
+      case 'changes_recover_propose':
+        final id = policyString(args, 'id');
+        final row = await controller.store.readChange(id);
+        _current(request);
+        if (row == null || row.category.startsWith('capability:')) {
+          throw const ConfigurationChangeException(
+            'configuration_recovery_missing',
+          );
+        }
+        return _proposal(
+          row.category.startsWith('resource:')
+              ? await resources.proposeRecovery(
+                  id,
+                  keepCurrent: policyBool(args, 'keepCurrent'),
+                )
+              : await controller.changes.proposeRecovery(
+                  id,
+                  keepCurrent: policyBool(args, 'keepCurrent'),
+                ),
+        );
       case 'changes_commit':
         final id = policyString(args, 'id');
         final row = await controller.store.readChange(id);
@@ -804,6 +933,39 @@ final class AgentTools {
         if (row == null) {
           throw const ConfigurationChangeException(
             'configuration_proposal_missing',
+          );
+        }
+        if (row.category.startsWith('repair:')) {
+          return resources.commit(
+            id,
+            approve: approve,
+            isCurrent: request.isCurrent,
+          );
+        }
+        if (row.category.startsWith('recovery:')) {
+          final original = await controller.store.readChange(
+            row.category.substring('recovery:'.length),
+          );
+          _current(request);
+          if (original == null) {
+            throw const ConfigurationChangeException(
+              'configuration_recovery_missing',
+            );
+          }
+          return original.category.startsWith('resource:')
+              ? resources.commit(
+                  id,
+                  approve: approve,
+                  isCurrent: request.isCurrent,
+                )
+              : controller.changes.commitRecovery(
+                  await controller.changes.readProposal(id),
+                  approve: approve,
+                );
+        }
+        if (row.category.startsWith('capability:')) {
+          throw const ConfigurationChangeException(
+            'configuration_not_undoable',
           );
         }
         if (row.category.startsWith('resource:')) {

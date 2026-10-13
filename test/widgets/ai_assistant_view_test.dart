@@ -105,8 +105,9 @@ const _settings = AgentSettings(
 
 Future<ProviderContainer> _mount(
   WidgetTester tester,
-  _Controller controller,
-) async {
+  _Controller controller, {
+  String? initialPrompt,
+}) async {
   final container = ProviderContainer(
     overrides: [
       workbenchControllerProvider.overrideWith((ref) {
@@ -132,7 +133,7 @@ Future<ProviderContainer> _mount(
           globalState.measure = Measure.of(context, 1);
           return child!;
         },
-        home: const AiAssistantView(),
+        home: AiAssistantView(initialPrompt: initialPrompt),
       ),
     ),
   );
@@ -142,6 +143,32 @@ Future<ProviderContainer> _mount(
 }
 
 void main() {
+  testWidgets('rule generation prefill does not launch a paid model request', (
+    tester,
+  ) async {
+    var launches = 0;
+    final runtime = AgentRuntime(
+      launcher: () async {
+        launches++;
+        return _Transport();
+      },
+    );
+    final container = await _mount(
+      tester,
+      _Controller(runtime, _Credentials()),
+      initialPrompt: 'Create a draft for profile:7',
+    );
+    addTearDown(container.dispose);
+    expect(launches, 0);
+    final field = tester.widget<TextField>(
+      find.byKey(const ValueKey('ai-prompt')),
+    );
+    expect(field.controller!.text, 'Create a draft for profile:7');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    await runtime.close();
+  });
+
   testWidgets(
     'chat calls the model only after an explicit send and displays stream',
     (tester) async {

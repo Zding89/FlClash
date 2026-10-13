@@ -16,7 +16,8 @@ import 'errors.dart';
 import 'settings.dart';
 
 class AiAssistantView extends ConsumerStatefulWidget {
-  const AiAssistantView({super.key});
+  const AiAssistantView({super.key, this.initialPrompt});
+  final String? initialPrompt;
 
   @override
   ConsumerState<AiAssistantView> createState() => _AiAssistantViewState();
@@ -46,6 +47,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
   void initState() {
     super.initState();
     _controller = ref.read(workbenchControllerProvider);
+    _input.text = widget.initialPrompt ?? '';
   }
 
   @override
@@ -222,6 +224,46 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     ).push<void>(MaterialPageRoute(builder: (_) => const AiSettingsView()));
   }
 
+  Future<void> _selectConnection(AgentSettings settings, String id) async {
+    if (_busy || id == settings.selectedConnectionId) return;
+    final epoch = _epoch;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await _controller.closeAgent();
+      if (!mounted) return;
+      final proposal = await _controller.proposeAgentSettings(
+        AgentSettings(
+          enabled: settings.enabled,
+          selectedConnectionId: id,
+          connections: settings.connections,
+        ),
+      );
+      if (!mounted) return;
+      final result = await _controller.commit(
+        proposal,
+        approve: (proposal) => mounted
+            ? showAiConfigurationApproval(context, proposal)
+            : Future.value(false),
+        isCurrent: () => mounted,
+      );
+      if (mounted && result['status'] != 'applied') {
+        setState(
+          () => _error = aiErrorText(
+            context,
+            result['code'] ?? 'configuration_apply_failed',
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = aiErrorText(context, error));
+    } finally {
+      if (mounted && _epoch == epoch) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _clear() async {
     final epoch = ++_epoch;
     _runtime?.cancel();
@@ -284,18 +326,43 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
                       const Icon(Icons.auto_awesome_outlined, size: 18),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text(
-                          settings.selected?.label ?? strings.aiNoConnection,
-                        ),
+                        child: settings.connections.isEmpty
+                            ? Text(strings.aiNoConnection)
+                            : DropdownButtonFormField<String>(
+                                key: ValueKey(
+                                  'ai-current-connection-${settings.selectedConnectionId}',
+                                ),
+                                initialValue: settings.selectedConnectionId,
+                                isExpanded: true,
+                                decoration: InputDecoration(
+                                  labelText: strings.aiCurrentConnection,
+                                  border: const OutlineInputBorder(),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                ),
+                                items: [
+                                  for (final connection in settings.connections)
+                                    DropdownMenuItem(
+                                      value: connection.id,
+                                      child: Text(
+                                        '${connection.label} · ${connection.model}',
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                ],
+                                onChanged: _busy
+                                    ? null
+                                    : (id) {
+                                        if (id != null) {
+                                          unawaited(
+                                            _selectConnection(settings, id),
+                                          );
+                                        }
+                                      },
+                              ),
                       ),
-                      if (settings.selected != null)
-                        Flexible(
-                          child: Text(
-                            settings.selected!.model,
-                            style: Theme.of(context).textTheme.labelSmall,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
                     ],
                   ),
                 ),

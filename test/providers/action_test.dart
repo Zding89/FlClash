@@ -726,7 +726,7 @@ class _TestProfiles extends Profiles {
   }
 
   @override
-  void reorder(List<Profile> profiles) {
+  Future<void> reorder(List<Profile> profiles) async {
     state = List.of(profiles);
   }
 }

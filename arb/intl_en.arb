@@ -638,7 +638,7 @@
   "aiDeleteKey": "Delete key",
   "aiDeleteKeyHint": "Deleting the key cancels the AI task; local policies continue",
   "aiDeleteConnection": "Delete connection",
-  "aiTestConnection": "Test connection and tools",
+  "aiTestConnection": "Test tool calling",
   "aiTestPassed": "Authentication, text streaming and tools passed",
   "aiTestPartial": "Streaming and tool tests were incomplete; agent support is unverified",
   "aiTesting": "Testing connection…",
@@ -811,6 +811,147 @@
     "placeholders": {
       "option": {
         "type": "String"
+      }
+    }
+  },
+  "aiAssistant": "AI",
+  "aiFetchModels": "Fetch models",
+  "aiModelsEmpty": "No models returned. Enter a model ID manually.",
+  "aiModelsUnsupported": "This service does not support model discovery. Enter a model ID manually.",
+  "aiModelsFetched": "Fetched {count} models",
+  "aiSearchModels": "Search models",
+  "aiManualModel": "Model ID (manual entry available)",
+  "aiModelFetchHint": "Fetching models does not verify chat or tool calling. You can also enter a model ID manually.",
+  "aiSaveAndUse": "Save and use",
+  "aiCurrentConnection": "Current connection",
+  "@aiModelsFetched": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "localControlTitle": "Local CLI",
+  "localControlDescription": "Control FlClash using local commands",
+  "localControlReady": "Ready, local access only",
+  "localControlDisabled": "Disabled",
+  "localControlUnavailable": "Service unavailable. Retry.",
+  "localControlPassword": "CLI password",
+  "localControlPasswordHint": "Generated randomly on first use and retained after restart. Saving a new password invalidates the old one.",
+  "localControlChangePassword": "Change password",
+  "localControlRandomPassword": "Generate a new random password",
+  "localControlPasswordValidation": "Use 12–128 Unicode characters without control characters.",
+  "localControlUsage": "Usage",
+  "localControlUsageHint": "Enter the password when running a command. Scripts can supply it through stdin or a separate file descriptor.",
+  "localControlCopyPath": "Copy tool path",
+  "localControlCommands": "View commands",
+  "localControlSecurity": "Security and operation approval",
+  "localControlSecurityHint": "Configuration changes require preview and confirmation. System permissions use system prompts.",
+  "localControlExitHint": "CLI is unavailable after the app exits. Hiding the window does not affect it.",
+  "localControlSaveFailed": "Saving or secure shutdown failed. The original password remains valid.",
+  "policyModule": "Local rules module",
+  "policyLocalCollection": "Local subscription collection",
+  "policySelectCollection": "Select and use",
+  "policySelectedOffline": "Selected; used when connected",
+  "policyCollectionPending": "Not configured",
+  "policyModuleOffHint": "Rules, node sets and budget records remain when disabled",
+  "policyRuleOrderHint": "Checked top to bottom; the first match is used",
+  "policyNodeSets": "Node sets",
+  "policySourcesCollection": "Sources and collection",
+  "policyPreferred": "Preferred",
+  "policyAddBackup": "Add fallback",
+  "policyFixedNode": "Specific node",
+  "policyNodeSet": "Node set",
+  "policyMoreSettings": "More settings",
+  "policyRemainingTraffic": "Remaining traffic",
+  "policyWebsite": "Website",
+  "policyApplication": "Application",
+  "policyCombinedConditions": "Combined conditions",
+  "policyPreviewHint": "Node selection preview; no real request verification",
+  "policyUnknownOne": "Treat unknown multiplier as 1×",
+  "policyUnknownOneHint": "For filtering and sorting only; still marked unknown",
+  "policyUnknownMultiplierAllowed": "Allow unknown without assuming a multiplier",
+  "policyMultiplierLimit": "Multiplier limit",
+  "policyRegions": "Regions",
+  "policyStableFirst": "Stability first",
+  "policyLatencyFirst": "Lowest latency first",
+  "policyMultiplierFirst": "Lowest multiplier first",
+  "policyHideUnavailable": "Automatically hide unavailable nodes",
+  "policyAutoCheck": "Automatic checks",
+  "policyCheckNow": "Check now",
+  "policyMethod": "Request method",
+  "policyRetrySeconds": "Retry unavailable nodes (seconds)",
+  "policyValiditySeconds": "Measurement validity (seconds)",
+  "policyImprovementPercent": "Latency improvement threshold (%)",
+  "policyCheckPreset": "Check endpoint preset",
+  "policyCustomCheck": "Custom",
+  "policyUnknownAttribute": "Unknown",
+  "policyNameAttribute": "Detected from name",
+  "policyDeclaredAttribute": "Declared by subscription",
+  "policyManualAttribute": "Manually confirmed",
+  "policyMemberPreview": "Member preview",
+  "policyNoMembers": "No matching members; fallback or final handling will be used",
+  "policySourceMissing": "Source or node missing; select again",
+  "policyUnsavedTitle": "Unsaved changes",
+  "policyContinueEditing": "Continue editing",
+  "policyDiscardChanges": "Discard changes",
+  "policyCheckSave": "Check and save",
+  "policyAiOrigin": "AI generated",
+  "policyManualOrigin": "Manually added",
+  "policyRecoveryCheck": "Check and recover",
+  "policyRecoveryKeep": "Keep the checked current settings",
+  "policyNotRunning": "Not running",
+  "policyUsageUnknown": "Usage awaiting verification",
+  "policyCheckMeasurementHint": "Measures connectivity and request latency, not download speed",
+  "policySharedSetImpact": "Changes to a shared set affect rules referencing it",
+  "policyAiGenerate": "Generate a plan with AI",
+  "policyRuleType": "Rule type",
+  "policyIncludeSubdomains": "Include subdomains",
+  "policyProcessHint": "Process detection depends on system permissions and connection mode",
+  "policyScheduleSkip": "Outside the schedule, skip to subsequent rules",
+  "policySavedInactive": "Saved; not currently running",
+  "policyCheckPending": "Awaiting check",
+  "policySubscriptionExpired": "Subscription expired",
+  "policySubscriptionExhausted": "Subscription traffic exhausted",
+  "policyUnknownNameOrigin": "Unknown origin",
+  "policyAiGenerationRequest": "Read the existing rules, nodes and subscription sources for target {target}, then create a reviewable proposal to add rules using those resources. Preserve the existing order; do not reorder existing rules or add another remaining-traffic rule. Create a draft and wait for my confirmation before applying it.",
+  "@policyAiGenerationRequest": {
+    "placeholders": {
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "policyBudgetLastSample": "Last valid reading: {sampleAt}",
+  "policyBudgetPeriod": "Period started: {startAt}",
+  "policySourceQuota": "Subscription remaining quota",
+  "policySourceExpiry": "Subscription expiry",
+  "@policyBudgetLastSample": {
+    "placeholders": {
+      "sampleAt": {
+        "type": "String"
+      }
+    }
+  },
+  "@policyBudgetPeriod": {
+    "placeholders": {
+      "startAt": {
+        "type": "String"
+      }
+    }
+  },
+  "policyAvailableMembers": "Available members",
+  "policyPendingMembers": "Pending checks",
+  "policyRestrictedMembers": "Restricted members",
+  "policyShowUnavailable": "Show all members",
+  "policyChecksWaiting": "Queued checks",
+  "policyChecksInFlight": "Checks in progress",
+  "policyPageSampleAt": "Status sampled at",
+  "policyCheckCapacityHint": "Capacity estimate: at least {seconds} seconds of validity is recommended; actual completion can take longer.",
+  "@policyCheckCapacityHint": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
       }
     }
   }
