@@ -352,17 +352,7 @@ class WorkbenchController {
       final nodes = await loadNodes(policy.targetId, document: document);
       final node = nodes.where((n) => n.id == override.nodeId).firstOrNull;
       if (node == null) continue;
-      final allowed =
-          policy.candidateNodeIds.contains(node.id) ||
-          policy.choices.any(
-            (c) => c.type == PolicyChoiceType.node
-                ? c.id == node.id
-                : document.nodeSets
-                          .where((s) => s.id == c.id)
-                          .firstOrNull
-                          ?.exclusion(node) ==
-                      null,
-          );
+      final allowed = override.allows(policy, node, document.nodeSets);
       if (allowed) validOverrides.add(override);
     }
     final normalized = LocalPolicyDocument.fromJson({
@@ -548,6 +538,97 @@ class WorkbenchController {
       now: now,
       steps: steps,
     );
+  }
+
+  Future<Set<String>> eligibleOverrideChoices(
+    LocalPolicyDocument document,
+    LocalPolicy policy, {
+    CoreController? controller,
+  }) async {
+    final core = controller ?? coreController;
+    if (ref.read(coreStatusProvider) != CoreStatus.connected) {
+      throw const ConfigurationChangeException(
+        'configuration_core_required_for_simulation',
+      );
+    }
+    final snapshot = await core.getLocalPolicyStatus();
+    if (snapshot['enabled'] != true ||
+        snapshot['documentRevision'] != document.revision ||
+        snapshot['revision'] is! int) {
+      throw const ConfigurationChangeException(
+        'configuration_version_conflict',
+      );
+    }
+    final revision = snapshot['revision'];
+    Future<Map<String, Map<String, Object?>>> read(
+      String key,
+      String id,
+    ) async {
+      final rows = <String, Map<String, Object?>>{};
+      for (var offset = 0; offset < 5000; offset += 200) {
+        final page = await core.getLocalPolicyDetails({
+          'revision': revision,
+          key: id,
+          'offset': offset,
+          'limit': 200,
+          'includeUnavailable': true,
+        });
+        if (page['revision'] != revision ||
+            page['targetId'] != policy.targetId ||
+            page[key] != id ||
+            page['offset'] != offset) {
+          throw const ConfigurationChangeException(
+            'configuration_version_conflict',
+          );
+        }
+        for (final value in page['nodes'] as List? ?? []) {
+          final row = policyObject(value, 'node status');
+          final nodeId = policyString(row, 'nodeId', maximum: 256);
+          rows[nodeId] = row;
+        }
+        if (page['hasMore'] != true) return rows;
+      }
+      throw const ConfigurationChangeException('configuration_queue_full');
+    }
+
+    final policyRows = await read('policyId', policy.id);
+    final result = <String>{};
+    final fixed = {
+      if (policy.choices.isEmpty) ...policy.candidateNodeIds,
+      ...policy.choices
+          .where((choice) => choice.type == PolicyChoiceType.node)
+          .map((choice) => choice.id),
+    };
+    for (final id in fixed) {
+      if (policyRows[id]?['fixedEligible'] == true) {
+        result.add(
+          PolicyOverride(
+            policyId: policy.id,
+            nodeId: id,
+            expiresAt: 1,
+          ).selectionKey,
+        );
+      }
+    }
+    for (final choice in policy.choices.where(
+      (choice) => choice.type == PolicyChoiceType.nodeSet,
+    )) {
+      final setRows = await read('nodeSetId', choice.id);
+      for (final row in setRows.entries) {
+        if (row.value['eligible'] == true &&
+            policyRows[row.key]?['eligible'] == true) {
+          result.add(
+            PolicyOverride(
+              policyId: policy.id,
+              nodeId: row.key,
+              nodeSetId: choice.id,
+              expiresAt: 1,
+            ).selectionKey,
+          );
+        }
+      }
+    }
+    return result;
   }
 
   Future<List<LocalNode>> loadNodes(

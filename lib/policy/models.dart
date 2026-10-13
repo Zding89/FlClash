@@ -700,26 +700,70 @@ final class SourceBudget {
 final class PolicyOverride {
   final String policyId;
   final String nodeId;
+  final String? nodeSetId;
   final int expiresAt;
 
   const PolicyOverride({
     required this.policyId,
     required this.nodeId,
+    this.nodeSetId,
     required this.expiresAt,
   });
 
   factory PolicyOverride.fromJson(Map<String, Object?> json) {
-    policyKeys(json, {'policyId', 'nodeId', 'expiresAt'});
+    policyKeys(json, {'policyId', 'nodeId', 'nodeSetId', 'expiresAt'});
+    final setId = json['nodeSetId'];
+    if (setId != null &&
+        (setId is! String ||
+            setId.isNotEmpty &&
+                !RegExp(r'^[A-Za-z0-9_-]{1,128}$').hasMatch(setId))) {
+      throw const FormatException('Invalid temporary node set identity');
+    }
     return PolicyOverride(
       policyId: policyString(json, 'policyId', maximum: 128),
       nodeId: policyString(json, 'nodeId', maximum: 256),
+      nodeSetId: setId == '' ? null : setId as String?,
       expiresAt: policyInt(json, 'expiresAt', minimum: 1),
     );
+  }
+
+  String get selectionKey => policyDigest({
+    'nodeId': nodeId,
+    'nodeSetId': nodeSetId?.isNotEmpty == true ? nodeSetId : null,
+  });
+
+  bool references(LocalPolicy policy) =>
+      policy.id == policyId &&
+      (nodeSetId?.isNotEmpty == true
+          ? policy.choices.any(
+              (choice) =>
+                  choice.type == PolicyChoiceType.nodeSet &&
+                  choice.id == nodeSetId,
+            )
+          : policy.choices.isEmpty
+          ? policy.candidateNodeIds.contains(nodeId)
+          : policy.choices.any(
+              (choice) =>
+                  choice.type == PolicyChoiceType.node && choice.id == nodeId,
+            ));
+
+  bool allows(
+    LocalPolicy policy,
+    LocalNode node,
+    List<PolicyNodeSet> nodeSets,
+  ) {
+    if (!references(policy) || node.id != nodeId) return false;
+    if (nodeSetId?.isNotEmpty != true) return true;
+    final set = nodeSets.firstWhereOrNull((entry) => entry.id == nodeSetId);
+    return set != null &&
+        set.targetId == policy.targetId &&
+        set.exclusion(node) == null;
   }
 
   Map<String, Object?> toJson() => {
     'policyId': policyId,
     'nodeId': nodeId,
+    if (nodeSetId?.isNotEmpty == true) 'nodeSetId': nodeSetId,
     'expiresAt': expiresAt,
   };
 }
@@ -1002,13 +1046,7 @@ final class LocalPolicyDocument {
       final policy = policies.firstWhereOrNull(
         (entry) => entry.id == override.policyId,
       );
-      if (policy == null ||
-          !policy.candidateNodeIds.contains(override.nodeId) &&
-              !policy.choices.any(
-                (c) =>
-                    c.type == PolicyChoiceType.node && c.id == override.nodeId,
-              ) &&
-              !policy.choices.any((c) => c.type == PolicyChoiceType.nodeSet)) {
+      if (policy == null || !override.references(policy)) {
         throw const FormatException(
           'Temporary override must reference an allowed candidate',
         );

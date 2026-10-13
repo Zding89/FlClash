@@ -454,21 +454,56 @@ class PolicyOverrideEditor extends StatefulWidget {
     super.key,
     required this.policy,
     required this.nodes,
+    this.nodeSets = const [],
+    this.eligibleChoices = const {},
   });
   final LocalPolicy policy;
   final List<LocalNode> nodes;
+  final List<PolicyNodeSet> nodeSets;
+  final Set<String> eligibleChoices;
   @override
   State<PolicyOverrideEditor> createState() => _PolicyOverrideEditorState();
 }
 
 class _PolicyOverrideEditorState extends State<PolicyOverrideEditor> {
   final _minutes = TextEditingController(text: '30');
-  late String _node;
+  String? _selection;
+  late final Map<String, (LocalNode, PolicyNodeSet?)> _options;
   String? _error;
   @override
   void initState() {
     super.initState();
-    _node = widget.policy.candidateNodeIds.first;
+    _options = {};
+    final byId = {for (final node in widget.nodes) node.id: node};
+    final choices = widget.policy.choices.isEmpty
+        ? widget.policy.candidateNodeIds.map(
+            (id) => PolicyChoice(type: PolicyChoiceType.node, id: id),
+          )
+        : widget.policy.choices;
+    for (final choice in choices) {
+      final set = choice.type == PolicyChoiceType.nodeSet
+          ? widget.nodeSets.where((entry) => entry.id == choice.id).firstOrNull
+          : null;
+      if (choice.type == PolicyChoiceType.nodeSet &&
+          (set == null || set.targetId != widget.policy.targetId)) {
+        continue;
+      }
+      final members = choice.type == PolicyChoiceType.node
+          ? [if (byId[choice.id] != null) byId[choice.id]!]
+          : widget.nodes.where((node) => set!.exclusion(node) == null);
+      for (final node in members) {
+        final key = PolicyOverride(
+          policyId: widget.policy.id,
+          nodeId: node.id,
+          nodeSetId: set?.id,
+          expiresAt: 1,
+        ).selectionKey;
+        _options[key] = (node, set);
+      }
+    }
+    _selection = _options.keys
+        .where(widget.eligibleChoices.contains)
+        .firstOrNull;
   }
 
   @override
@@ -480,10 +515,6 @@ class _PolicyOverrideEditorState extends State<PolicyOverrideEditor> {
   @override
   Widget build(BuildContext context) {
     final strings = context.appLocalizations;
-    final labels = {
-      for (final node in widget.nodes)
-        node.id: '${node.sourceLabel} · ${node.label}',
-    };
     return AlertDialog(
       title: Text(strings.policyTemporaryOverride),
       content: SizedBox(
@@ -492,22 +523,31 @@ class _PolicyOverrideEditorState extends State<PolicyOverrideEditor> {
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<String>(
-              initialValue: _node,
+              initialValue: _selection,
               isExpanded: true,
               items: [
-                for (final id in widget.policy.candidateNodeIds)
+                for (final option in _options.entries)
                   DropdownMenuItem(
-                    value: id,
-                    child: Text(
-                      labels[id] ?? strings.policyMissingNode,
-                      overflow: TextOverflow.ellipsis,
+                    value: option.key,
+                    enabled: widget.eligibleChoices.contains(option.key),
+                    child: Tooltip(
+                      message:
+                          '${option.value.$2 == null ? strings.policyFixedNode : '${option.value.$2!.label} [${option.value.$2!.id}]'} · ${option.value.$1.sourceLabel} · ${option.value.$1.label}',
+                      child: Text(
+                        '${option.value.$2 == null ? strings.policyFixedNode : '${option.value.$2!.label} [${option.value.$2!.id}]'} · ${option.value.$1.sourceLabel} · ${option.value.$1.label}${widget.eligibleChoices.contains(option.key) ? '' : ' · ${strings.policyCheckPending}'}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ),
               ],
-              onChanged: (value) {
-                if (value != null) setState(() => _node = value);
-              },
+              onChanged: (value) => setState(() => _selection = value),
             ),
+            if (_selection == null)
+              Text(
+                _options.isEmpty
+                    ? strings.policyNoMembers
+                    : strings.policyCheckPending,
+              ),
             const SizedBox(height: 16),
             PolicyField(
               controller: _minutes,
@@ -528,22 +568,25 @@ class _PolicyOverrideEditorState extends State<PolicyOverrideEditor> {
           child: Text(strings.cancel),
         ),
         FilledButton(
-          onPressed: () {
-            final minutes = int.tryParse(_minutes.text);
-            if (minutes == null || minutes < 1 || minutes > 1440) {
-              setState(() => _error = strings.policyInvalidData);
-              return;
-            }
-            Navigator.of(context).pop(
-              PolicyOverride(
-                policyId: widget.policy.id,
-                nodeId: _node,
-                expiresAt: DateTime.now()
-                    .add(Duration(minutes: minutes))
-                    .millisecondsSinceEpoch,
-              ),
-            );
-          },
+          onPressed: _selection == null
+              ? null
+              : () {
+                  final minutes = int.tryParse(_minutes.text);
+                  if (minutes == null || minutes < 1 || minutes > 1440) {
+                    setState(() => _error = strings.policyInvalidData);
+                    return;
+                  }
+                  Navigator.of(context).pop(
+                    PolicyOverride(
+                      policyId: widget.policy.id,
+                      nodeId: _options[_selection]!.$1.id,
+                      nodeSetId: _options[_selection]!.$2?.id,
+                      expiresAt: DateTime.now()
+                          .add(Duration(minutes: minutes))
+                          .millisecondsSinceEpoch,
+                    ),
+                  );
+                },
           child: Text(strings.save),
         ),
       ],

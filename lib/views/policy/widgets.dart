@@ -59,7 +59,10 @@ class PolicyField extends StatelessWidget {
       onChanged: onChanged,
       validator: (value) =>
           required && (value == null || value.trim().isEmpty) ||
-              numeric && double.tryParse(value ?? '') == null
+              numeric &&
+                  (value?.trim().isNotEmpty ?? false) &&
+                  (double.tryParse(value!.trim()) == null ||
+                      !double.parse(value.trim()).isFinite)
           ? context.appLocalizations.policyInvalidData
           : null,
     ),

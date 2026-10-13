@@ -78,22 +78,57 @@ func localFixedCandidates(p LocalPolicyDefinition) []string {
 	}
 	return values
 }
-func localOverrideInSets(c *LocalPolicyConfig, p LocalPolicyDefinition, id string) bool {
-	for _, choice := range p.Choices {
-		if choice.Type == "node" && choice.ID == id {
-			return true
+func localOverrideChoice(p LocalPolicyDefinition, override LocalPolicyOverride) (int, bool) {
+	if len(p.Choices) == 0 {
+		return 0, override.NodeSetID == "" && localContains(p.CandidateNodeIDs, override.NodeID)
+	}
+	for i, choice := range p.Choices {
+		if override.NodeSetID == "" && choice.Type == "node" && choice.ID == override.NodeID || override.NodeSetID != "" && choice.Type == "nodeSet" && choice.ID == override.NodeSetID {
+			return i, true
 		}
-		for _, set := range c.NodeSets {
-			if choice.Type == "nodeSet" && choice.ID == set.ID {
-				for _, node := range c.Nodes {
-					if node.ID == id && set.includes(node) {
-						return true
-					}
+	}
+	return -1, false
+}
+func localOverrideBinding(c *LocalPolicyConfig, p LocalPolicyDefinition, override LocalPolicyOverride) bool {
+	if _, found := localOverrideChoice(p, override); !found {
+		return false
+	}
+	if override.NodeSetID == "" {
+		return true
+	}
+	for _, set := range c.NodeSets {
+		if set.ID == override.NodeSetID {
+			for _, node := range c.Nodes {
+				if node.ID == override.NodeID && set.includes(node) {
+					return true
 				}
 			}
+			return false
 		}
 	}
 	return false
+}
+func (e *localPolicyEngine) retainBoundOverrides(c *LocalPolicyConfig) {
+	retained := []LocalPolicyOverride{}
+	for _, override := range c.Overrides {
+		for _, p := range c.Policies {
+			if p.ID == override.PolicyID && localOverrideBinding(c, p, override) {
+				retained = append(retained, override)
+				break
+			}
+		}
+	}
+	e.config.Overrides = retained
+}
+func (e *localPolicyEngine) overrideChoiceLocked(r *localPolicyRuntime, override LocalPolicyOverride, now time.Time) (int, bool) {
+	i, found := localOverrideChoice(r.definition, override)
+	if !found {
+		return -1, false
+	}
+	if len(r.definition.Choices) == 0 {
+		return i, e.nodeReasonLocked(r, override.NodeID, now) == ""
+	}
+	return i, e.choiceNodeReasonLocked(r, i, override.NodeID, now) == ""
 }
 func validateLocalNodeSets(c *LocalPolicyConfig) error {
 	fail := func() error { return errors.New("local policy: invalid node set, attributes or check capacity") }
@@ -475,11 +510,9 @@ func (e *localPolicyEngine) evaluateChoicesLocked(r *localPolicyRuntime, now tim
 	desired, index, reason := "", -1, "no_eligible_candidates"
 	for _, override := range e.config.Overrides {
 		if override.PolicyID == r.definition.ID && override.ExpiresAt > now.UnixMilli() {
-			for i := range r.definition.Choices {
-				if e.choiceNodeReasonLocked(r, i, override.NodeID, now) == "" {
-					desired, index, reason = override.NodeID, i, "manual_override"
-					break
-				}
+			if i, valid := e.overrideChoiceLocked(r, override, now); valid {
+				desired, index, reason = override.NodeID, i, "manual_override"
+				break
 			}
 		}
 	}

@@ -786,6 +786,12 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyBudgetLastSample": m23,
     "policyBudgetPeriod": m24,
+    "policyBudgetReached": MessageLookupByLibrary.simpleMessage(
+      "ローカル予算に達したため、このソースの新しい接続は制限されます",
+    ),
+    "policyBudgetReachedHint": MessageLookupByLibrary.simpleMessage(
+      "ローカルルールでノードを選ぶ場合は、他の利用可能な候補を試します。候補がない場合は、ルールのフォールバック設定に従います。",
+    ),
     "policyBudgetTab": MessageLookupByLibrary.simpleMessage("予算"),
     "policyCandidateHint": MessageLookupByLibrary.simpleMessage(
       "このリスト内のノードのみ、指定順に選択します",

@@ -692,6 +692,12 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyBudgetLastSample": m23,
     "policyBudgetPeriod": m24,
+    "policyBudgetReached": MessageLookupByLibrary.simpleMessage(
+      "已达本机预算，此来源的新连接受限",
+    ),
+    "policyBudgetReachedHint": MessageLookupByLibrary.simpleMessage(
+      "通过本地规则选节点时，将尝试其他可用候选；若全部不可用，按该规则的无候选设置处理。",
+    ),
     "policyBudgetTab": MessageLookupByLibrary.simpleMessage("预算"),
     "policyCandidateHint": MessageLookupByLibrary.simpleMessage(
       "只在这些节点中按顺序选择，不随机改用其他节点",

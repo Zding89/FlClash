@@ -112,6 +112,10 @@ func (e *localPolicyEngine) nodeHealthForPolicyLocked(r *localPolicyRuntime, id 
 func (e *localPolicyEngine) nodeStatusLocked(r *localPolicyRuntime, id string, now time.Time) LocalPolicyNodeStatus {
 	h, reason := e.nodeHealthForPolicyLocked(r, id, now)
 	result := LocalPolicyNodeStatus{NodeID: id, Reason: reason, Eligible: reason == ""}
+	if r.setID == "" && localContains(localFixedCandidates(r.definition), id) {
+		eligible := e.nodeReasonLocked(r, id, now) == ""
+		result.FixedEligible = &eligible
+	}
 	if h == nil {
 		return result
 	}

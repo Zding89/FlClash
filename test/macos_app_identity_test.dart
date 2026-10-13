@@ -70,7 +70,7 @@ void main() {
   });
 
   test(
-    'GitHub builds only the development branch and preserves read access',
+    'GitHub builds only explicit task branches and preserves read access',
     () {
       final workflow =
           loadYaml(read('.github/workflows/build-macos-usage.yaml')) as YamlMap;
@@ -78,7 +78,10 @@ void main() {
 
       expect(triggers.keys, unorderedEquals(['workflow_dispatch', 'push']));
       expect(triggers['push'], {
-        'branches': ['codex/macos-usage-cloud-build'],
+        'branches': [
+          'codex/macos-usage-cloud-build',
+          'codex/local-control-acceptance',
+        ],
       });
       expect(workflow['permissions'], {'contents': 'read'});
       expect(workflow['env']['FLUTTER_VERSION'], '3.44.4');
@@ -176,6 +179,19 @@ void main() {
         verification,
         contains(r'$resources/control/libflclash_control.dylib'),
       );
+      expect(
+        index('Verify built application and packaged AI runtime'),
+        lessThan(index('Run packaged application runtime checks')),
+      );
+      expect(
+        index('Run packaged application runtime checks'),
+        lessThan(index('Upload installer')),
+      );
+      expect(
+        step('Run packaged application runtime checks')['timeout-minutes'],
+        8,
+      );
+      expect(step('Upload runtime check evidence')['if'], 'always()');
       expect(step('Upload installer')['with']['path'], 'dist/*.dmg');
       expect(step('Upload installer')['with']['retention-days'], 14);
       expect(workflowText, isNot(contains('action-gh-release')));

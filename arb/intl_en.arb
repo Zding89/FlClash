@@ -767,6 +767,8 @@
   "policyBudgetGiB": "Local budget (GiB)",
   "policyResetDay": "Monthly reset day (1–28)",
   "policyUsage": "Local usage",
+  "policyBudgetReached": "Local budget reached; new source connections restricted",
+  "policyBudgetReachedHint": "When selecting through local rules, other available candidates are tried. If none are available, the rule's fallback applies.",
   "policyLedgerUntrusted": "Ledger untrusted; source restricted",
   "policyNotCollected": "Not collected",
   "policyCoreStopped": "Core stopped; policies are not running",

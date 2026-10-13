@@ -250,6 +250,7 @@ type LocalPolicyDefinition struct {
 type LocalPolicyOverride struct {
 	PolicyID  string `json:"policyId" yaml:"policyId"`
 	NodeID    string `json:"nodeId" yaml:"nodeId"`
+	NodeSetID string `json:"nodeSetId,omitempty" yaml:"nodeSetId,omitempty"`
 	ExpiresAt int64  `json:"expiresAt" yaml:"expiresAt"`
 }
 
@@ -389,13 +390,7 @@ func validateLocalPolicyConfig(c *LocalPolicyConfig) error {
 	overrides := map[string]bool{}
 	for _, o := range c.Overrides {
 		p := policies[o.PolicyID]
-		found := false
-		for _, id := range p.CandidateNodeIDs {
-			if id == o.NodeID {
-				found = true
-			}
-		}
-		if p.ID == "" || (!found && !localOverrideInSets(c, p, o.NodeID)) || overrides[o.PolicyID] || o.ExpiresAt <= 0 {
+		if p.ID == "" || !validID(o.NodeID) || o.NodeSetID != "" && !validID(o.NodeSetID) || overrides[o.PolicyID] || o.ExpiresAt <= 0 {
 			return fail("invalid override")
 		}
 		overrides[o.PolicyID] = true
@@ -421,6 +416,7 @@ type LocalPolicyHistory struct {
 	Reason string `json:"reason"`
 }
 type LocalPolicyNodeStatus struct {
+	FixedEligible    *bool  `json:"fixedEligible,omitempty"`
 	ProbePending     bool   `json:"probePending"`
 	DetectionDelayed bool   `json:"detectionDelayed"`
 	NodeID           string `json:"nodeId"`
@@ -465,11 +461,11 @@ type LocalPolicySnapshot struct {
 	NodeSets                     []LocalPolicyStatus `json:"nodeSets"`
 }
 type localPolicyRuntime struct {
-	choiceSelections  map[int]*localPolicyRuntime
 	terminationError  string
 	definition        LocalPolicyDefinition
 	setID             string
 	selectedChoice    int
+	choiceSelections  map[int]*localPolicyRuntime
 	optimizationNode  string
 	optimizationSince time.Time
 	recoveryNode      string
@@ -525,12 +521,11 @@ type localPolicyEngine struct {
 	workers              int
 	lastTick             time.Time
 	probeCursor          int
-	priorityCursor       int
 	priorityStarts       int
+	priorityCursor       int
 	inFlight             map[localProbeKey][]localProbeCandidate
 	epoch                uint64
 	checks               map[string]*localPolicyCheck
-	checkSequence        uint64
 	healthPool           map[localHealthKey]*localNodeHealth
 	evaluatedSets        map[string]bool
 	selectionRoundActive bool
@@ -601,6 +596,7 @@ func prepareLocalPolicy(c *LocalPolicyConfig, cfg *config.Config, ledger *localB
 		e.nodes[n.ID] = n
 		e.proxies[n.ID] = p
 	}
+	e.retainBoundOverrides(c)
 	if err := e.prepareNodeSets(c); err != nil {
 		e.cancel()
 		return nil, err
@@ -716,7 +712,7 @@ func (e *localPolicyEngine) evaluateLocked(r *localPolicyRuntime, now time.Time)
 	desired := ""
 	reason := "no_eligible_candidates"
 	for _, o := range e.config.Overrides {
-		if o.PolicyID == r.definition.ID && o.ExpiresAt > now.UnixMilli() && e.nodeReasonLocked(r, o.NodeID, now) == "" {
+		if o.PolicyID == r.definition.ID && o.NodeSetID == "" && localContains(r.definition.CandidateNodeIDs, o.NodeID) && o.ExpiresAt > now.UnixMilli() && e.nodeReasonLocked(r, o.NodeID, now) == "" {
 			desired = o.NodeID
 			reason = "manual_override"
 			break

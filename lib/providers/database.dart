@@ -43,6 +43,12 @@ Stream<int> proxyGroupsCount(Ref ref, int profileId) {
   return database.proxyGroupsDao.count(profileId).watchSingle();
 }
 
+final profileWriterProvider = Provider<Future<void> Function(Profile)>(
+  (ref) => (profile) async {
+    await database.profiles.put(profile.toCompanion());
+  },
+);
+
 @Riverpod(keepAlive: true)
 class Profiles extends _$Profiles {
   @override
@@ -50,16 +56,16 @@ class Profiles extends _$Profiles {
     return ref.watch(profilesStreamProvider).value ?? [];
   }
 
-  void put(Profile profile) {
+  void put(Profile profile) => unawaited(putAndWait(profile));
+
+  Future<void> putAndWait(Profile profile) async {
     final previous = List<Profile>.from(state);
     final newProfile = previous.optimizeLabel(profile);
     state = previous.copyAndPut(newProfile, (item) => item.id == newProfile.id);
-    unawaited(
-      withRollback(
-        snapshot: previous,
-        action: () => database.profiles.put(newProfile.toCompanion()),
-        rollback: (v) => state = v,
-      ),
+    await withRollback(
+      snapshot: previous,
+      action: () => ref.read(profileWriterProvider)(newProfile),
+      rollback: (v) => state = v,
     );
   }
 

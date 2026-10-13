@@ -28,7 +28,7 @@ func TestManualNodeCheckWithAutomaticDisabled(t *testing.T) {
 	}
 	duplicate, err := e.checkNodes(LocalPolicyCheckInput{Revision: 3, NodeSetID: "manual"})
 	if err != nil || duplicate.ID == job.ID {
-		t.Fatal("check callers did not get independent wait identities")
+		t.Fatal("callers must have independent cancellation identities")
 	}
 	*now = now.Add(2 * time.Millisecond)
 	r := e.sets["manual"]
@@ -41,6 +41,10 @@ func TestManualNodeCheckWithAutomaticDisabled(t *testing.T) {
 	completed, err := e.checkNodes(LocalPolicyCheckInput{Revision: 3, OperationID: job.ID})
 	if err != nil || completed.Status != "completed" || completed.Completed != 2 {
 		t.Fatalf("%+v %v", completed, err)
+	}
+	other, err := e.checkNodes(LocalPolicyCheckInput{Revision: 3, OperationID: duplicate.ID})
+	if err != nil || other.Status != "completed" || other.Completed != 2 {
+		t.Fatalf("other waiter %+v %v", other, err)
 	}
 }
 

@@ -767,6 +767,8 @@
   "policyBudgetGiB": "本机额度（GiB）",
   "policyResetDay": "每月重置日（1–28）",
   "policyUsage": "本机已用",
+  "policyBudgetReached": "已达本机预算，此来源的新连接受限",
+  "policyBudgetReachedHint": "通过本地规则选节点时，将尝试其他可用候选；若全部不可用，按该规则的无候选设置处理。",
   "policyLedgerUntrusted": "账本不可信，来源已受限",
   "policyNotCollected": "尚未采集",
   "policyCoreStopped": "Core 未运行，策略暂不执行",

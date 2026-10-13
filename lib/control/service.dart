@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import 'password.dart';
+import 'operations.dart';
 import 'transport.dart';
 
 class ControlCommand {
@@ -30,16 +31,18 @@ class LocalControlService extends ChangeNotifier {
     required this.transport,
     required this.executor,
     required this.supported,
+    ControlRequestLedger? operations,
     this.onCredentialRotated,
     this.onEnabledChanged,
     this.drainCapabilities,
     this.drainTimeout = const Duration(seconds: 30),
     this.queryTimeout = const Duration(seconds: 10),
-  });
+  }) : operations = operations ?? ControlRequestLedger();
 
   final ControlPasswordStore passwordStore;
   final ControlTransport transport;
   final CapabilityExecutor executor;
+  final ControlRequestLedger operations;
   final bool supported;
   final Future<void> Function(int generation)? onCredentialRotated;
   final Future<void> Function(bool enabled)? onEnabledChanged;
@@ -246,23 +249,97 @@ class LocalControlService extends ChangeNotifier {
               (key is! String || key.isEmpty || key.length > 128))) {
         return reject('invalid_envelope');
       }
-      if (_pending >= 16) return reject('server_busy');
       final generation = _generation;
+      if (command == 'operation_query' &&
+          params.length == 1 &&
+          params['operationId'] is String &&
+          (params['operationId'] as String).startsWith('ctl_')) {
+        final queried = await operations.query(
+          params['operationId'] as String,
+          ControlRequestLedger.digest(_instanceId),
+        );
+        return {
+          ...?queried,
+          if (queried == null) ...reject('operation_missing'),
+          'requestId': id,
+        };
+      }
+      final fingerprint = ControlRequestLedger.digest({
+        'command': command,
+        'params': params,
+      });
+      final lookupKey = key == null ? null : ControlRequestLedger.digest(key);
+      if (lookupKey != null) {
+        final found = await operations.find(lookupKey, fingerprint);
+        if (found != null) {
+          final operationId = found['operationId'];
+          return {
+            ...found,
+            if (operationId is String)
+              ...?await operations.query(
+                operationId,
+                ControlRequestLedger.digest(_instanceId),
+              ),
+            'requestId': id,
+          };
+        }
+      }
+      if (_pending >= 16) return reject('server_busy');
+      _pending++;
+      final operationId =
+          'ctl_${generateControlPassword().replaceAll('-', '').replaceAll('_', '')}';
+      late final String registered;
+      try {
+        registered = await operations.register(
+          id: operationId,
+          owner: ControlRequestLedger.digest(_instanceId),
+          fingerprint: fingerprint,
+          key: lookupKey,
+        );
+      } on StateError catch (error) {
+        _pending--;
+        if (error.message == 'idempotency_conflict') {
+          return {...reject('idempotency_conflict'), 'status': 'conflict'};
+        }
+        return reject(
+          error.message == 'operation_limit'
+              ? 'operation_limit'
+              : 'operation_store_unavailable',
+        );
+      } catch (_) {
+        _pending--;
+        return reject('operation_store_unavailable');
+      }
+      if (registered != operationId) {
+        _pending--;
+        return {
+          ...?await operations.query(
+            registered,
+            ControlRequestLedger.digest(_instanceId),
+          ),
+          'requestId': id,
+        };
+      }
       final result = Completer<Map<String, Object?>>();
       var expired = false;
       final queueTimeout = Timer(queryTimeout, () {
         expired = true;
         if (!result.isCompleted) result.complete(reject('queue_timeout'));
       });
-      _pending++;
       _tail = _tail.then((_) async {
         try {
           queueTimeout.cancel();
-          if (expired) return;
-          if (generation != _generation || !_accepting || _closed) {
-            result.complete(reject('credential_superseded'));
+          if (expired) {
+            await operations.complete(operationId, reject('queue_timeout'));
             return;
           }
+          if (generation != _generation || !_accepting || _closed) {
+            final response = reject('credential_superseded');
+            await operations.complete(operationId, response);
+            result.complete(response);
+            return;
+          }
+          await operations.running(operationId);
           final execution = executor(
             ControlCommand(
               command: command,
@@ -277,24 +354,35 @@ class LocalControlService extends ChangeNotifier {
               result.complete({
                 'requestId': id,
                 'status': 'pending',
+                'operationId': operationId,
                 'errorCode': 'query_timeout',
               });
             }
           });
           try {
             final response = await execution;
+            await operations.complete(operationId, response);
             if (!result.isCompleted) {
               result.complete({...response, 'requestId': id});
             }
           } finally {
             timeout.cancel();
           }
-        } catch (_) {
+        } catch (error) {
+          final code = error is ControlRequestStorageException
+              ? 'operation_result_save_failed'
+              : 'capability_failed';
+          try {
+            await operations.complete(operationId, {
+              'status': 'failed',
+              'errorCode': code,
+            });
+          } catch (_) {}
           if (!result.isCompleted) {
             result.complete({
               'requestId': id,
               'status': 'failed',
-              'errorCode': 'capability_failed',
+              'errorCode': code,
             });
           }
         } finally {

@@ -19,7 +19,7 @@ class ProxiesAction extends _$ProxiesAction {
     }, args: [groupName, proxyName]);
   }
 
-  Future<void> updateGroups() async {
+  Future<void> updateGroups({bool failOnError = false}) async {
     try {
       commonPrint.log('updateGroups');
       ref.read(groupsProvider.notifier).value = await retry(
@@ -34,12 +34,14 @@ class ProxiesAction extends _$ProxiesAction {
           final selectedMap = ref.read(
             currentProfileProvider.select((state) => state?.selectedMap ?? {}),
           );
-          return coreController.getProxiesGroups(
-            selectedMap: selectedMap,
-            sortType: sortType,
-            delayMap: delayMap,
-            defaultTestUrl: testUrl,
-          );
+          return ref
+              .read(proxiesCoreProvider)
+              .getProxiesGroups(
+                selectedMap: selectedMap,
+                sortType: sortType,
+                delayMap: delayMap,
+                defaultTestUrl: testUrl,
+              );
         },
         retryIf: (res) => res.isEmpty,
       );
@@ -49,6 +51,7 @@ class ProxiesAction extends _$ProxiesAction {
         logLevel: coreFailureLogLevel(e),
       );
       ref.read(groupsProvider.notifier).value = [];
+      if (failOnError) rethrow;
     }
   }
 
@@ -76,14 +79,23 @@ class ProxiesAction extends _$ProxiesAction {
     required String groupName,
     required String proxyName,
   }) async {
-    final error = await coreController.changeProxy(
-      ChangeProxyParams(groupName: groupName, proxyName: proxyName),
-    );
+    final error = await ref
+        .read(proxiesCoreProvider)
+        .changeProxy(
+          ChangeProxyParams(groupName: groupName, proxyName: proxyName),
+        );
     if (error.isNotEmpty) throw StateError(error);
     if (ref.read(appSettingProvider).closeConnections) {
-      await coreController.closeConnections();
+      await ref.read(proxiesCoreProvider).closeConnections();
     } else {
-      await coreController.resetConnections();
+      await ref.read(proxiesCoreProvider).resetConnections();
+    }
+    try {
+      await ref
+          .read(profilesActionProvider.notifier)
+          .persistCurrentSelectedMap(groupName, proxyName);
+    } finally {
+      await updateGroups(failOnError: true);
     }
     ref.read(checkIpNumProvider.notifier).add();
   }

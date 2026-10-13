@@ -1042,6 +1042,12 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyBudgetLastSample": m23,
     "policyBudgetPeriod": m24,
+    "policyBudgetReached": MessageLookupByLibrary.simpleMessage(
+      "Локальный лимит достигнут; новые подключения через источник ограничены",
+    ),
+    "policyBudgetReachedHint": MessageLookupByLibrary.simpleMessage(
+      "При выборе узла по локальным правилам будут проверены другие доступные варианты. Если их нет, применяется резервное действие правила.",
+    ),
     "policyBudgetTab": MessageLookupByLibrary.simpleMessage("Лимиты"),
     "policyCandidateHint": MessageLookupByLibrary.simpleMessage(
       "Выбираются только эти узлы и в указанном порядке",

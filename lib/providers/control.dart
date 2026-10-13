@@ -4,6 +4,7 @@ import 'package:fl_clash/capabilities/service.dart';
 import 'package:fl_clash/common/system.dart';
 import 'package:fl_clash/configuration/barrier.dart';
 import 'package:fl_clash/control/password.dart';
+import 'package:fl_clash/control/operations.dart';
 import 'package:fl_clash/control/service.dart';
 import 'package:fl_clash/control/transport.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +17,13 @@ final localControlServiceProvider = Provider<LocalControlService>((ref) {
     passwordStore: const KeychainControlPasswordStore(),
     transport: NativeControlTransport(),
     supported: system.isMacOS,
+    operations: ControlRequestLedger(
+      load: () =>
+          ref.read(workbenchDatabaseProvider).readSection('control.requests'),
+      save: (value) => ref
+          .read(workbenchDatabaseProvider)
+          .writeSection('control.requests', value),
+    ),
     executor: (command) => capabilities.execute(
       command.command,
       command.params,

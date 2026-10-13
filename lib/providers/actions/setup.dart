@@ -353,7 +353,7 @@ class SetupAction extends _$SetupAction {
             'rules': <String>['MATCH,REJECT'],
             'dns': patchConfig.dns.toJson(),
           }
-        : await coreController.getConfig(profileId!);
+        : await ref.read(proxiesCoreProvider).getConfig(profileId!);
     String? scriptContent;
     final List<Rule> addedRules = [];
     final List<ProxyGroup> proxyGroups = [];
@@ -375,7 +375,11 @@ class SetupAction extends _$SetupAction {
     );
     Map<String, dynamic> rawConfig = configMap;
     if (scriptContent?.isNotEmpty == true) {
-      rawConfig = await handleEvaluate(scriptContent!, rawConfig);
+      rawConfig = await handleEvaluate(
+        scriptContent!,
+        rawConfig,
+        launcher: ref.read(profileScriptLauncherProvider),
+      );
     }
     final directory = await appPath.profilesPath;
     final res = await makeRealProfileTask(

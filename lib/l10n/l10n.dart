@@ -6414,6 +6414,26 @@ class AppLocalizations {
     return Intl.message('Local usage', name: 'policyUsage', desc: '', args: []);
   }
 
+  /// `Local budget reached; new source connections restricted`
+  String get policyBudgetReached {
+    return Intl.message(
+      'Local budget reached; new source connections restricted',
+      name: 'policyBudgetReached',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `When selecting through local rules, other available candidates are tried. If none are available, the rule's fallback applies.`
+  String get policyBudgetReachedHint {
+    return Intl.message(
+      'When selecting through local rules, other available candidates are tried. If none are available, the rule\'s fallback applies.',
+      name: 'policyBudgetReachedHint',
+      desc: '',
+      args: [],
+    );
+  }
+
   /// `Ledger untrusted; source restricted`
   String get policyLedgerUntrusted {
     return Intl.message(

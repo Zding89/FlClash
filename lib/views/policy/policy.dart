@@ -212,13 +212,8 @@ class _LocalPolicyWorkbenchViewState
                   .where(
                     (o) =>
                         o.policyId != rule.id ||
-                        rule.candidateNodeIds.contains(o.nodeId) ||
-                        rule.choices.any(
-                          (c) =>
-                              c.type == PolicyChoiceType.node &&
-                                  c.id == o.nodeId ||
-                              c.type == PolicyChoiceType.nodeSet,
-                        ),
+                        (existing?.targetId == rule.targetId &&
+                            o.references(rule)),
                   )
                   .map((o) => o.toJson())
                   .toList(),
@@ -237,6 +232,15 @@ class _LocalPolicyWorkbenchViewState
               'nodeAttributes': attributes.map(
                 (k, v) => MapEntry(k, v.toJson()),
               ),
+              'overrides': document.overrides
+                  .where(
+                    (o) =>
+                        o.policyId != rule.id ||
+                        (existing?.targetId == rule.targetId &&
+                            o.references(rule)),
+                  )
+                  .map((o) => o.toJson())
+                  .toList(),
             }),
           );
           await showDialog<void>(
@@ -467,11 +471,23 @@ class _LocalPolicyWorkbenchViewState
 
   Future<void> _override(LocalPolicyDocument document, LocalPolicy rule) async {
     try {
-      final nodes = await _controller.loadNodes(rule.targetId);
+      final nodes = await _controller.loadNodes(
+        rule.targetId,
+        document: document,
+      );
+      final eligible = await _controller.eligibleOverrideChoices(
+        document,
+        rule,
+      );
       if (!mounted) return;
       final next = await showDialog<PolicyOverride>(
         context: context,
-        builder: (_) => PolicyOverrideEditor(policy: rule, nodes: nodes),
+        builder: (_) => PolicyOverrideEditor(
+          policy: rule,
+          nodes: nodes,
+          nodeSets: document.nodeSets,
+          eligibleChoices: eligible,
+        ),
       );
       if (next == null || !mounted) return;
       await _apply(
@@ -981,6 +997,100 @@ class _LocalPolicyWorkbenchViewState
     final ledgers = snapshot['budgets'] is List
         ? (snapshot['budgets'] as List).whereType<Map>().toList()
         : <Map>[];
+    final integration = document.integrationEnabled
+        ? document.activeIntegration
+        : null;
+    final profileId = ref.watch(currentProfileIdProvider);
+    final targetId = document.integrationEnabled
+        ? integration?.targetId
+        : profileId == null
+        ? null
+        : 'profile:$profileId';
+    final activeSources = document.integrationEnabled
+        ? {for (final id in integration?.sourceProfileIds ?? <int>[]) '$id'}
+        : {if (profileId != null) '$profileId'};
+    final running =
+        document.moduleEnabled &&
+        document.budgetsEnabled &&
+        ref.watch(coreStatusProvider) == CoreStatus.connected &&
+        snapshot['enabled'] == true &&
+        snapshot['documentRevision'] == document.revision &&
+        snapshot['revision'] is int &&
+        (snapshot['revision'] as int) >= 0 &&
+        targetId != null &&
+        snapshot['targetId'] == targetId;
+    Widget budgetCard(SourceBudget budget) {
+      final current = ledgers
+          .where((entry) => entry['sourceId'] == budget.sourceId)
+          .firstOrNull;
+      final active =
+          running &&
+          activeSources.contains(budget.sourceId) &&
+          current != null &&
+          current['limitBytes'] == budget.limitBytes;
+      final used = current?['usedBytes'];
+      final reached =
+          active &&
+          current['trusted'] == true &&
+          used is int &&
+          used >= budget.limitBytes;
+      return Card(
+        child: ListTile(
+          title: Text(sources[budget.sourceId] ?? budget.sourceId),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${strings.policyBudgetGiB}: ${policyGiB(budget.limitBytes)}\n${_ledgerText(budget.sourceId, ledgers, history, active: active)}',
+              ),
+              if (reached) ...[
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        strings.policyBudgetReached,
+                        key: ValueKey(
+                          'policy-budget-reached-${budget.sourceId}',
+                        ),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                Text(strings.policyBudgetReachedHint),
+              ],
+            ],
+          ),
+          onTap: _busy ? null : () => _budget(document, sources, budget),
+          trailing: IconButton(
+            onPressed: _busy
+                ? null
+                : () => _apply(
+                    document,
+                    _patch(document, {
+                      'budgets': document.budgets
+                          .where((entry) => entry.sourceId != budget.sourceId)
+                          .map((entry) => entry.toJson())
+                          .toList(),
+                    }),
+                  ),
+            tooltip: strings.delete,
+            icon: const Icon(Icons.delete_outline),
+          ),
+        ),
+      );
+    }
+
     return _list([
       SwitchListTile(
         contentPadding: EdgeInsets.zero,
@@ -993,31 +1103,7 @@ class _LocalPolicyWorkbenchViewState
                   _apply(document, _patch(document, {'budgetsEnabled': value})),
       ),
       if (document.budgets.isEmpty) Text(strings.policyEmptyBudgets),
-      for (final budget in document.budgets)
-        Card(
-          child: ListTile(
-            title: Text(sources[budget.sourceId] ?? budget.sourceId),
-            subtitle: Text(
-              '${strings.policyBudgetGiB}: ${policyGiB(budget.limitBytes)}\n${_ledgerText(budget.sourceId, ledgers, history, active: document.moduleEnabled && document.budgetsEnabled && snapshot['enabled'] == true)}',
-            ),
-            onTap: _busy ? null : () => _budget(document, sources, budget),
-            trailing: IconButton(
-              onPressed: _busy
-                  ? null
-                  : () => _apply(
-                      document,
-                      _patch(document, {
-                        'budgets': document.budgets
-                            .where((entry) => entry.sourceId != budget.sourceId)
-                            .map((entry) => entry.toJson())
-                            .toList(),
-                      }),
-                    ),
-              tooltip: strings.delete,
-              icon: const Icon(Icons.delete_outline),
-            ),
-          ),
-        ),
+      for (final budget in document.budgets) budgetCard(budget),
       const SizedBox(height: 16),
       FilledButton.tonalIcon(
         onPressed: _busy || sources.isEmpty || document.budgets.length >= 20

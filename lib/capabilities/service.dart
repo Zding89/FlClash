@@ -259,7 +259,7 @@ class ApplicationCapabilityService {
           };
         }
         if (row.status == 'queued') {
-          _cancelledActions.add(id);
+          if (_active.containsKey(id)) _cancelledActions.add(id);
           await controller.store.changeStatus(id, 'cancelled');
           return {'status': 'cancelled', 'operationId': id};
         }
@@ -791,10 +791,12 @@ class ApplicationCapabilityService {
             await controller.store.changeStatus(id, 'cancelled');
             return false;
           }
-          if (DateTime.now().millisecondsSinceEpoch >= row.expiresAt ||
+          if (row.status != 'queued' ||
+              DateTime.now().millisecondsSinceEpoch >= row.expiresAt ||
               origin == 'cli' &&
                   _credentialGeneration != null &&
-                  generation != _credentialGeneration) {
+                  generation != _credentialGeneration ||
+              origin == 'cli' && before['credentialGeneration'] != generation) {
             await controller.store.changeStatus(
               id,
               'conflict',

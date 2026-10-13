@@ -22,6 +22,23 @@ class ProfilesAction extends _$ProfilesAction {
     }
   }
 
+  Future<void> persistCurrentSelectedMap(
+    String groupName,
+    String proxyName,
+  ) async {
+    final originalName = ref
+        .read(setupActionProvider.notifier)
+        .originalSelection(groupName, proxyName);
+    if (originalName == null) return;
+    final profile = ref.read(currentProfileProvider);
+    if (profile == null) throw StateError('proxy_profile_missing');
+    final selectedMap = Map<String, String>.from(profile.selectedMap)
+      ..[groupName] = originalName;
+    await ref
+        .read(profilesProvider.notifier)
+        .putAndWait(profile.copyWith(selectedMap: selectedMap));
+  }
+
   Future<void> deleteProfile(int id) async {
     await ref.read(profilesProvider.notifier).del(id);
     await clearEffect(id);

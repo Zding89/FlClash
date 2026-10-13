@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - 'codex/macos-usage-cloud-build'
+      - 'codex/local-control-acceptance'
 
 permissions:
   contents: read
@@ -152,6 +153,19 @@ jobs:
           /usr/bin/codesign --verify --deep --strict --verbose=2 "$app_path"
           node packages/ai_agent_host/scripts/verify.mjs --resources "$resources"
           find dist -maxdepth 2 -type f -print
+
+      - name: Run packaged application runtime checks
+        timeout-minutes: 8
+        run: python3 scripts/macos_runtime_smoke/smoke.py
+
+      - name: Upload runtime check evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlClash-Usage-runtime-${{ matrix.arch }}
+          path: build/macos-runtime-smoke/
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload installer
         uses: actions/upload-artifact@v4

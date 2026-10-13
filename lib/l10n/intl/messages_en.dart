@@ -1000,6 +1000,12 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyBudgetLastSample": m23,
     "policyBudgetPeriod": m24,
+    "policyBudgetReached": MessageLookupByLibrary.simpleMessage(
+      "Local budget reached; new source connections restricted",
+    ),
+    "policyBudgetReachedHint": MessageLookupByLibrary.simpleMessage(
+      "When selecting through local rules, other available candidates are tried. If none are available, the rule\'s fallback applies.",
+    ),
     "policyBudgetTab": MessageLookupByLibrary.simpleMessage("Budgets"),
     "policyCandidateHint": MessageLookupByLibrary.simpleMessage(
       "Only these nodes are considered, in order",

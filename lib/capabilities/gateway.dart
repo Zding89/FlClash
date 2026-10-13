@@ -60,9 +60,13 @@ class FlutterApplicationCapabilityGateway
   FlutterApplicationCapabilityGateway({
     required this.ref,
     required this.controller,
-  });
+    CoreController? core,
+    this.approveScript,
+  }) : core = core ?? coreController;
   final Ref ref;
   final WorkbenchController controller;
+  final CoreController core;
+  final ConfigurationApproval? approveScript;
   final Map<String, _FileGrant> _files = {};
 
   @override
@@ -72,7 +76,7 @@ class FlutterApplicationCapabilityGateway
   Future<String> version() async =>
       policyDigest(await controller.backend.readState());
 
-  Future<List<Group>> _groups() => coreController.getProxiesGroups(
+  Future<List<Group>> _groups() => core.getProxiesGroups(
     sortType: ProxiesSortType.none,
     delayMap: ref.read(delayDataSourceProvider),
     selectedMap: ref.read(currentProfileProvider)?.selectedMap ?? {},
@@ -232,31 +236,31 @@ class FlutterApplicationCapabilityGateway
             setup.script != null &&
             !(document.moduleEnabled && document.integrationEnabled)) {
           final context = globalState.navigatorKey.currentContext;
-          if (context == null || !context.mounted) {
+          if (approveScript == null && (context == null || !context.mounted)) {
             throw const ConfigurationChangeException(
               'script_authorization_required',
             );
           }
-          scriptApproved = await showAiConfigurationApproval(
-            context,
-            ConfigurationProposal(
-              id: 'script-export-$id',
-              summary: currentAppLocalizations.script,
-              highRisk: true,
-              expiresAt: DateTime.now().millisecondsSinceEpoch + 600000,
-              differences: [
-                ConfigurationDifference(
-                  path: 'scriptId',
-                  before: null,
-                  after: setup.script!.id,
-                ),
-              ],
-              validation: const {
-                'executionOnly': true,
-                'requiresScriptExecutionApproval': true,
-              },
-            ),
+          final proposal = ConfigurationProposal(
+            id: 'script-export-$id',
+            summary: currentAppLocalizations.script,
+            highRisk: true,
+            expiresAt: DateTime.now().millisecondsSinceEpoch + 600000,
+            differences: [
+              ConfigurationDifference(
+                path: 'scriptId',
+                before: null,
+                after: setup.script!.id,
+              ),
+            ],
+            validation: const {
+              'executionOnly': true,
+              'requiresScriptExecutionApproval': true,
+            },
           );
+          scriptApproved =
+              await (approveScript?.call(proposal) ??
+                  showAiConfigurationApproval(context!, proposal));
           if (!scriptApproved) {
             throw const ConfigurationChangeException(
               'script_execution_rejected',
@@ -273,9 +277,7 @@ class FlutterApplicationCapabilityGateway
               allowScriptExecution: scriptApproved,
             );
         if (generated.a.isEmpty ||
-            (await coreController.validateConfigWithData(
-              generated.a,
-            )).isNotEmpty) {
+            (await core.validateConfigWithData(generated.a)).isNotEmpty) {
           throw const ConfigurationChangeException(
             'effective_config_validation_failed',
           );

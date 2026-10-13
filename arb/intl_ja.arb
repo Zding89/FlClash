@@ -767,6 +767,8 @@
   "policyBudgetGiB": "ローカル上限（GiB）",
   "policyResetDay": "月次リセット日（1–28）",
   "policyUsage": "ローカル使用量",
+  "policyBudgetReached": "ローカル予算に達したため、このソースの新しい接続は制限されます",
+  "policyBudgetReachedHint": "ローカルルールでノードを選ぶ場合は、他の利用可能な候補を試します。候補がない場合は、ルールのフォールバック設定に従います。",
   "policyLedgerUntrusted": "台帳を確認できないためソースを制限",
   "policyNotCollected": "未収集",
   "policyCoreStopped": "Core が停止中。ポリシーは実行されません",

@@ -34,3 +34,9 @@ part 'actions/proxies.dart';
 part 'actions/profiles.dart';
 part 'actions/geo_resource.dart';
 part 'generated/action.g.dart';
+
+final proxiesCoreProvider = Provider<CoreController>((ref) => coreController);
+
+final profileScriptLauncherProvider = Provider<ScriptProcessLauncher?>(
+  (ref) => null,
+);
