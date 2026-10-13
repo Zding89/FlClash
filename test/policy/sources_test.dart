@@ -158,6 +158,71 @@ void main() {
   );
 
   test(
+    'older profile metadata never borrows a newer observation timestamp or reverses recovery',
+    () async {
+      Profile quota(int remaining, int stamp, {bool exhausted = false}) =>
+          profile.copyWith(
+            subscriptionInfo: SubscriptionInfo(
+              total: 200,
+              upload: 0,
+              download: 200 - remaining,
+              exhausted: exhausted,
+              knownFields: const {'total', 'upload', 'download'},
+              observedAt: DateTime.fromMillisecondsSinceEpoch(stamp),
+            ),
+          );
+      final fresh = (await loader.load([quota(10, 200000)])).single;
+      expect(fresh.remainingBytes, 10);
+      final stale = (await loader.load([quota(100, 100000)])).single;
+      expect(stale.remainingBytes, 10);
+      expect(stale.observedAt, 200000);
+      await loader.load([quota(0, 300000, exhausted: true)]);
+      await loader.load([quota(100, 400000)]);
+      final staleExhausted = (await loader.load([
+        quota(0, 300000, exhausted: true),
+      ])).single;
+      expect(staleExhausted.remainingBytes, 100);
+      expect(staleExhausted.observedAt, 400000);
+      expect(
+        (await store.readSection('sourceMetadata:7'))!['remainingBytes'],
+        100,
+      );
+    },
+  );
+
+  test(
+    'concurrent loader instances preserve the newest metadata observation',
+    () async {
+      Profile quota(int remaining, int stamp) => profile.copyWith(
+        subscriptionInfo: SubscriptionInfo(
+          total: 200,
+          download: 200 - remaining,
+          knownFields: const {'total', 'upload', 'download'},
+          observedAt: DateTime.fromMillisecondsSinceEpoch(stamp),
+        ),
+      );
+      final other = PolicySourceLoader(
+        store: store,
+        profilePath: (id) async => '/profile/$id',
+        providerCachePath: (id, url) async => '/cache/$id',
+        readFile: (path) async => files[path],
+        fetchFile: (_) => throw StateError('network forbidden'),
+      );
+      await Future.wait([
+        other.metadataSource(quota(10, 200000)),
+        loader.metadataSource(quota(100, 100000)),
+      ]);
+      final persisted = await store.readSection('sourceMetadata:7');
+      expect(persisted!['remainingBytes'], 10);
+      expect(persisted['remainingObservedAt'], 200000);
+      expect(
+        (await loader.metadataSource(quota(100, 100000))).remainingBytes,
+        10,
+      );
+    },
+  );
+
+  test(
     'file provider fingerprints change with content and reject symlink escape',
     () async {
       final home = await Directory.systemTemp.createTemp('flclash-source-deps');

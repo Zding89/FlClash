@@ -249,6 +249,13 @@ final class PolicySourceLoader {
     Profile profile,
     Map<String, Object?> raw, {
     String? warning,
+  }) =>
+      store.transaction(() => _metadataSource(profile, raw, warning: warning));
+
+  Future<PolicySource> _metadataSource(
+    Profile profile,
+    Map<String, Object?> raw, {
+    String? warning,
   }) async {
     final info = profile.subscriptionInfo;
     final remainingKnown =
@@ -287,8 +294,14 @@ final class PolicySourceLoader {
       metadata['remainingBytes'] = remaining!.clamp(0, 9007199254740991);
       metadata['remainingObservedAt'] = remainingStamp;
     }
-    if (info?.exhausted == true) {
+    if (info?.exhausted == true &&
+        (metadata['remainingObservedAt'] is! int ||
+            remainingStamp != null &&
+                remainingStamp >= (metadata['remainingObservedAt'] as int))) {
       metadata['remainingBytes'] = 0;
+      if (remainingStamp != null) {
+        metadata['remainingObservedAt'] = remainingStamp;
+      }
     }
     if (metadata.isNotEmpty && policyDigest(metadata) != previousDigest) {
       await store.writeSection(section, metadata);
@@ -299,7 +312,12 @@ final class PolicySourceLoader {
         ? info.expire * 1000
         : null;
     final currentRemaining = remainingKnown
-        ? remaining?.clamp(0, 9007199254740991)
+        ? remainingStamp != null &&
+                  metadata['remainingObservedAt'] is int &&
+                  (metadata['remainingObservedAt'] as int) >= remainingStamp &&
+                  metadata['remainingBytes'] is int
+              ? metadata['remainingBytes'] as int
+              : remaining?.clamp(0, 9007199254740991)
         : null;
     final retainedExhaustion = metadata['remainingBytes'] == 0;
     final stamps = [

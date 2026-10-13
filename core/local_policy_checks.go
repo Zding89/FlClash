@@ -1,8 +1,9 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -19,13 +20,14 @@ type localPolicyCheck struct {
 	StartedAt int64  `json:"startedAt"`
 	Completed int    `json:"completed"`
 	Total     int    `json:"total"`
+	expected  map[string]uint64
 }
 
 func (e *localPolicyEngine) manualCheckNeeded(r *localPolicyRuntime, id string) bool {
 	for _, job := range e.checks {
 		if job.Status == "pending" && job.NodeSetID == r.setID {
 			h := r.health[id]
-			if h != nil && (h.lastProbe.IsZero() || h.lastProbe.UnixMilli() < job.StartedAt) {
+			if h != nil && h.checkSequence < job.expected[id] {
 				return true
 			}
 		}
@@ -58,9 +60,6 @@ func (e *localPolicyEngine) checkNodes(input LocalPolicyCheckInput) (localPolicy
 		e.updateCheckLocked(job)
 		if job.Status == "pending" {
 			pending++
-			if job.NodeSetID == input.NodeSetID {
-				return *job, nil
-			}
 		}
 	}
 	if pending >= 16 {
@@ -84,12 +83,18 @@ func (e *localPolicyEngine) checkNodes(input LocalPolicyCheckInput) (localPolicy
 		delete(e.checks, old)
 	}
 	now := e.now()
-	e.checkSequence++
-	id := fmt.Sprintf("%s-%d", input.NodeSetID, e.checkSequence)
-	job := &localPolicyCheck{ID: id, Status: "pending", NodeSetID: input.NodeSetID, StartedAt: now.UnixMilli() + 1, Total: len(r.health)}
+	var identity [16]byte
+	if _, err := rand.Read(identity[:]); err != nil {
+		return localPolicyCheck{}, err
+	}
+	id := hex.EncodeToString(identity[:])
+	job := &localPolicyCheck{ID: id, Status: "pending", NodeSetID: input.NodeSetID, StartedAt: now.UnixMilli(), Total: len(r.health), expected: map[string]uint64{}}
 	e.checks[id] = job
-	for _, h := range r.health {
-		h.nextProbe = time.Time{}
+	for nodeID, h := range r.health {
+		job.expected[nodeID] = h.checkSequence + 1
+		if !h.pending {
+			h.nextProbe = time.Time{}
+		}
 	}
 	if job.Total == 0 {
 		job.Status = "completed"
@@ -107,7 +112,7 @@ func (e *localPolicyEngine) updateCheckLocked(job *localPolicyCheck) {
 	}
 	completed := 0
 	for id, h := range r.health {
-		if h.lastProbe.UnixMilli() >= job.StartedAt || e.sourceReasonLocked(id, r.definition, e.now()) != "" {
+		if h.checkSequence >= job.expected[id] || e.sourceReasonLocked(id, r.definition, e.now()) != "" {
 			completed++
 		}
 	}

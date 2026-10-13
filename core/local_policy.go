@@ -404,6 +404,7 @@ func validateLocalPolicyConfig(c *LocalPolicyConfig) error {
 }
 
 type localNodeHealth struct {
+	checkSequence uint64
 	healthy       bool
 	recovering    bool
 	failures      int
@@ -464,6 +465,7 @@ type LocalPolicySnapshot struct {
 	NodeSets                     []LocalPolicyStatus `json:"nodeSets"`
 }
 type localPolicyRuntime struct {
+	choiceSelections  map[int]*localPolicyRuntime
 	terminationError  string
 	definition        LocalPolicyDefinition
 	setID             string
@@ -523,6 +525,8 @@ type localPolicyEngine struct {
 	workers              int
 	lastTick             time.Time
 	probeCursor          int
+	priorityCursor       int
+	priorityStarts       int
 	inFlight             map[localProbeKey][]localProbeCandidate
 	epoch                uint64
 	checks               map[string]*localPolicyCheck
@@ -844,42 +848,7 @@ func (e *localPolicyEngine) tick() {
 			candidates = append(candidates, localProbeCandidate{runtime: r, nodeID: id})
 		}
 	}
-	candidates = e.prioritizeProbes(candidates)
-	if len(candidates) > 0 {
-		start := e.probeCursor % len(candidates)
-		for offset := 0; offset < len(candidates); offset++ {
-			index := (start + offset) % len(candidates)
-			candidate := candidates[index]
-			r := candidate.runtime
-			id := candidate.nodeID
-			p := r.definition
-			h := r.health[id]
-			if h.pending || now.Before(h.nextProbe) || e.sourceReasonLocked(id, p, now) != "" {
-				continue
-			}
-			expected := p.Probe.ExpectedStatus
-			if expected == "" {
-				expected = "200-399"
-			}
-			key := localProbeKey{nodeID: id, method: localProbeMethod(p.Probe), url: p.Probe.URL, status: expected, timeout: p.Probe.TimeoutSeconds, unknown: p.Guard.UnknownBehavior}
-			if shared, ok := e.inFlight[key]; ok {
-				e.inFlight[key] = append(shared, candidate)
-				h.pending = true
-				h.nextProbe = now.Add(time.Duration(p.Probe.IntervalSeconds) * time.Second)
-				continue
-			}
-			if e.workers >= 8 {
-				continue
-			}
-			e.inFlight[key] = []localProbeCandidate{candidate}
-			h.pending = true
-			h.nextProbe = now.Add(time.Duration(p.Probe.IntervalSeconds) * time.Second)
-			e.workers++
-			e.probeCursor = (index + 1) % len(candidates)
-			e.wg.Add(1)
-			go e.runSharedProbe(key, e.proxies[id], e.epoch)
-		}
-	}
+	e.startProbesLocked(candidates, now)
 
 	finishRound()
 	e.mu.Unlock()
@@ -897,6 +866,7 @@ func (e *localPolicyEngine) tick() {
 func (e *localPolicyEngine) applyProbeLocked(r *localPolicyRuntime, id string, err error, now time.Time) {
 	h := r.health[id]
 	h.lastProbe = now
+	h.checkSequence++
 	interval := r.definition.Probe.IntervalSeconds
 	if err != nil && r.definition.Probe.RetrySeconds > 0 {
 		interval = r.definition.Probe.RetrySeconds

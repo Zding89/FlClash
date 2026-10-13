@@ -226,20 +226,128 @@ func (e *localPolicyEngine) checkRuntimes() []*localPolicyRuntime {
 	}
 	return values
 }
-func (e *localPolicyEngine) prioritizeProbes(values []localProbeCandidate) []localProbeCandidate {
-	sort.SliceStable(values, func(i, j int) bool {
-		return values[i].nodeID == values[i].runtime.selected && values[j].nodeID != values[j].runtime.selected
-	})
-	return values
+func (e *localPolicyEngine) startProbesLocked(values []localProbeCandidate, now time.Time) {
+	if len(values) == 0 {
+		return
+	}
+	priorities := map[localProbeKey]bool{}
+	for _, r := range e.checkRuntimes() {
+		if r.selected != "" {
+			priorities[localNetworkProbeKey(r, r.selected)] = true
+		}
+	}
+	for _, r := range e.policies {
+		for i, choice := range r.definition.Choices {
+			target := r
+			id := choice.ID
+			if choice.Type == "nodeSet" {
+				target = e.sets[choice.ID]
+				if target == nil {
+					continue
+				}
+				id = ""
+				if selection := r.choiceSelections[i]; selection != nil {
+					id = selection.selected
+				}
+				if id == "" && len(target.definition.CandidateNodeIDs) > 0 {
+					id = target.definition.CandidateNodeIDs[0]
+				}
+			}
+			if i == r.selectedChoice || i == 0 || i == r.selectedChoice+1 {
+				if i == r.selectedChoice && r.selected != "" {
+					id = r.selected
+				}
+				priorities[localNetworkProbeKey(target, id)] = true
+			}
+		}
+	}
+	urgent, ordinary := []int{}, []int{}
+	for i, candidate := range values {
+		if priorities[localNetworkProbeKey(candidate.runtime, candidate.nodeID)] {
+			urgent = append(urgent, i)
+		}
+	}
+	urgentPositions := map[int]int{}
+	for position, index := range urgent {
+		urgentPositions[index] = position
+	}
+	if len(urgent) > 0 {
+		start := e.priorityCursor % len(urgent)
+		urgent = append(append([]int{}, urgent[start:]...), urgent[:start]...)
+	}
+	for offset := range values {
+		i := (e.probeCursor + offset) % len(values)
+		if !priorities[localNetworkProbeKey(values[i].runtime, values[i].nodeID)] {
+			ordinary = append(ordinary, i)
+		}
+	}
+	for len(urgent)+len(ordinary) > 0 {
+		priority := len(urgent) > 0 && (len(ordinary) == 0 || e.priorityStarts < 7)
+		var index int
+		if priority {
+			index, urgent = urgent[0], urgent[1:]
+		} else {
+			index, ordinary = ordinary[0], ordinary[1:]
+		}
+		candidate := values[index]
+		r, id := candidate.runtime, candidate.nodeID
+		p, h := r.definition, r.health[id]
+		if h == nil || h.pending || now.Before(h.nextProbe) && !e.manualCheckNeeded(r, id) || e.sourceReasonLocked(id, p, now) != "" {
+			continue
+		}
+		expected := p.Probe.ExpectedStatus
+		if expected == "" {
+			expected = "200-399"
+		}
+		key := localProbeKey{nodeID: id, method: localProbeMethod(p.Probe), url: p.Probe.URL, status: expected, timeout: p.Probe.TimeoutSeconds, unknown: p.Guard.UnknownBehavior}
+		if shared, ok := e.inFlight[key]; ok {
+			e.inFlight[key] = append(shared, candidate)
+			h.pending = true
+			h.nextProbe = now.Add(time.Duration(p.Probe.IntervalSeconds) * time.Second)
+			continue
+		}
+		if e.workers >= 8 {
+			continue
+		}
+		e.inFlight[key] = []localProbeCandidate{candidate}
+		h.pending = true
+		h.nextProbe = now.Add(time.Duration(p.Probe.IntervalSeconds) * time.Second)
+		e.workers++
+		if priority {
+			if e.priorityStarts < 7 {
+				e.priorityStarts++
+			}
+			e.priorityCursor = (urgentPositions[index] + 1) % len(urgentPositions)
+		} else {
+			e.priorityStarts = 0
+			e.probeCursor = (index + 1) % len(values)
+		}
+		e.wg.Add(1)
+		go e.runSharedProbe(key, e.proxies[id], e.epoch)
+	}
 }
 func (e *localPolicyEngine) evaluateSetLocked(r *localPolicyRuntime, now time.Time) {
-	set := e.setDefinitions[r.setID]
 	if e.selectionRoundActive && e.evaluatedSets[r.setID] {
 		return
 	}
 	if e.selectionRoundActive {
 		e.evaluatedSets[r.setID] = true
 	}
+	e.evaluateSetSelectionLocked(r, r, nil, now)
+}
+func (e *localPolicyEngine) evaluateSetSelectionLocked(r, measured, owner *localPolicyRuntime, now time.Time) {
+	eligibleReason := func(id string) string {
+		if !e.setDefinitions[measured.setID].includes(e.nodes[id]) {
+			return "outside_node_set"
+		}
+		if owner != nil {
+			if reason := e.sourceReasonLocked(id, owner.definition, now); reason != "" {
+				return reason
+			}
+		}
+		return e.nodeReasonLocked(measured, id, now)
+	}
+	set := e.setDefinitions[r.setID]
 	less := func(a, b string) bool {
 		if set.Strategy == "multiplier" {
 			am, bm := set.effectiveMultiplier(e.nodes[a]), set.effectiveMultiplier(e.nodes[b])
@@ -266,17 +374,17 @@ func (e *localPolicyEngine) evaluateSetLocked(r *localPolicyRuntime, now time.Ti
 		return a < b
 	}
 	desired := ""
-	if set.Strategy == "stable" && r.selected != "" && e.nodeReasonLocked(r, r.selected, now) == "" {
+	if set.Strategy == "stable" && r.selected != "" && eligibleReason(r.selected) == "" {
 		desired = r.selected
 	} else {
 		for _, id := range r.definition.CandidateNodeIDs {
-			if e.nodeReasonLocked(r, id, now) == "" && (desired == "" || less(id, desired)) {
+			if eligibleReason(id) == "" && (desired == "" || less(id, desired)) {
 				desired = id
 			}
 		}
 	}
 	old := r.selected
-	valid := old != "" && e.nodeReasonLocked(r, old, now) == ""
+	valid := old != "" && eligibleReason(old) == ""
 	if valid && desired != old {
 		improve := true
 		if set.Strategy == "stable" {
@@ -316,7 +424,7 @@ func (e *localPolicyEngine) choiceNodeReasonLocked(r *localPolicyRuntime, index 
 		return e.nodeReasonLocked(r, id, now)
 	}
 	set := e.sets[choice.ID]
-	if set == nil || set.health[id] == nil {
+	if set == nil || set.health[id] == nil || !e.setDefinitions[choice.ID].includes(e.nodes[id]) {
 		return "outside_node_set"
 	}
 	return e.nodeReasonLocked(set, id, now)
@@ -339,41 +447,51 @@ func (e *localPolicyEngine) evaluateChoicesLocked(r *localPolicyRuntime, now tim
 		e.recordSelectionLocked(r, "", "schedule_inactive", now)
 		return
 	}
-	desired := ""
-	index := -1
-	reason := "no_eligible_candidates"
+	if r.choiceSelections == nil {
+		r.choiceSelections = map[int]*localPolicyRuntime{}
+	}
+	candidates := make([]string, len(r.definition.Choices))
+	for i, choice := range r.definition.Choices {
+		id := choice.ID
+		if choice.Type == "nodeSet" {
+			set := e.sets[choice.ID]
+			if set == nil {
+				continue
+			}
+			selection := r.choiceSelections[i]
+			if selection == nil || selection.setID != choice.ID {
+				selection = &localPolicyRuntime{setID: choice.ID}
+				r.choiceSelections[i] = selection
+			}
+			selection.definition = set.definition
+			selection.health = set.health
+			e.evaluateSetSelectionLocked(selection, set, r, now)
+			id = selection.selected
+		}
+		if id != "" && e.choiceNodeReasonLocked(r, i, id, now) == "" {
+			candidates[i] = id
+		}
+	}
+	desired, index, reason := "", -1, "no_eligible_candidates"
 	for _, override := range e.config.Overrides {
 		if override.PolicyID == r.definition.ID && override.ExpiresAt > now.UnixMilli() {
 			for i := range r.definition.Choices {
 				if e.choiceNodeReasonLocked(r, i, override.NodeID, now) == "" {
-					desired = override.NodeID
-					index = i
-					reason = "manual_override"
+					desired, index, reason = override.NodeID, i, "manual_override"
 					break
 				}
 			}
 		}
 	}
 	if desired == "" {
-		for i, choice := range r.definition.Choices {
-			id := choice.ID
-			if choice.Type == "nodeSet" {
-				set := e.sets[choice.ID]
-				if set == nil {
-					continue
-				}
-				e.evaluateSetLocked(set, now)
-				id = set.selected
-			}
-			if id != "" && e.choiceNodeReasonLocked(r, i, id, now) == "" {
-				desired = id
-				index = i
-				reason = "ordered_choices"
+		for i, id := range candidates {
+			if id != "" {
+				desired, index, reason = id, i, "ordered_choices"
 				break
 			}
 		}
 		oldValid := r.selected != "" && r.selectedChoice >= 0 && r.selectedChoice < len(r.definition.Choices) && e.choiceNodeReasonLocked(r, r.selectedChoice, r.selected, now) == ""
-		if oldValid && index >= 0 && index < r.selectedChoice && desired != r.selected {
+		if oldValid && index >= 0 && index < r.selectedChoice && desired != r.selected && r.reason != "manual_override" {
 			if r.recoveryNode != desired || r.recoveryChoice != index {
 				r.recoveryNode = desired
 				r.recoveryChoice = index

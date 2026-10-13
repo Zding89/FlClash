@@ -137,7 +137,7 @@ void main() {
       expect(step('Validate Go core wrapper')['run'], 'go test .\ngo vet .\n');
       expect(
         step('Build macOS DMG')['run'],
-        'dart setup.dart macos --env stable -v',
+        contains('dart setup.dart macos --env stable -v'),
       );
       final verification =
           step('Verify built application and packaged AI runtime')['run']

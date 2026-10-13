@@ -27,8 +27,8 @@ func TestManualNodeCheckWithAutomaticDisabled(t *testing.T) {
 		t.Fatalf("%+v %v", job, err)
 	}
 	duplicate, err := e.checkNodes(LocalPolicyCheckInput{Revision: 3, NodeSetID: "manual"})
-	if err != nil || duplicate.ID != job.ID {
-		t.Fatal("duplicate check was not coalesced")
+	if err != nil || duplicate.ID == job.ID {
+		t.Fatal("check callers did not get independent wait identities")
 	}
 	*now = now.Add(2 * time.Millisecond)
 	r := e.sets["manual"]

@@ -1180,6 +1180,7 @@ final class AgentTools {
             kind != 'provider' && name != null) {
           throw const FormatException('Invalid provider');
         }
+        if (exposeApplication) return _applicationCommand(request);
         return _action(
           request,
           currentAppLocalizations.update,
@@ -1209,13 +1210,31 @@ final class AgentTools {
         if (!{'backup', 'restore', 'webdav_upload'}.contains(action)) {
           throw const FormatException('Invalid panel');
         }
+        if (exposeApplication) return _applicationCommand(request);
         return gateway.openPanel(action);
       case 'profile_import_panel':
+        if (exposeApplication) return _applicationCommand(request);
         return gateway.openPanel('profile_import');
       default:
         throw const ConfigurationChangeException('tool_unknown');
     }
   }
+
+  Future<Map<String, Object?>> _applicationCommand(AgentToolRequest request) =>
+      controller.ref
+          .read(applicationCapabilityServiceProvider)
+          .execute(
+            request.name,
+            request.arguments,
+            idempotencyKey: policyDigest({
+              'requestId': request.requestId,
+              'toolCallId': request.toolCallId,
+              'name': request.name,
+            }),
+            origin: 'agent',
+            isCurrent: request.isCurrent,
+            approve: approve,
+          );
 
   static Map<String, Object?> _merge(
     Map<String, Object?> before,

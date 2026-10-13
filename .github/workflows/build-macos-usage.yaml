@@ -109,7 +109,17 @@ jobs:
           go vet .
 
       - name: Build macOS DMG
-        run: dart setup.dart macos --env stable -v
+        shell: bash
+        run: |
+          for build_attempt in 1 2 3; do
+            if dart setup.dart macos --env stable -v 2>&1 | tee /private/tmp/flclash-package-build.log; then
+              exit 0
+            fi
+            if [ "$build_attempt" -eq 3 ] || ! rg -q 'No route to host|Failed to open TCP connection|Could not resolve host|Connection timed out' /private/tmp/flclash-package-build.log; then
+              exit 1
+            fi
+            sleep 10
+          done
 
       - name: Verify built application and packaged AI runtime
         shell: bash

@@ -258,6 +258,11 @@ class ApplicationCapabilityService {
             'cancellationRequested': true,
           };
         }
+        if (row.status == 'queued') {
+          _cancelledActions.add(id);
+          await controller.store.changeStatus(id, 'cancelled');
+          return {'status': 'cancelled', 'operationId': id};
+        }
         if (_active.containsKey(id) && !_manualWaiting.contains(id) ||
             row.status == 'running') {
           return {
@@ -708,7 +713,9 @@ class ApplicationCapabilityService {
         before['digest'] != params['digest'] ||
         before['version'] != params['version'] ||
         origin == 'cli' &&
-            before['credentialGeneration'] != credentialGeneration ||
+            (before['credentialGeneration'] != credentialGeneration ||
+                _credentialGeneration != null &&
+                    credentialGeneration != _credentialGeneration) ||
         !isCurrent() ||
         await gateway.version() != before['version'] ||
         DateTime.now().millisecondsSinceEpoch >= row.expiresAt) {
@@ -731,14 +738,31 @@ class ApplicationCapabilityService {
     await controller.store.changeStatus(id, 'queued');
     final lifecycle = {'connection_set', 'core_restart'}.contains(command);
     final work = lifecycle
-        ? _run(id, command, arguments, origin)
-        : _workTail.then((_) => _run(id, command, arguments, origin));
+        ? _run(
+            id,
+            command,
+            arguments,
+            origin,
+            generation: credentialGeneration,
+            isCurrent: isCurrent,
+          )
+        : _workTail.then(
+            (_) => _run(
+              id,
+              command,
+              arguments,
+              origin,
+              generation: credentialGeneration,
+              isCurrent: isCurrent,
+            ),
+          );
     if (!lifecycle) _workTail = work;
     _active[id] = work;
     unawaited(
       work.whenComplete(() {
         _active.remove(id);
         _manualWaiting.remove(id);
+        _cancelledActions.remove(id);
       }),
     );
     return {'status': 'accepted', 'operationId': id};
@@ -751,7 +775,10 @@ class ApplicationCapabilityService {
     String origin, {
     bool manual = false,
     int? generation,
+    bool Function()? isCurrent,
   }) async {
+    bool current() =>
+        isCurrent?.call() != false && !_cancelledActions.contains(id);
     try {
       if (!manual) {
         final row = await controller.store.readChange(id);
@@ -759,6 +786,26 @@ class ApplicationCapabilityService {
           throw const ConfigurationChangeException('operation_missing');
         }
         final before = policyObject(jsonDecode(row.beforePayload), 'before');
+        Future<bool> valid() async {
+          if (row.status == 'cancelled' || !current()) {
+            await controller.store.changeStatus(id, 'cancelled');
+            return false;
+          }
+          if (DateTime.now().millisecondsSinceEpoch >= row.expiresAt ||
+              origin == 'cli' &&
+                  _credentialGeneration != null &&
+                  generation != _credentialGeneration) {
+            await controller.store.changeStatus(
+              id,
+              'conflict',
+              error: 'confirmation_stale',
+            );
+            return false;
+          }
+          return true;
+        }
+
+        if (!await valid()) return;
         if (await gateway.version() != before['version']) {
           await controller.store.changeStatus(
             id,
@@ -767,13 +814,15 @@ class ApplicationCapabilityService {
           );
           return;
         }
+        if (!await valid()) return;
         await controller.store.changeStatus(id, 'running');
+        if (!await valid()) return;
       }
       final result = await gateway.execute(
         command,
         params,
         origin: origin,
-        isCurrent: () => !_cancelledActions.contains(id),
+        isCurrent: current,
         beginMutation: manual
             ? () async {
                 final row = await controller.store.readChange(id);
@@ -875,6 +924,7 @@ class ApplicationCapabilityService {
       work.whenComplete(() {
         _active.remove(id);
         _manualWaiting.remove(id);
+        _cancelledActions.remove(id);
       }),
     );
     return {'status': 'requires_user_action', 'operationId': id};

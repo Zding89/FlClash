@@ -752,15 +752,18 @@ void main() {
   });
 
   test(
-    'resource async acceptance and user panels are reported honestly',
+    'invalid resource and panel input is rejected before approval or gateway',
     () async {
-      final result = await execute('resource_update', {'kind': 'mmdb'});
-      expect(result.value['status'], 'accepted');
-      expect(result.value['completionRequiresCoreEvent'], true);
-      expect(gateway.updates, 1);
       expect(
-        (await execute('backup_panel', {'action': 'restore'})).value['status'],
-        'requires_user_action',
+        (await execute('resource_update', {
+          'kind': 'mmdb',
+          'providerName': 'unexpected',
+        })).isError,
+        true,
+      );
+      expect(
+        (await execute('resource_update', {'kind': 'provider'})).isError,
+        true,
       );
       expect(
         (await execute('backup_panel', {
@@ -769,6 +772,14 @@ void main() {
         })).isError,
         true,
       );
+      expect(
+        (await execute('profile_import_panel', {
+          'path': '/tmp/not-user-selected',
+        })).isError,
+        true,
+      );
+      expect(gateway.updates, 0);
+      expect(approvals, 0);
     },
   );
 }

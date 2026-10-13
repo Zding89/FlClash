@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:drift/native.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:fl_clash/ai/tools.dart';
 import 'package:fl_clash/capabilities/gateway.dart';
 import 'package:fl_clash/capabilities/service.dart';
@@ -458,4 +459,80 @@ void main() {
     );
     expect(gateway.calls, 0);
   });
+  for (final invalidation in [
+    'request_cancelled',
+    'operation_cancelled',
+    'expired',
+    'generation_changed',
+  ]) {
+    test(
+      'queued authority rechecks $invalidation before starting a side effect',
+      () async {
+        gateway.work = Completer();
+        service.invalidateCredentialGeneration(10);
+        var current = true;
+        final ids = <String>[];
+        for (var index = 0; index < 2; index++) {
+          final proposal = await service.execute(
+            'maintenance_clear_cache',
+            {},
+            credentialGeneration: 10,
+          );
+          ids.add(proposal['operationId'] as String);
+          await service.execute(
+            'capability_confirm',
+            {
+              'operationId': proposal['operationId'],
+              ...Map<String, Object?>.from(proposal['confirmation'] as Map),
+            },
+            credentialGeneration: 10,
+            isCurrent: index == 1 ? () => current : null,
+          );
+        }
+        await gateway.firstStarted.future;
+        switch (invalidation) {
+          case 'request_cancelled':
+            current = false;
+          case 'operation_cancelled':
+            expect(
+              (await service.execute('operation_cancel', {
+                'operationId': ids.last,
+              }, credentialGeneration: 10))['status'],
+              'cancelled',
+            );
+          case 'expired':
+            await (store.update(store.workbenchChanges)
+                  ..where((t) => t.id.equals(ids.last)))
+                .write(const WorkbenchChangesCompanion(expiresAt: Value(1)));
+          case 'generation_changed':
+            service.invalidateCredentialGeneration(11);
+        }
+        gateway.work!.complete({'status': 'completed'});
+        await service.drain();
+        final result = await service.execute(
+          'operation_query',
+          {'operationId': ids.last},
+          credentialGeneration: invalidation == 'generation_changed' ? 11 : 10,
+        );
+        expect(
+          result['status'],
+          invalidation == 'request_cancelled' ||
+                  invalidation == 'operation_cancelled'
+              ? 'cancelled'
+              : 'conflict',
+        );
+        expect(gateway.calls, 1);
+        expect(
+          (await service.execute(
+            'operation_query',
+            {'operationId': ids.first},
+            credentialGeneration: invalidation == 'generation_changed'
+                ? 11
+                : 10,
+          ))['status'],
+          'completed',
+        );
+      },
+    );
+  }
 }
