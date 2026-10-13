@@ -102,14 +102,14 @@ jobs:
           test "$bundle_id" = 'com.zding.flclash.usage'
           test "$display_name" = 'FlClash Usage'
           executable_name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app_path/Contents/Info.plist")
-          /usr/bin/lipo -verify_arch arm64 "$app_path/Contents/MacOS/$executable_name"
+          /usr/bin/lipo "$app_path/Contents/MacOS/$executable_name" -verify_arch arm64
           resources="$app_path/Contents/Resources"
           test -x "$resources/ai/node"
           test -s "$resources/ai/host.mjs"
           test -s "$resources/ai/script_runner.mjs"
           test -s "$resources/ai/manifest.json"
           test -s "$resources/ai/NODE-LICENSE"
-          /usr/bin/lipo -verify_arch arm64 "$resources/ai/node"
+          /usr/bin/lipo "$resources/ai/node" -verify_arch arm64
           test "$("$resources/ai/node" --version)" = 'v22.23.3'
           /usr/bin/codesign --verify --strict --verbose=2 "$resources/ai/node"
           /usr/bin/codesign --verify --deep --strict --verbose=2 "$app_path"
