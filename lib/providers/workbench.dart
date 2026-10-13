@@ -447,7 +447,8 @@ class WorkbenchController {
         proposal,
         approve: (value) =>
             requiresApproval ||
-                value.validation['requiresScriptExecutionApproval'] == true
+                value.validation['requiresScriptExecutionApproval'] == true ||
+                value.validation.containsKey('finalConfigDifferences')
             ? approve(value)
             : Future.value(true),
         isCurrent: () => intent == _targetIntent,

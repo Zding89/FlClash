@@ -423,7 +423,7 @@ class ApplicationCapabilityService {
       localApproval = (proposal) async {
         if (!cliOwned ||
             proposal.validation['requiresScriptExecutionApproval'] == true ||
-            proposal.validation['finalConfigValidated'] == true) {
+            proposal.validation.containsKey('finalConfigDifferences')) {
           final context = globalState.navigatorKey.currentContext;
           return context != null && context.mounted
               ? showAiConfigurationApproval(context, proposal)

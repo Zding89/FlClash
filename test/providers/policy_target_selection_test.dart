@@ -35,6 +35,8 @@ class _Backend extends FlutterConfigurationBackend {
       );
   Map<String, Object?> state = {};
   int writes = 0;
+  bool script = false;
+  bool scriptPrepared = false;
   final activations = <Map<String, Object?>>[];
   Completer<void>? readGate;
   final readStarted = Completer<void>();
@@ -54,7 +56,23 @@ class _Backend extends FlutterConfigurationBackend {
     LocalPolicyDocument.fromJson(
       policyObject(candidate['policies'], 'policies'),
     );
-    return {'checked': true};
+    return {
+      'checked': true,
+      if (script && !scriptPrepared) 'requiresScriptExecutionApproval': true,
+      if (scriptPrepared) 'finalConfigDifferences': <Object?>[],
+    };
+  }
+
+  @override
+  Future<Map<String, Object?>> validateApproved(
+    Map<String, Object?> candidate,
+  ) async {
+    scriptPrepared = true;
+    return {
+      'finalConfigValidated': true,
+      'finalConfigDigest': 'fixture',
+      'finalConfigDifferences': <Object?>[],
+    };
   }
 
   @override
@@ -377,6 +395,25 @@ void main() {
       expect(backend.writes, 1);
       expect(document().integrationEnabled, false);
       expect((backend.state['config'] as Map)['currentProfileId'], 2);
+    },
+  );
+  test(
+    'script target selection requires approval of generated configuration after execution approval',
+    () async {
+      backend.script = true;
+      var approvals = 0;
+      final result = await controller.selectPolicyTarget(
+        profileId: 2,
+        approve: (proposal) async {
+          approvals++;
+          return proposal.validation['executionOnly'] == true;
+        },
+      );
+      expect(backend.scriptPrepared, true);
+      expect(approvals, 2);
+      expect(result['status'], 'rejected');
+      expect(backend.writes, 0);
+      expect((backend.state['config'] as Map)['currentProfileId'], 1);
     },
   );
 }

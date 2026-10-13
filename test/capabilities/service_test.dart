@@ -6,6 +6,9 @@ import 'package:fl_clash/ai/tools.dart';
 import 'package:fl_clash/capabilities/gateway.dart';
 import 'package:fl_clash/capabilities/service.dart';
 import 'package:fl_clash/configuration/resources.dart';
+import 'package:fl_clash/configuration/changes.dart';
+import 'package:fl_clash/policy/models.dart';
+import 'dart:convert';
 import 'package:fl_clash/database/workbench_database.dart';
 import 'package:fl_clash/providers/workbench.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -52,6 +55,32 @@ class _Gateway implements ApplicationCapabilityGateway {
   }
 }
 
+class _ConfigurationBackend implements ConfigurationBackend {
+  Map<String, Object?> state = {'value': 1};
+  bool script = false;
+  int writes = 0;
+  @override
+  Future<Map<String, Object?>> readState() async => Map.of(state);
+  @override
+  Future<Map<String, Object?>> validate(Map<String, Object?> candidate) async =>
+      {
+        'validated': true,
+        'finalConfigValidated': true,
+        if (script) 'requiresScriptExecutionApproval': true,
+      };
+  @override
+  bool isHighRisk(Map<String, Object?> before, Map<String, Object?> after) =>
+      true;
+  @override
+  Future<void> persist(Map<String, Object?> candidate) async {
+    writes++;
+    state = Map.of(candidate);
+  }
+
+  @override
+  Future<void> activate(Map<String, Object?> candidate) async {}
+}
+
 void main() {
   late WorkbenchDatabase store;
   late _Controller controller;
@@ -59,6 +88,19 @@ void main() {
   late ProviderContainer container;
   late ApplicationCapabilityService service;
   late Ref serviceRef;
+  setUpAll(() {
+    registerFallbackValue(
+      const ConfigurationProposal(
+        id: 'fixture',
+        summary: 'fixture',
+        highRisk: true,
+        expiresAt: 1,
+        differences: [],
+        validation: {},
+      ),
+    );
+    registerFallbackValue(() => true);
+  });
   setUp(() {
     store = WorkbenchDatabase(NativeDatabase.memory());
     controller = _Controller(store);
@@ -531,6 +573,64 @@ void main() {
                 : 10,
           ))['status'],
           'completed',
+        );
+      },
+    );
+  }
+  for (final script in [false, true]) {
+    test(
+      'CLI bound confirmation handles native preflight with script=$script',
+      () async {
+        final backend = _ConfigurationBackend()..script = script;
+        final changes = ConfigurationChangeService(
+          store: store,
+          backend: backend,
+        );
+        when(() => controller.changes).thenReturn(changes);
+        when(
+          () => controller.commit(
+            any(),
+            approve: any(named: 'approve'),
+            isCurrent: any(named: 'isCurrent'),
+          ),
+        ).thenAnswer(
+          (invocation) => changes.commit(
+            id: (invocation.positionalArguments.first as ConfigurationProposal)
+                .id,
+            approve:
+                invocation.namedArguments[#approve] as ConfigurationApproval,
+            isCurrent:
+                invocation.namedArguments[#isCurrent] as bool Function()?,
+          ),
+        );
+        final proposal = await changes.propose(
+          category: 'settings',
+          summary: 'fixture',
+          candidate: {'value': 2},
+        );
+        await store.writeSection('capability.authority.${proposal.id}', {
+          'origin': 'cli',
+          'credentialGeneration': 10,
+        });
+        final row = (await store.readChange(proposal.id))!;
+        final response = await service.execute('changes_commit', {
+          'id': proposal.id,
+          'confirmation': {
+            'digest': policyDigest({
+              'id': row.id,
+              'fingerprint': row.fingerprint,
+              'afterDigest': policyDigest(jsonDecode(row.afterPayload)),
+              'expiresAt': row.expiresAt,
+            }),
+            'version': row.fingerprint,
+          },
+        }, credentialGeneration: 10);
+        expect(response['status'], 'accepted');
+        await service.drain();
+        expect(backend.writes, script ? 0 : 1);
+        expect(
+          (await store.readChange(proposal.id))!.status,
+          script ? 'draft' : 'applied',
         );
       },
     );

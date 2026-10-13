@@ -388,7 +388,7 @@ class FlutterApplicationCapabilityGateway
           approve: (proposal) async {
             if (proposal.validation['requiresScriptExecutionApproval'] !=
                     true &&
-                proposal.validation['finalConfigValidated'] != true) {
+                !proposal.validation.containsKey('finalConfigDifferences')) {
               return true;
             }
             final context = globalState.navigatorKey.currentContext;
