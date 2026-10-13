@@ -51,8 +51,9 @@ class SetupAction extends _$SetupAction {
     return proxyName;
   }
 
-  void _readSelectionAliases(String yaml, LocalPolicyDocument document) {
-    final raw = normalizePolicyYaml(loadYaml(yaml)) as Map;
+  @visibleForTesting
+  void updateSelectionAliases(String yaml, LocalPolicyDocument document) {
+    final raw = normalizePolicyYaml(loadYaml(yaml)) as Map? ?? const {};
     final extension = raw['flclash-local-policy'];
     _selectionAliases = extension is Map && extension['enabled'] == true
         ? Map<String, String>.from(
@@ -582,8 +583,8 @@ class SetupAction extends _$SetupAction {
         final previousAliases = _selectionAliases;
         final previousGroups = _policyGroups;
         final previousIntegrated = _integratedSelection;
-        _readSelectionAliases(output, document);
         try {
+          updateSelectionAliases(output, document);
           final message = await coreController.setupConfig(
             params: _setupParams,
             preloadInvoke: preloadInvoke,
