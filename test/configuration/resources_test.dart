@@ -17,6 +17,7 @@ import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/policy/models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart' as test_package;
 
 class _Environment implements ResourceEnvironment, ResourceActivationArtifacts {
   final scope = const ResourceScope(ResourceKind.profile, 7);
@@ -709,162 +710,164 @@ void main() {
     });
   });
 
-  group('isolated macOS script worker', () {
-    late Process worker;
-    Future<Process> launch() async {
-      worker = await launchScriptProcess(
-        executablePath:
-            Platform.environment['FLCLASH_TEST_NODE'] ??
-            '/private/tmp/flclash-ai-host-node22-arm64/Resources/ai/node',
-        runnerPath: '${Directory.current.path}/scripts/script_runner.mjs',
-      );
-      return worker;
-    }
-
-    test('plain context works and exposes no host capabilities', () async {
-      final result = await handleEvaluate(
-        'function main(config) { config.host = [typeof process, typeof require, typeof Buffer, typeof fetch, typeof setTimeout, typeof ArrayBuffer]; return config; }',
-        {'name': 'fixture'},
-        launcher: launch,
-      );
-      expect(result['name'], 'fixture');
-      expect(result['host'], List.filled(6, 'undefined'));
-      expect(await worker.exitCode, 0);
-    });
-
-    test(
-      'infinite scripts terminate the owned child and next call succeeds',
-      () async {
-        await expectLater(
-          handleEvaluate(
-            'function main(config) { while (true) {} }',
-            {},
-            timeout: const Duration(milliseconds: 100),
-            launcher: launch,
-          ),
-          throwsA(
-            isA<ScriptExecutionException>().having(
-              (e) => e.code,
-              'code',
-              'script_timeout',
-            ),
-          ),
+  test_package.group(
+    'isolated macOS script worker',
+    () {
+      late Process worker;
+      Future<Process> launch() async {
+        worker = await launchScriptProcess(
+          executablePath:
+              Platform.environment['FLCLASH_TEST_NODE'] ??
+              '/private/tmp/flclash-ai-host-node22-arm64/Resources/ai/node',
+          runnerPath: '${Directory.current.path}/scripts/script_runner.mjs',
         );
-        expect(await worker.exitCode, isNotNull);
+        return worker;
+      }
+
+      test('plain context works and exposes no host capabilities', () async {
         final result = await handleEvaluate(
-          'function main(config) { return {ok: true}; }',
-          {},
+          'function main(config) { config.host = [typeof process, typeof require, typeof Buffer, typeof fetch, typeof setTimeout, typeof ArrayBuffer]; return config; }',
+          {'name': 'fixture'},
           launcher: launch,
         );
-        expect(result, {'ok': true});
+        expect(result['name'], 'fixture');
+        expect(result['host'], List.filled(6, 'undefined'));
         expect(await worker.exitCode, 0);
-      },
-    );
+      });
 
-    test(
-      'parent deadline terminates hostile error getters outside vm timeout',
-      () async {
+      test(
+        'infinite scripts terminate the owned child and next call succeeds',
+        () async {
+          await expectLater(
+            handleEvaluate(
+              'function main(config) { while (true) {} }',
+              {},
+              timeout: const Duration(milliseconds: 100),
+              launcher: launch,
+            ),
+            throwsA(
+              isA<ScriptExecutionException>().having(
+                (e) => e.code,
+                'code',
+                'script_timeout',
+              ),
+            ),
+          );
+          expect(await worker.exitCode, isNotNull);
+          final result = await handleEvaluate(
+            'function main(config) { return {ok: true}; }',
+            {},
+            launcher: launch,
+          );
+          expect(result, {'ok': true});
+          expect(await worker.exitCode, 0);
+        },
+      );
+
+      test(
+        'parent deadline terminates hostile error getters outside vm timeout',
+        () async {
+          await expectLater(
+            handleEvaluate(
+              'function main(config) { throw {get code(){while(true){}}}; }',
+              {},
+              timeout: const Duration(milliseconds: 100),
+              launcher: launch,
+            ),
+            throwsA(
+              isA<ScriptExecutionException>().having(
+                (e) => e.code,
+                'code',
+                'script_timeout',
+              ),
+            ),
+          );
+          expect(await worker.exitCode, isNot(0));
+        },
+      );
+
+      test('UTF-8 input bound rejects before starting a worker', () async {
+        var launched = false;
         await expectLater(
           handleEvaluate(
-            'function main(config) { throw {get code(){while(true){}}}; }',
+            '汉' * 200000,
             {},
-            timeout: const Duration(milliseconds: 100),
-            launcher: launch,
+            launcher: () async {
+              launched = true;
+              return launch();
+            },
           ),
           throwsA(
             isA<ScriptExecutionException>().having(
               (e) => e.code,
               'code',
-              'script_timeout',
+              'script_input_limit',
             ),
           ),
         );
-        expect(await worker.exitCode, isNot(0));
-      },
-    );
+        expect(launched, false);
+      });
 
-    test('UTF-8 input bound rejects before starting a worker', () async {
-      var launched = false;
-      await expectLater(
-        handleEvaluate(
-          '汉' * 200000,
-          {},
-          launcher: () async {
-            launched = true;
-            return launch();
-          },
-        ),
-        throwsA(
-          isA<ScriptExecutionException>().having(
-            (e) => e.code,
-            'code',
-            'script_input_limit',
-          ),
-        ),
-      );
-      expect(launched, false);
-    });
-
-    test('heap exhaustion exits only the worker', () async {
-      await expectLater(
-        handleEvaluate(
-          'function main(config) { const retained = []; while (true) { retained.push(new Array(100000).fill("fixture")); } }',
-          {},
-          launcher: launch,
-        ),
-        throwsA(isA<ScriptExecutionException>()),
-      );
-      expect(await worker.exitCode, isNot(0));
-      expect(
-        await handleEvaluate(
-          'function main(config) { return {ok:true}; }',
-          {},
-          launcher: launch,
-        ),
-        {'ok': true},
-      );
-    });
-
-    test('large output is rejected with bounded output collection', () async {
-      await expectLater(
-        handleEvaluate(
-          'function main(config) { return {value:"x".repeat(9*1024*1024)}; }',
-          {},
-          launcher: launch,
-        ),
-        throwsA(isA<ScriptExecutionException>()),
-      );
-      expect(await worker.exitCode, isNot(0));
-    });
-
-    test('host escape and dynamic import attempts fail closed', () async {
-      for (final script in [
-        'function main(config) { return {value: process.env.API_KEY}; }',
-        'function main(config) { return require("node:fs").readFileSync("/etc/hosts"); }',
-        'function main(config) { return config.constructor.constructor("return process")(); }',
-        'function main(config) { import("node:fs"); return config; }',
-      ]) {
+      test('heap exhaustion exits only the worker', () async {
         await expectLater(
-          handleEvaluate(script, {}, launcher: launch),
+          handleEvaluate(
+            'function main(config) { const retained = []; while (true) { retained.push(new Array(100000).fill("fixture")); } }',
+            {},
+            launcher: launch,
+          ),
           throwsA(isA<ScriptExecutionException>()),
         );
         expect(await worker.exitCode, isNot(0));
-      }
-    });
-
-    test(
-      'OS sandbox denies file reads, writes, and socket access even to host Node',
-      () async {
-        final directory = await Directory.systemTemp.createTemp(
-          'flclash-script-boundary-',
+        expect(
+          await handleEvaluate(
+            'function main(config) { return {ok:true}; }',
+            {},
+            launcher: launch,
+          ),
+          {'ok': true},
         );
-        Process? sandboxed;
-        try {
-          final secret = File('${directory.path}/api-key-fixture');
-          await secret.writeAsString('fixture-private-key');
-          final output = File('${directory.path}/must-not-exist');
-          final runner = File('${directory.path}/boundary.mjs');
-          await runner.writeAsString('''
+      });
+
+      test('large output is rejected with bounded output collection', () async {
+        await expectLater(
+          handleEvaluate(
+            'function main(config) { return {value:"x".repeat(9*1024*1024)}; }',
+            {},
+            launcher: launch,
+          ),
+          throwsA(isA<ScriptExecutionException>()),
+        );
+        expect(await worker.exitCode, isNot(0));
+      });
+
+      test('host escape and dynamic import attempts fail closed', () async {
+        for (final script in [
+          'function main(config) { return {value: process.env.API_KEY}; }',
+          'function main(config) { return require("node:fs").readFileSync("/etc/hosts"); }',
+          'function main(config) { return config.constructor.constructor("return process")(); }',
+          'function main(config) { import("node:fs"); return config; }',
+        ]) {
+          await expectLater(
+            handleEvaluate(script, {}, launcher: launch),
+            throwsA(isA<ScriptExecutionException>()),
+          );
+          expect(await worker.exitCode, isNot(0));
+        }
+      });
+
+      test(
+        'OS sandbox denies file reads, writes, and socket access even to host Node',
+        () async {
+          final directory = await Directory.systemTemp.createTemp(
+            'flclash-script-boundary-',
+          );
+          Process? sandboxed;
+          try {
+            final secret = File('${directory.path}/api-key-fixture');
+            await secret.writeAsString('fixture-private-key');
+            final output = File('${directory.path}/must-not-exist');
+            final runner = File('${directory.path}/boundary.mjs');
+            await runner.writeAsString('''
 import fs from 'node:fs';
 import net from 'node:net';
 let readCode, writeCode;
@@ -877,31 +880,34 @@ const networkCode = await new Promise((resolve) => {
 });
 process.stdout.write(JSON.stringify({readCode,writeCode,networkCode, inheritedSecret:process.env.FLCLASH_TEST_SECRET ?? null}));
 ''');
-          sandboxed = await launchScriptProcess(
-            executablePath:
-                Platform.environment['FLCLASH_TEST_NODE'] ??
-                '/private/tmp/flclash-ai-host-node22-arm64/Resources/ai/node',
-            runnerPath: runner.path,
-          );
-          final diagnostics = sandboxed.stderr.drain<void>();
-          final response = await utf8.decoder
-              .bind(sandboxed.stdout)
-              .join()
-              .timeout(const Duration(seconds: 3));
-          expect(await sandboxed.exitCode, 0);
-          await diagnostics;
-          final value = jsonDecode(response) as Map;
-          expect(value['readCode'], anyOf('EPERM', 'EACCES'));
-          expect(value['writeCode'], anyOf('EPERM', 'EACCES'));
-          expect(value['networkCode'], anyOf('EPERM', 'EACCES'));
-          expect(value['inheritedSecret'], null);
-          expect(await output.exists(), false);
-        } finally {
-          sandboxed?.kill(ProcessSignal.sigkill);
-          await sandboxed?.exitCode;
-          await directory.delete(recursive: true);
-        }
-      },
-    );
-  }, skip: !Platform.isMacOS);
+            sandboxed = await launchScriptProcess(
+              executablePath:
+                  Platform.environment['FLCLASH_TEST_NODE'] ??
+                  '/private/tmp/flclash-ai-host-node22-arm64/Resources/ai/node',
+              runnerPath: runner.path,
+            );
+            final diagnostics = sandboxed.stderr.drain<void>();
+            final response = await utf8.decoder
+                .bind(sandboxed.stdout)
+                .join()
+                .timeout(const Duration(seconds: 3));
+            expect(await sandboxed.exitCode, 0);
+            await diagnostics;
+            final value = jsonDecode(response) as Map;
+            expect(value['readCode'], anyOf('EPERM', 'EACCES'));
+            expect(value['writeCode'], anyOf('EPERM', 'EACCES'));
+            expect(value['networkCode'], anyOf('EPERM', 'EACCES'));
+            expect(value['inheritedSecret'], null);
+            expect(await output.exists(), false);
+          } finally {
+            sandboxed?.kill(ProcessSignal.sigkill);
+            await sandboxed?.exitCode;
+            await directory.delete(recursive: true);
+          }
+        },
+      );
+    },
+    tags: ['native-script-worker'],
+    skip: !Platform.isMacOS,
+  );
 }

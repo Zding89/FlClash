@@ -104,8 +104,11 @@ jobs:
       - name: Analyze Flutter application
         run: flutter analyze --no-fatal-infos
 
+      - name: Test native script isolation without competing suites
+        run: flutter test --no-pub --reporter expanded --concurrency=1 --tags native-script-worker test/configuration/resources_test.dart
+
       - name: Test Flutter application
-        run: flutter test --no-pub --reporter expanded
+        run: flutter test --no-pub --reporter expanded --exclude-tags native-script-worker
 
       - name: Validate Go core wrapper
         working-directory: core

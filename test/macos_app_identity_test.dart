@@ -128,7 +128,18 @@ void main() {
       );
       expect(
         index('Prepare isolated macOS script test runtime'),
+        lessThan(
+          index('Test native script isolation without competing suites'),
+        ),
+      );
+      expect(
+        index('Test native script isolation without competing suites'),
         lessThan(index('Test Flutter application')),
+      );
+      expect(
+        step('Test native script isolation without competing suites')['run'],
+        'flutter test --no-pub --reporter expanded --concurrency=1 '
+        '--tags native-script-worker test/configuration/resources_test.dart',
       );
       expect(
         step('Analyze Flutter application')['run'],
@@ -136,7 +147,8 @@ void main() {
       );
       expect(
         step('Test Flutter application')['run'],
-        'flutter test --no-pub --reporter expanded',
+        'flutter test --no-pub --reporter expanded '
+        '--exclude-tags native-script-worker',
       );
       expect(
         step('Build and test local control runtime')['run'],

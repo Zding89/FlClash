@@ -2,7 +2,9 @@ import json
 import os
 import pathlib
 import plistlib
+import re
 import secrets
+import shlex
 import shutil
 import signal
 import socket
@@ -53,6 +55,9 @@ def main():
     report_dir.mkdir(parents=True, exist_ok=False)
     report = {'status': 'running', 'fixture': 'empty isolated hosted macOS runner', 'checks': []}
     password = secrets.token_urlsafe(32)
+    keychain_password = secrets.token_urlsafe(32)
+    keychain_path = scratch / 'fixture.keychain-db'
+    keychain_search_list = shlex.split(run(['/usr/bin/security', 'list-keychains', '-d', 'user']).stdout.decode())
     process = None
     children = {}
     keychain_created = False
@@ -147,8 +152,24 @@ def main():
         run(['/usr/bin/defaults', 'write', bundle, 'flutter.config', '-string', config.read_text()])
         preferences_created = True
         run(['/usr/bin/xcrun', 'swiftc', '-module-cache-path', str(scratch / 'module-cache'), str(source / 'seed_keychain.swift'), '-o', str(helper)])
-        run([str(helper), 'seed', str(executable)], input=password.encode())
         keychain_created = True
+        run([str(helper), 'seed', str(executable), str(keychain_path)], input=json.dumps({
+            'password': password,
+            'keychainPassword': keychain_password,
+        }).encode())
+        signature = run(['/usr/bin/codesign', '-d', '--verbose=4', str(executable)]).stderr.decode()
+        hashes = re.findall(r'^CDHash=([0-9a-f]{40})$', signature, re.MULTILINE)
+        require(len(hashes) == 1, 'missing unique application code hash')
+        partition = [
+            'set-generic-password-partition-list', '-a', 'password',
+            '-s', bundle + '.control.credentials', '-S', 'cdhash:' + hashes[0],
+            '-k', keychain_password, str(keychain_path),
+        ]
+        require(all(re.fullmatch(r'[A-Za-z0-9_./:-]+', argument) for argument in partition), 'unsafe keychain fixture argument')
+        run(['/usr/bin/security', '-i'], input=(' '.join(partition) + '\n').encode())
+        run(['/usr/bin/security', 'set-keychain-settings', '-lut', '600', str(keychain_path)])
+        run(['/usr/bin/security', 'list-keychains', '-d', 'user', '-s', *keychain_search_list, str(keychain_path)])
+        report['keychainFixture'] = 'temporary dedicated keychain with exact application ACL and code-hash partition'
         start_app()
         checkpoint('signed packaged app starts with its owned Core and authenticated CLI')
         wrong = command('runtime_read', secret='wrong-fixture-password', expected=2)
@@ -215,7 +236,7 @@ def main():
         report['status'] = 'passed'
     except Exception as error:
         report['status'] = 'failed'
-        report['error'] = str(error).replace(password, '[REDACTED-FIXTURE]')
+        report['error'] = str(error).replace(password, '[REDACTED-FIXTURE]').replace(keychain_password, '[REDACTED-KEYCHAIN]')
         report['endpointFiles'] = [
             {'name': path.name, 'mode': oct(stat.S_IMODE(path.lstat().st_mode))}
             for path in runtime.iterdir()
@@ -241,7 +262,7 @@ def main():
                     report.setdefault('captureErrors', []).append(type(diagnostic_error).__name__)
         if isinstance(error, subprocess.CalledProcessError):
             diagnostic = (error.stdout or b'') + (error.stderr or b'')
-            (report_dir / 'setup-error.log').write_bytes(diagnostic[-1024 * 1024:].replace(password.encode(), b'[REDACTED-FIXTURE]'))
+            (report_dir / 'setup-error.log').write_bytes(diagnostic[-1024 * 1024:].replace(password.encode(), b'[REDACTED-FIXTURE]').replace(keychain_password.encode(), b'[REDACTED-KEYCHAIN]'))
         raise
     finally:
         remember_children()
@@ -263,9 +284,23 @@ def main():
                 logfile.write_bytes(payload.replace(password.encode(), b'[REDACTED-FIXTURE]'))
                 report['status'] = 'failed'
                 report['error'] = 'fixture credential found in application output'
-        (report_dir / 'report.json').write_text(json.dumps(report, indent=2))
         if keychain_created:
-            subprocess.run([str(helper), 'remove', str(executable)], capture_output=True, timeout=10)
+            for name, arguments in [
+                ('restore_keychain_search_list', ['/usr/bin/security', 'list-keychains', '-d', 'user', '-s', *keychain_search_list]),
+                ('remove_fixture_keychain', [str(helper), 'remove', str(executable), str(keychain_path)]),
+            ]:
+                try:
+                    result = subprocess.run(arguments, capture_output=True, timeout=10)
+                    if result.returncode != 0:
+                        report.setdefault('cleanupErrors', []).append(name)
+                except (OSError, subprocess.SubprocessError):
+                    report.setdefault('cleanupErrors', []).append(name)
+            if report.get('cleanupErrors'):
+                report['status'] = 'failed'
+                report.setdefault('error', 'temporary keychain cleanup failed')
+            else:
+                checkpoint('temporary keychain removed and original search list restored')
+        (report_dir / 'report.json').write_text(json.dumps(report, indent=2))
         if preferences_created:
             subprocess.run(['/usr/bin/defaults', 'delete', bundle], capture_output=True, timeout=10)
         if data.exists():
