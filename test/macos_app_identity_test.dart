@@ -33,6 +33,12 @@ void main() {
       ),
     );
     expect(scheme, contains('BuildableName = "$productName.app"'));
+    expect(
+      project,
+      contains(
+        r'/bin/sh \"$PROJECT_DIR/../services/control/scripts/package_macos.sh\"',
+      ),
+    );
     expect(project, isNot(contains('com.follow.clash')));
     expect(scheme, isNot(contains('BuildableName = "FlClash.app"')));
   });
