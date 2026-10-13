@@ -217,12 +217,15 @@ def main():
         checkpoint('authenticated write rejection and confirmed connection command reach the real Core')
         hidden_id = mutate('app_hide', 'smoke-hide')
         hidden = wait_operation(hidden_id)
+        report['windowHide'] = {'status': hidden.get('status'), 'errorCode': hidden.get('errorCode'), 'visible': (hidden.get('result') or {}).get('visible')}
         require(hidden['status'] == 'completed' and hidden['result']['visible'] is False, 'window hide result is not confirmed')
+        time.sleep(5.2)
         require(command('runtime_read')['status'] == 'completed', 'hidden window stopped the control service')
         replay = command('app_hide', key='smoke-hide')
         require(replay['operationId'] == hidden_id, 'idempotent retry created a second operation')
         checkpoint('bound confirmation, hidden-window service, and idempotent result query')
         visible = wait_operation(mutate('app_show', 'smoke-show'))
+        report['windowShow'] = {'status': visible.get('status'), 'errorCode': visible.get('errorCode'), 'visible': (visible.get('result') or {}).get('visible')}
         require(visible['status'] == 'completed' and visible['result']['visible'] is True, 'window show result is not confirmed')
         subprocess.run(['/usr/sbin/screencapture', '-x', str(report_dir / 'app-window.png')], capture_output=True, timeout=10)
         exit_app('smoke-exit-one')
@@ -230,6 +233,7 @@ def main():
         start_app()
         prior = command('operation_query', {'operationId': hidden_id})
         require(prior['status'] == 'completed', 'completed operation not queryable across restart')
+        require(prior.get('operationId') == hidden_id and (prior.get('result') or {}).get('visible') is False, 'completed result was not preserved across restart')
         checkpoint('same fixed password and prior completed operation survive application restart')
         exit_app('smoke-exit-two')
         checkpoint('second graceful exit succeeds')

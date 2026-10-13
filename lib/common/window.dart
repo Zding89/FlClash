@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:fl_clash/common/common.dart';
@@ -80,6 +81,31 @@ class Window {
     final value = await windowManager.isVisible();
     commonPrint.log('window visible check: $value');
     return value;
+  }
+
+  Future<bool> waitForVisibility(
+    bool visible, {
+    Duration timeout = const Duration(seconds: 3),
+  }) async {
+    final elapsed = Stopwatch()..start();
+    while (elapsed.elapsed < timeout) {
+      final remaining = timeout - elapsed.elapsed;
+      try {
+        if (await windowManager.isVisible().timeout(remaining) == visible) {
+          return true;
+        }
+      } on TimeoutException {
+        return false;
+      }
+      final delay = timeout - elapsed.elapsed;
+      if (delay <= Duration.zero) return false;
+      await Future<void>.delayed(
+        delay < const Duration(milliseconds: 50)
+            ? delay
+            : const Duration(milliseconds: 50),
+      );
+    }
+    return false;
   }
 
   Future<void> close() async {

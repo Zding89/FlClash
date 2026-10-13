@@ -494,12 +494,16 @@ class FlutterApplicationCapabilityGateway
         if (window == null) {
           return {'status': 'unsupported', 'errorCode': 'window_unavailable'};
         }
-        if (command == 'app_show') {
+        final visible = command == 'app_show';
+        if (visible) {
           await window!.show();
         } else {
           await window!.hide();
         }
-        return {'status': 'completed', 'visible': await window!.isVisible};
+        if (!await window!.waitForVisibility(visible)) {
+          throw const ConfigurationChangeException('window_visibility_timeout');
+        }
+        return {'status': 'completed', 'visible': visible};
       case 'app_exit':
         unawaited(
           Future<void>.delayed(
