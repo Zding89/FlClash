@@ -742,6 +742,7 @@ final class LocalPolicy {
 
   Map<String, Object?> toCoreJson() => Map<String, Object?>.from(toJson())
     ..remove('scope')
+    ..remove('priority')
     ..remove('targetId')
     ..remove('origin')
     ..remove('userModified')
