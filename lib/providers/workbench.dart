@@ -144,7 +144,7 @@ final localPolicyStatusProvider = StreamProvider<Map<String, Object?>>((
 class WorkbenchController {
   final Ref ref;
   final WorkbenchDatabase store;
-  final AgentCredentialStore credentials;
+  late final AgentCredentialStore credentials;
   late final PolicyProfileService profiles;
   late final FlutterConfigurationBackend backend;
   late final ConfigurationChangeService changes;
@@ -160,8 +160,13 @@ class WorkbenchController {
     AgentCredentialStore? credentials,
     AgentRuntime Function()? runtimeFactory,
   }) : _runtimeFactory = runtimeFactory ?? AgentRuntime.new,
-       store = store ?? ref.read(workbenchDatabaseProvider),
-       credentials = credentials ?? KeychainAgentCredentialStore() {
+       store = store ?? ref.read(workbenchDatabaseProvider) {
+    this.credentials =
+        credentials ??
+        EncryptedConfigAgentCredentialStore(
+          this.store,
+          legacy: KeychainAgentCredentialStore(),
+        );
     profiles = PolicyProfileService(
       loader: PolicySourceLoader(
         store: this.store,

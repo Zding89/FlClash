@@ -50,6 +50,8 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
   final _messages = <_ConversationMessage>[];
   late final WorkbenchController _controller;
   late final AiHistoryStore _historyStore;
+  int _historyGeneration = 0;
+  StreamSubscription<int>? _historyRestores;
   String _conversationId = aiConversationId();
   String? _targetLabel;
   final _changeIds = <String>{};
@@ -71,6 +73,12 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     super.initState();
     _controller = ref.read(workbenchControllerProvider);
     _historyStore = ref.read(aiHistoryStoreProvider);
+    _historyGeneration = _historyStore.generation;
+    _historyRestores = _historyStore.restores.listen((generation) {
+      if (!mounted) return;
+      _historyGeneration = generation;
+      unawaited(_clear(persist: false));
+    });
     _input.text = widget.initialPrompt ?? '';
     ref.listenManual(aiComposerContextProvider, (_, next) {
       if (next != null) _scheduleComposerContext();
@@ -107,6 +115,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     _cancelApprovals();
     _runtime?.cancel();
     _historyTimer?.cancel();
+    unawaited(_historyRestores?.cancel() ?? Future<void>.value());
     unawaited(_persistConversation());
     unawaited(_subscription?.cancel() ?? Future<void>.value());
     unawaited(_controller.closeAgent());
@@ -117,6 +126,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
 
   Future<void> _persistConversation() async {
     _historyTimer?.cancel();
+    if (_historyGeneration != _historyStore.generation) return;
     final messages = <Map<String, String>>[
       for (final message in _messages)
         if (message.role != 'tool' && message.text.isNotEmpty)
@@ -519,13 +529,15 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     }
   }
 
-  Future<void> _clear() async {
+  Future<void> _clear({bool persist = true}) async {
     final epoch = ++_epoch;
     final runtime = _runtime;
     _runtime = null;
     _cancelApprovals();
     runtime?.cancel();
-    final saved = _persistConversation();
+    final saved = persist ? _persistConversation() : Future<void>.value();
+    _historyTimer?.cancel();
+    _historyGeneration = _historyStore.generation;
     setState(() {
       _messages.clear();
       _input.clear();

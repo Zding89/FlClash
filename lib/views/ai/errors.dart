@@ -1,3 +1,4 @@
+import 'package:fl_clash/ai/credentials.dart';
 import 'package:fl_clash/ai/runtime.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/configuration/changes.dart';
@@ -7,6 +8,12 @@ import 'package:flutter/services.dart';
 
 String aiErrorText(BuildContext context, Object? error) {
   final strings = context.appLocalizations;
+  if (error is LegacyCredentialMigrationException) {
+    return strings.aiCredentialMigrationRequired;
+  }
+  if (error is MissingAgentCredentialException) {
+    return strings.aiKeyMissing;
+  }
   if (error is PolicySourceException) {
     return strings.policyUnsupportedSourceOption(error.option);
   }

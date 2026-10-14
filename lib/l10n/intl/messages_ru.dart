@@ -174,6 +174,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiAwaitingApproval": MessageLookupByLibrary.simpleMessage(
       "Ожидает подтверждения; изменения не применены",
     ),
+    "aiBackupKeyRequired": MessageLookupByLibrary.simpleMessage(
+      "Перед резервным копированием заполните или сохраните ключи подключений в настройках ИИ",
+    ),
     "aiBaseUrl": MessageLookupByLibrary.simpleMessage("Адрес сервиса"),
     "aiBefore": MessageLookupByLibrary.simpleMessage("До"),
     "aiCanHelp": MessageLookupByLibrary.simpleMessage("Чем могу помочь"),
@@ -209,11 +212,14 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiConversationHistoryHint": MessageLookupByLibrary.simpleMessage(
       "На устройстве хранятся последние 20 диалогов, до 80 текстовых сообщений в каждом. Открытие истории восстанавливает только текст, без повторения действий. Удаление диалога сохраняет журнал изменений.",
     ),
+    "aiCredentialMigrationRequired": MessageLookupByLibrary.simpleMessage(
+      "Не удалось перенести старый ключ. Введите и сохраните его заново; далее Связка ключей не потребуется",
+    ),
     "aiCredentialRecoveryFailed": MessageLookupByLibrary.simpleMessage(
       "Восстановить ключ не удалось. Настройте его заново перед использованием",
     ),
     "aiCredentialUnavailable": MessageLookupByLibrary.simpleMessage(
-      "Связка ключей недоступна. Проверьте системный запрос доступа",
+      "Не удалось прочитать ключ. Введите и сохраните его заново",
     ),
     "aiCurrentConnection": MessageLookupByLibrary.simpleMessage(
       "Текущее подключение",
@@ -278,7 +284,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "aiKeyShow": MessageLookupByLibrary.simpleMessage("Показать ключ"),
     "aiKeyStored": MessageLookupByLibrary.simpleMessage(
-      "Сохранён в Связке ключей; оставьте пустым для сохранения",
+      "Зашифрован в настройках; оставьте пустым, чтобы сохранить",
     ),
     "aiLinkedChanges": MessageLookupByLibrary.simpleMessage(
       "Связанные изменения",
@@ -853,7 +859,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "loading": MessageLookupByLibrary.simpleMessage("Загрузка..."),
     "local": MessageLookupByLibrary.simpleMessage("Локальный"),
     "localBackupDesc": MessageLookupByLibrary.simpleMessage(
-      "Резервное копирование локальных данных на локальный диск",
+      "Сохранить настройки, подключения ИИ с зашифрованными ключами, локальные правила и историю в файл",
     ),
     "localControlChangePassword": MessageLookupByLibrary.simpleMessage(
       "Изменить пароль",
@@ -1707,7 +1713,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "redo": MessageLookupByLibrary.simpleMessage("Повторить"),
     "remote": MessageLookupByLibrary.simpleMessage("Удаленный"),
     "remoteBackupDesc": MessageLookupByLibrary.simpleMessage(
-      "Резервное копирование локальных данных на WebDAV",
+      "Сохранить настройки, подключения ИИ с зашифрованными ключами, локальные правила и историю в WebDAV",
     ),
     "remoteDestination": MessageLookupByLibrary.simpleMessage(
       "Удалённое назначение",
@@ -1741,16 +1747,16 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "restore": MessageLookupByLibrary.simpleMessage("Восстановить"),
     "restoreAllData": MessageLookupByLibrary.simpleMessage(
-      "Восстановить все данные",
+      "Восстановить настройки, ИИ и локальные правила",
     ),
     "restoreException": MessageLookupByLibrary.simpleMessage(
       "Ошибка восстановления",
     ),
     "restoreFromFileDesc": MessageLookupByLibrary.simpleMessage(
-      "Восстановить данные из файла",
+      "Восстановить копию из файла; полное восстановление включает ИИ и локальные правила",
     ),
     "restoreFromWebDAVDesc": MessageLookupByLibrary.simpleMessage(
-      "Восстановить данные через WebDAV",
+      "Восстановить копию WebDAV; полное восстановление включает ИИ и локальные правила",
     ),
     "restoreOnlyConfig": MessageLookupByLibrary.simpleMessage(
       "Восстановить только файлы конфигурации",

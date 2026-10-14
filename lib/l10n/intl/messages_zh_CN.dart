@@ -136,6 +136,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiAssistantTitle": MessageLookupByLibrary.simpleMessage("AI 配置助手"),
     "aiAuthFailed": MessageLookupByLibrary.simpleMessage("鉴权失败，请检查该端点的 Key"),
     "aiAwaitingApproval": MessageLookupByLibrary.simpleMessage("等待确认，尚未执行修改"),
+    "aiBackupKeyRequired": MessageLookupByLibrary.simpleMessage(
+      "请先在 AI 设置中补充或重新保存连接的 Key，再进行备份",
+    ),
     "aiBaseUrl": MessageLookupByLibrary.simpleMessage("服务地址"),
     "aiBefore": MessageLookupByLibrary.simpleMessage("修改前"),
     "aiCanHelp": MessageLookupByLibrary.simpleMessage("可帮你做"),
@@ -165,11 +168,14 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiConversationHistoryHint": MessageLookupByLibrary.simpleMessage(
       "仅在本机保留最近 20 个对话，每个最多 80 条文字。打开历史只恢复上下文，不续跑旧操作；删除对话不会删除修改记录。",
     ),
+    "aiCredentialMigrationRequired": MessageLookupByLibrary.simpleMessage(
+      "旧 Key 未能导入，请重新填写后保存；之后无需钥匙串授权",
+    ),
     "aiCredentialRecoveryFailed": MessageLookupByLibrary.simpleMessage(
       "密钥恢复未完成，请重新配置 Key 后再使用",
     ),
     "aiCredentialUnavailable": MessageLookupByLibrary.simpleMessage(
-      "无法访问钥匙串，请检查系统访问提示",
+      "无法读取已保存的 Key，请重新填写并保存",
     ),
     "aiCurrentConnection": MessageLookupByLibrary.simpleMessage("当前连接"),
     "aiCustomProvider": MessageLookupByLibrary.simpleMessage("自定义兼容服务"),
@@ -209,7 +215,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiKeyMissing": MessageLookupByLibrary.simpleMessage("此连接尚未保存 Key，请先配置"),
     "aiKeyRequired": MessageLookupByLibrary.simpleMessage("请输入此端点的 API Key"),
     "aiKeyShow": MessageLookupByLibrary.simpleMessage("显示 Key"),
-    "aiKeyStored": MessageLookupByLibrary.simpleMessage("钥匙串已保存；留空可保留"),
+    "aiKeyStored": MessageLookupByLibrary.simpleMessage("已加密保存在配置中；留空可保留"),
     "aiLinkedChanges": MessageLookupByLibrary.simpleMessage("关联修改"),
     "aiLinkedChangesHint": MessageLookupByLibrary.simpleMessage(
       "这里显示原修改日志的实时记录，可查看差异；撤销或恢复仍在修改历史中处理。",
@@ -578,7 +584,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "loadTest": MessageLookupByLibrary.simpleMessage("加载测试"),
     "loading": MessageLookupByLibrary.simpleMessage("加载中..."),
     "local": MessageLookupByLibrary.simpleMessage("本地"),
-    "localBackupDesc": MessageLookupByLibrary.simpleMessage("备份数据到本地"),
+    "localBackupDesc": MessageLookupByLibrary.simpleMessage(
+      "备份配置、AI 连接与加密 Key、本地规则及历史到文件",
+    ),
     "localControlChangePassword": MessageLookupByLibrary.simpleMessage("修改密码"),
     "localControlCommands": MessageLookupByLibrary.simpleMessage("查看命令"),
     "localControlCopyPath": MessageLookupByLibrary.simpleMessage("复制工具路径"),
@@ -1074,7 +1082,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "redirPort": MessageLookupByLibrary.simpleMessage("Redir端口"),
     "redo": MessageLookupByLibrary.simpleMessage("重做"),
     "remote": MessageLookupByLibrary.simpleMessage("远程"),
-    "remoteBackupDesc": MessageLookupByLibrary.simpleMessage("备份数据到WebDAV"),
+    "remoteBackupDesc": MessageLookupByLibrary.simpleMessage(
+      "备份配置、AI 连接与加密 Key、本地规则及历史到 WebDAV",
+    ),
     "remoteDestination": MessageLookupByLibrary.simpleMessage("远程目标"),
     "remove": MessageLookupByLibrary.simpleMessage("移除"),
     "rename": MessageLookupByLibrary.simpleMessage("重命名"),
@@ -1096,11 +1106,13 @@ class MessageLookup extends MessageLookupByLibrary {
     "restart": MessageLookupByLibrary.simpleMessage("重启"),
     "restartCoreTip": MessageLookupByLibrary.simpleMessage("您确定要重启核心吗？"),
     "restore": MessageLookupByLibrary.simpleMessage("恢复"),
-    "restoreAllData": MessageLookupByLibrary.simpleMessage("恢复所有数据"),
+    "restoreAllData": MessageLookupByLibrary.simpleMessage("恢复配置、AI 和本地规则"),
     "restoreException": MessageLookupByLibrary.simpleMessage("恢复异常"),
-    "restoreFromFileDesc": MessageLookupByLibrary.simpleMessage("通过文件恢复数据"),
+    "restoreFromFileDesc": MessageLookupByLibrary.simpleMessage(
+      "从备份文件恢复；选择完整恢复可包含 AI 和本地规则",
+    ),
     "restoreFromWebDAVDesc": MessageLookupByLibrary.simpleMessage(
-      "通过WebDAV恢复数据",
+      "从 WebDAV 备份恢复；选择完整恢复可包含 AI 和本地规则",
     ),
     "restoreOnlyConfig": MessageLookupByLibrary.simpleMessage("仅恢复配置文件"),
     "restoreStrategy": MessageLookupByLibrary.simpleMessage("恢复策略"),

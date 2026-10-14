@@ -7,6 +7,8 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/database/database.dart';
+import 'package:fl_clash/configuration/backup_archive.dart';
+import 'package:fl_clash/configuration/workbench_backup.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:flutter/foundation.dart';
@@ -530,30 +532,19 @@ Future<String> _backupTask<T>(
   return tempZipFilePath;
 }
 
-Future<MigrationData> restoreTask() async {
-  return compute<RootIsolateToken, MigrationData>(
+Future<MigrationData> restoreTask({bool includeWorkbench = true}) async {
+  return compute<VM2<RootIsolateToken, bool>, MigrationData>(
     _restoreTask,
-    RootIsolateToken.instance!,
+    VM2(RootIsolateToken.instance!, includeWorkbench),
   );
 }
 
-Future<MigrationData> _restoreTask(RootIsolateToken token) async {
-  BackgroundIsolateBinaryMessenger.ensureInitialized(token);
+Future<MigrationData> _restoreTask(VM2<RootIsolateToken, bool> args) async {
+  BackgroundIsolateBinaryMessenger.ensureInitialized(args.a);
   final backupFilePath = await appPath.backupFilePath;
   final restoreDirPath = await appPath.restoreDirPath;
   final homeDirPath = await appPath.homeDirPath;
-  final zipDecoder = ZipDecoder();
-  final input = InputFileStream(backupFilePath);
-  final archive = zipDecoder.decodeStream(input);
-  final dir = Directory(restoreDirPath);
-  await dir.create(recursive: true);
-  for (final file in archive.files) {
-    final outPath = join(restoreDirPath, posix.normalize(file.name));
-    final outputStream = OutputFileStream(outPath);
-    file.writeContent(outputStream);
-    await outputStream.close();
-  }
-  await input.close();
+  await extractConfigurationBackup(backupFilePath, restoreDirPath);
   final restoreConfigFile = File(join(restoreDirPath, configJsonName));
   if (!await restoreConfigFile.exists()) {
     throw currentAppLocalizations.invalidBackupFile;
@@ -569,8 +560,17 @@ Future<MigrationData> _restoreTask(RootIsolateToken token) async {
     );
     return migrationData;
   }
+  if (args.b && restoreConfigMap != null) {
+    Config.fromJson(restoreConfigMap);
+  }
   final backupDatabaseFile = File(join(restoreDirPath, backupDatabaseName));
   if (!await backupDatabaseFile.exists()) {
+    if (args.b && restoreConfigMap?.containsKey('workbench') == true) {
+      await WorkbenchBackup.parse(
+        restoreConfigMap!['workbench'],
+        profileIds: const {},
+      );
+    }
     return migrationData;
   }
   final database = Database(
@@ -590,6 +590,25 @@ Future<MigrationData> _restoreTask(RootIsolateToken token) async {
   ]);
   final profiles = results[0].cast<Profile>();
   final scripts = results[1].cast<Script>();
+  try {
+    await validateConfigurationBackupFiles(
+      directory: restoreDirPath,
+      profileIds: profiles.map((profile) => profile.id),
+      scriptIds: scripts.map((script) => script.id),
+      currentProfileId: args.b && restoreConfigMap != null
+          ? Config.fromJson(restoreConfigMap).currentProfileId
+          : null,
+    );
+    if (args.b && restoreConfigMap?.containsKey('workbench') == true) {
+      await WorkbenchBackup.parse(
+        restoreConfigMap!['workbench'],
+        profileIds: profiles.map((profile) => profile.id).toSet(),
+      );
+    }
+  } catch (_) {
+    await database.close();
+    rethrow;
+  }
   final profilesMigration = profiles.map(
     (item) => VM2(
       _getProfilePath(restoreDirPath, item.id.toString()),

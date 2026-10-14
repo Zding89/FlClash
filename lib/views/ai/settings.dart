@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:fl_clash/ai/credentials.dart';
 import 'package:fl_clash/ai/runtime.dart';
 import 'package:fl_clash/ai/settings.dart';
 import 'package:fl_clash/common/common.dart';
@@ -99,6 +100,13 @@ class _AiSettingsViewState extends ConsumerState<AiSettingsView> {
                 existing.credentialId,
               ))?.isNotEmpty ==
               true;
+    } on LegacyCredentialMigrationException {
+      if (mounted && epoch == _editorEpoch) {
+        setState(() {
+          _failed = true;
+          _message = context.appLocalizations.aiCredentialMigrationRequired;
+        });
+      }
     } catch (error) {
       if (mounted && epoch == _editorEpoch) {
         setState(() {

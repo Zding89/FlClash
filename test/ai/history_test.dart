@@ -82,6 +82,62 @@ void main() {
     await directory.delete(recursive: true);
   });
 
+  test(
+    'restored conversations can be updated after an earlier local deletion',
+    () async {
+      await store.save(_conversation(1));
+      final snapshot = await database.readSection('aiConversations');
+      await store.delete(_id(1));
+      expect(await store.list(), isEmpty);
+      final generations = <int>[];
+      final subscription = store.restores.listen(generations.add);
+      addTearDown(subscription.cancel);
+
+      await AiHistoryStore.replaceForRestore(database, () async {
+        await database.writeSection('aiConversations', snapshot!);
+      });
+      await Future<void>.delayed(Duration.zero);
+      await store.save(
+        _conversation(
+          1,
+          messages: const [
+            {'role': 'user', 'content': 'continued after restore'},
+          ],
+        ),
+      );
+
+      expect((await store.list()).single.title, 'continued after restore');
+      expect(generations, [1]);
+      expect(store.generation, 1);
+    },
+  );
+
+  test(
+    'restoration excludes saves during replacement and resets all store instances',
+    () async {
+      await store.save(_conversation(1));
+      final snapshot = await database.readSection('aiConversations');
+      final another = AiHistoryStore(database);
+      await another.delete(_id(1));
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      final restoration = AiHistoryStore.replaceForRestore(database, () async {
+        entered.complete();
+        await release.future;
+        await database.writeSection('aiConversations', snapshot!);
+      });
+      await entered.future;
+      await store.save(_conversation(2));
+      release.complete();
+      await restoration;
+      await another.save(_conversation(1, updatedAt: 10));
+
+      expect((await store.list()).map((entry) => entry.id), [_id(1)]);
+      expect((await store.list()).single.updatedAt, 10);
+      expect(another.generation, store.generation);
+    },
+  );
+
   Future<void> reopen() async {
     await database.close();
     database = WorkbenchDatabase(NativeDatabase(file));

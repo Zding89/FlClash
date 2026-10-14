@@ -33,10 +33,17 @@ const _settings = AgentSettings(
 class _Keys implements AgentCredentialStore {
   String? secret = 'old-secret';
   bool failDelete = false;
+  bool failMigration = false;
   final pending = <String, Completer<String?>>{};
   @override
-  Future<String?> read(String credentialId) =>
-      pending[credentialId]?.future ?? Future.value(secret);
+  Future<String?> read(String credentialId) {
+    if (failMigration) {
+      failMigration = false;
+      return Future.error(const LegacyCredentialMigrationException());
+    }
+    return pending[credentialId]?.future ?? Future.value(secret);
+  }
+
   @override
   Future<void> write(String credentialId, String value) async {
     secret = value;
@@ -259,6 +266,34 @@ const _multipleSettings = AgentSettings(
 );
 
 void main() {
+  testWidgets(
+    'a declined legacy key import still opens an editable key field',
+    (tester) async {
+      final controller = _Controller();
+      controller.credentials.failMigration = true;
+      final container = await _mount(tester, controller);
+      addTearDown(container.dispose);
+
+      expect(find.byKey(const ValueKey('ai-connection-key')), findsOneWidget);
+      expect(
+        tester
+            .widget<AiConnectionEditor>(find.byType(AiConnectionEditor))
+            .hasKey,
+        isFalse,
+      );
+      expect(
+        find.text(AppLocalizations.current.aiCredentialMigrationRequired),
+        findsOneWidget,
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-connection-key')),
+        'replacement-key',
+      );
+      expect(find.text('replacement-key'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final fails in [false, true]) {
     testWidgets(
       'deleting key updates embedded credential presence only on success $fails',

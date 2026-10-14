@@ -1799,20 +1799,20 @@ class AppLocalizations {
     return Intl.message('Remote', name: 'remote', desc: '', args: []);
   }
 
-  /// `Backup local data to WebDAV`
+  /// `Back up configuration, AI connections and encrypted keys, local rules and history to WebDAV`
   String get remoteBackupDesc {
     return Intl.message(
-      'Backup local data to WebDAV',
+      'Back up configuration, AI connections and encrypted keys, local rules and history to WebDAV',
       name: 'remoteBackupDesc',
       desc: '',
       args: [],
     );
   }
 
-  /// `Backup local data to local`
+  /// `Back up configuration, AI connections and encrypted keys, local rules and history to a file`
   String get localBackupDesc {
     return Intl.message(
-      'Backup local data to local',
+      'Back up configuration, AI connections and encrypted keys, local rules and history to a file',
       name: 'localBackupDesc',
       desc: '',
       args: [],
@@ -3714,20 +3714,20 @@ class AppLocalizations {
     );
   }
 
-  /// `Restore data via WebDAV`
+  /// `Restore a WebDAV backup; full restore includes AI and local rules`
   String get restoreFromWebDAVDesc {
     return Intl.message(
-      'Restore data via WebDAV',
+      'Restore a WebDAV backup; full restore includes AI and local rules',
       name: 'restoreFromWebDAVDesc',
       desc: '',
       args: [],
     );
   }
 
-  /// `Restore data via file`
+  /// `Restore a backup file; full restore includes AI and local rules`
   String get restoreFromFileDesc {
     return Intl.message(
-      'Restore data via file',
+      'Restore a backup file; full restore includes AI and local rules',
       name: 'restoreFromFileDesc',
       desc: '',
       args: [],
@@ -3744,10 +3744,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Restore all data`
+  /// `Restore configuration, AI and local rules`
   String get restoreAllData {
     return Intl.message(
-      'Restore all data',
+      'Restore configuration, AI and local rules',
       name: 'restoreAllData',
       desc: '',
       args: [],
@@ -5099,10 +5099,10 @@ class AppLocalizations {
     return Intl.message('API key', name: 'aiKey', desc: '', args: []);
   }
 
-  /// `Stored in Keychain; leave blank to keep`
+  /// `Encrypted in app configuration; leave blank to keep`
   String get aiKeyStored {
     return Intl.message(
-      'Stored in Keychain; leave blank to keep',
+      'Encrypted in app configuration; leave blank to keep',
       name: 'aiKeyStored',
       desc: '',
       args: [],
@@ -5569,10 +5569,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Keychain is unavailable. Check the system access prompt`
+  /// `Cannot read the saved key. Enter and save it again`
   String get aiCredentialUnavailable {
     return Intl.message(
-      'Keychain is unavailable. Check the system access prompt',
+      'Cannot read the saved key. Enter and save it again',
       name: 'aiCredentialUnavailable',
       desc: '',
       args: [],
@@ -8294,6 +8294,26 @@ class AppLocalizations {
     return Intl.message(
       'Local configuration was not saved successfully. Check change history before retrying',
       name: 'aiConfigurationSaveFailed',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `The old key could not be imported. Enter and save it again; future use needs no Keychain access`
+  String get aiCredentialMigrationRequired {
+    return Intl.message(
+      'The old key could not be imported. Enter and save it again; future use needs no Keychain access',
+      name: 'aiCredentialMigrationRequired',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Complete or re-save your connection keys in AI settings before backing up`
+  String get aiBackupKeyRequired {
+    return Intl.message(
+      'Complete or re-save your connection keys in AI settings before backing up',
+      name: 'aiBackupKeyRequired',
       desc: '',
       args: [],
     );

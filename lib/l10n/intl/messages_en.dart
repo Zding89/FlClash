@@ -170,6 +170,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiAwaitingApproval": MessageLookupByLibrary.simpleMessage(
       "Awaiting approval; changes have not been applied",
     ),
+    "aiBackupKeyRequired": MessageLookupByLibrary.simpleMessage(
+      "Complete or re-save your connection keys in AI settings before backing up",
+    ),
     "aiBaseUrl": MessageLookupByLibrary.simpleMessage("Base URL"),
     "aiBefore": MessageLookupByLibrary.simpleMessage("Before"),
     "aiCanHelp": MessageLookupByLibrary.simpleMessage("Can help with"),
@@ -205,11 +208,14 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiConversationHistoryHint": MessageLookupByLibrary.simpleMessage(
       "Keeps the latest 20 conversations on this device, up to 80 text messages each. Opening one restores text only; old actions are never resumed. Deleting a conversation keeps its change journal.",
     ),
+    "aiCredentialMigrationRequired": MessageLookupByLibrary.simpleMessage(
+      "The old key could not be imported. Enter and save it again; future use needs no Keychain access",
+    ),
     "aiCredentialRecoveryFailed": MessageLookupByLibrary.simpleMessage(
       "Key recovery failed. Configure the key again before use",
     ),
     "aiCredentialUnavailable": MessageLookupByLibrary.simpleMessage(
-      "Keychain is unavailable. Check the system access prompt",
+      "Cannot read the saved key. Enter and save it again",
     ),
     "aiCurrentConnection": MessageLookupByLibrary.simpleMessage(
       "Current connection",
@@ -272,7 +278,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "aiKeyShow": MessageLookupByLibrary.simpleMessage("Show key"),
     "aiKeyStored": MessageLookupByLibrary.simpleMessage(
-      "Stored in Keychain; leave blank to keep",
+      "Encrypted in app configuration; leave blank to keep",
     ),
     "aiLinkedChanges": MessageLookupByLibrary.simpleMessage("Related changes"),
     "aiLinkedChangesHint": MessageLookupByLibrary.simpleMessage(
@@ -825,7 +831,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "loading": MessageLookupByLibrary.simpleMessage("Loading..."),
     "local": MessageLookupByLibrary.simpleMessage("Local"),
     "localBackupDesc": MessageLookupByLibrary.simpleMessage(
-      "Backup local data to local",
+      "Back up configuration, AI connections and encrypted keys, local rules and history to a file",
     ),
     "localControlChangePassword": MessageLookupByLibrary.simpleMessage(
       "Change password",
@@ -1649,7 +1655,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "redo": MessageLookupByLibrary.simpleMessage("redo"),
     "remote": MessageLookupByLibrary.simpleMessage("Remote"),
     "remoteBackupDesc": MessageLookupByLibrary.simpleMessage(
-      "Backup local data to WebDAV",
+      "Back up configuration, AI connections and encrypted keys, local rules and history to WebDAV",
     ),
     "remoteDestination": MessageLookupByLibrary.simpleMessage(
       "Remote destination",
@@ -1680,15 +1686,17 @@ class MessageLookup extends MessageLookupByLibrary {
       "Are you sure you want to restart the core?",
     ),
     "restore": MessageLookupByLibrary.simpleMessage("Restore"),
-    "restoreAllData": MessageLookupByLibrary.simpleMessage("Restore all data"),
+    "restoreAllData": MessageLookupByLibrary.simpleMessage(
+      "Restore configuration, AI and local rules",
+    ),
     "restoreException": MessageLookupByLibrary.simpleMessage(
       "Recovery exception",
     ),
     "restoreFromFileDesc": MessageLookupByLibrary.simpleMessage(
-      "Restore data via file",
+      "Restore a backup file; full restore includes AI and local rules",
     ),
     "restoreFromWebDAVDesc": MessageLookupByLibrary.simpleMessage(
-      "Restore data via WebDAV",
+      "Restore a WebDAV backup; full restore includes AI and local rules",
     ),
     "restoreOnlyConfig": MessageLookupByLibrary.simpleMessage(
       "Restore configuration files only",

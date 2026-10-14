@@ -108,16 +108,51 @@ class AiConversation {
   }
 }
 
+class _AiHistoryState {
+  Future<void> tail = Future.value();
+  final deleted = <String>{};
+  final pendingDeletes = <String, int>{};
+  final restores = StreamController<int>.broadcast();
+  bool restoring = false;
+  int generation = 0;
+}
+
 class AiHistoryStore {
-  AiHistoryStore(this.database);
+  AiHistoryStore(this.database)
+    : _state = _states[database] ??= _AiHistoryState();
   final WorkbenchDatabase database;
-  Future<void> _tail = Future.value();
-  final _deleted = <String>{};
-  final _pendingDeletes = <String, int>{};
+  final _AiHistoryState _state;
+  static final _states = Expando<_AiHistoryState>();
+  Set<String> get _deleted => _state.deleted;
+  Map<String, int> get _pendingDeletes => _state.pendingDeletes;
+  int get generation => _state.generation;
+  Stream<int> get restores => _state.restores.stream;
+
+  static Future<void> replaceForRestore(
+    WorkbenchDatabase database,
+    Future<void> Function() action,
+  ) async {
+    final state = _states[database] ??= _AiHistoryState();
+    if (state.restoring) throw StateError('history_restore_in_progress');
+    state.restoring = true;
+    try {
+      await state.tail;
+      await action();
+      state.deleted.clear();
+      state.pendingDeletes.clear();
+      state.generation++;
+      state.restores.add(state.generation);
+    } finally {
+      state.restoring = false;
+    }
+  }
 
   Future<T> _serial<T>(Future<T> Function() action) {
-    final result = _tail.then((_) => action());
-    _tail = result.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+    final result = _state.tail.then((_) => action());
+    _state.tail = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
     return result;
   }
 
@@ -139,34 +174,38 @@ class AiHistoryStore {
 
   Future<List<AiConversation>> list() => _serial(_read);
 
-  Future<void> save(AiConversation conversation) => _serial(() async {
-    if (_deleted.contains(conversation.id) ||
-        _pendingDeletes.containsKey(conversation.id)) {
-      return;
-    }
-    final bounded = AiConversation.parse(conversation.toJson());
-    if (bounded == null) return;
-    final evicted = <String>[];
-    await database.transaction(() async {
-      final entries = await _read();
-      entries.removeWhere((entry) => entry.id == bounded.id);
-      entries.add(bounded);
-      entries.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-      for (final entry in entries.skip(20)) {
-        evicted.add(entry.id);
+  Future<void> save(AiConversation conversation) {
+    if (_state.restoring) return Future.value();
+    return _serial(() async {
+      if (_deleted.contains(conversation.id) ||
+          _pendingDeletes.containsKey(conversation.id)) {
+        return;
       }
-      await database.writeSection('aiConversations', {
-        'version': 1,
-        'conversations': entries
-            .take(20)
-            .map((entry) => entry.toJson())
-            .toList(),
+      final bounded = AiConversation.parse(conversation.toJson());
+      if (bounded == null) return;
+      final evicted = <String>[];
+      await database.transaction(() async {
+        final entries = await _read();
+        entries.removeWhere((entry) => entry.id == bounded.id);
+        entries.add(bounded);
+        entries.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        for (final entry in entries.skip(20)) {
+          evicted.add(entry.id);
+        }
+        await database.writeSection('aiConversations', {
+          'version': 1,
+          'conversations': entries
+              .take(20)
+              .map((entry) => entry.toJson())
+              .toList(),
+        });
       });
+      _deleted.addAll(evicted);
     });
-    _deleted.addAll(evicted);
-  });
+  }
 
   Future<void> delete(String id) {
+    if (_state.restoring) return Future.value();
     _pendingDeletes.update(id, (count) => count + 1, ifAbsent: () => 1);
     return _serial(() async {
       try {

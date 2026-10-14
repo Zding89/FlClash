@@ -1012,6 +1012,75 @@ void main() {
     expect(transport.prompt!['data']['user'], 'inspect test-secret');
   });
 
+  testWidgets(
+    'a full restore clears stale chat without resaving it over restored history',
+    (tester) async {
+      final transport = _Transport();
+      final controller = _Controller(
+        AgentRuntime(launcher: () async => transport),
+        _Credentials(),
+      );
+      final container = await _mount(tester, controller);
+      addTearDown(container.dispose);
+      final history = container.read(aiHistoryStoreProvider);
+      await history.save(
+        const AiConversation(
+          id: '11111111111111111111111111111111',
+          updatedAt: 1700000000000,
+          messages: [
+            {'role': 'user', 'content': 'old local question'},
+            {'role': 'assistant', 'content': 'old local answer'},
+          ],
+        ),
+      );
+      await _tapAi(
+        tester,
+        find.byTooltip(AppLocalizations.current.aiConversationHistory),
+      );
+      await tester.pumpAndSettle();
+      await _tapAi(tester, find.text('old local question'));
+      await tester.pumpAndSettle();
+      expect(find.text('old local answer'), findsOneWidget);
+      const restored = AiConversation(
+        id: '22222222222222222222222222222222',
+        updatedAt: 1700000000001,
+        messages: [
+          {'role': 'user', 'content': 'restored question'},
+          {'role': 'assistant', 'content': 'restored answer'},
+        ],
+      );
+      await controller.closeAgent();
+      await AiHistoryStore.replaceForRestore(
+        controller.store,
+        () => controller.store.writeSection('aiConversations', {
+          'version': 1,
+          'conversations': [restored.toJson()],
+        }),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('old local question'), findsNothing);
+      expect(find.text('old local answer'), findsNothing);
+      expect((await history.list()).map((entry) => entry.id), [restored.id]);
+      await tester.pumpAndSettle();
+      final historyButton = find.ancestor(
+        of: find.byTooltip(AppLocalizations.current.aiConversationHistory),
+        matching: find.byType(IconButton),
+      );
+      expect(controller.runtime.isClosed, isTrue);
+      expect(tester.widget<IconButton>(historyButton).onPressed, isNotNull);
+      await _tapAi(
+        tester,
+        find.byTooltip(AppLocalizations.current.aiConversationHistory),
+      );
+      await tester.pumpAndSettle();
+      await _tapAi(tester, find.text('restored question'));
+      await tester.pumpAndSettle();
+      expect(find.text('restored answer'), findsOneWidget);
+      expect(transport.promptCalls, 0);
+    },
+  );
+
   for (final tool in ['application_operation', 'application_invoke']) {
     testWidgets('$tool query never associates another conversation change', (
       tester,

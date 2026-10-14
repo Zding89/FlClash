@@ -144,6 +144,9 @@ class MessageLookup extends MessageLookupByLibrary {
       "認証失敗。この接続先のキーを確認してください",
     ),
     "aiAwaitingApproval": MessageLookupByLibrary.simpleMessage("確認待ち・変更は未適用"),
+    "aiBackupKeyRequired": MessageLookupByLibrary.simpleMessage(
+      "バックアップ前に AI 設定で接続キーを入力するか再保存してください",
+    ),
     "aiBaseUrl": MessageLookupByLibrary.simpleMessage("サービス URL"),
     "aiBefore": MessageLookupByLibrary.simpleMessage("変更前"),
     "aiCanHelp": MessageLookupByLibrary.simpleMessage("できること"),
@@ -173,11 +176,14 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiConversationHistoryHint": MessageLookupByLibrary.simpleMessage(
       "この端末に最新20件、各80件までのテキストを保存します。履歴を開いても過去の操作は再実行しません。会話を削除しても変更履歴は残ります。",
     ),
+    "aiCredentialMigrationRequired": MessageLookupByLibrary.simpleMessage(
+      "以前のキーを移行できませんでした。再入力して保存すると、以後キーチェーンへのアクセスは不要です",
+    ),
     "aiCredentialRecoveryFailed": MessageLookupByLibrary.simpleMessage(
       "キーの復元に失敗しました。使用前に再設定してください",
     ),
     "aiCredentialUnavailable": MessageLookupByLibrary.simpleMessage(
-      "キーチェーンにアクセスできません。システムの確認画面を確認してください",
+      "保存済みキーを読み取れません。再入力して保存してください",
     ),
     "aiCurrentConnection": MessageLookupByLibrary.simpleMessage("現在の接続"),
     "aiCustomProvider": MessageLookupByLibrary.simpleMessage("カスタム互換サービス"),
@@ -225,7 +231,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "このエンドポイントの API キーを入力",
     ),
     "aiKeyShow": MessageLookupByLibrary.simpleMessage("キーを表示"),
-    "aiKeyStored": MessageLookupByLibrary.simpleMessage("キーチェーンに保存済み。空欄で保持"),
+    "aiKeyStored": MessageLookupByLibrary.simpleMessage("設定に暗号化して保存済み。空欄で保持"),
     "aiLinkedChanges": MessageLookupByLibrary.simpleMessage("関連する変更"),
     "aiLinkedChangesHint": MessageLookupByLibrary.simpleMessage(
       "既存の変更履歴の最新状態と差分を表示します。取り消しや復旧は変更履歴で行います。",
@@ -646,7 +652,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "loadTest": MessageLookupByLibrary.simpleMessage("読み込みテスト"),
     "loading": MessageLookupByLibrary.simpleMessage("読み込み中..."),
     "local": MessageLookupByLibrary.simpleMessage("ローカル"),
-    "localBackupDesc": MessageLookupByLibrary.simpleMessage("ローカルにデータをバックアップ"),
+    "localBackupDesc": MessageLookupByLibrary.simpleMessage(
+      "設定、AI 接続と暗号化キー、ローカルルールと履歴をファイルにバックアップ",
+    ),
     "localControlChangePassword": MessageLookupByLibrary.simpleMessage(
       "パスワードを変更",
     ),
@@ -1223,7 +1231,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "redo": MessageLookupByLibrary.simpleMessage("やり直す"),
     "remote": MessageLookupByLibrary.simpleMessage("リモート"),
     "remoteBackupDesc": MessageLookupByLibrary.simpleMessage(
-      "WebDAVにデータをバックアップ",
+      "設定、AI 接続と暗号化キー、ローカルルールと履歴を WebDAV にバックアップ",
     ),
     "remoteDestination": MessageLookupByLibrary.simpleMessage("リモート宛先"),
     "remove": MessageLookupByLibrary.simpleMessage("削除"),
@@ -1246,13 +1254,13 @@ class MessageLookup extends MessageLookupByLibrary {
     "restart": MessageLookupByLibrary.simpleMessage("再起動"),
     "restartCoreTip": MessageLookupByLibrary.simpleMessage("コアを再起動してもよろしいですか？"),
     "restore": MessageLookupByLibrary.simpleMessage("復元"),
-    "restoreAllData": MessageLookupByLibrary.simpleMessage("すべてのデータを復元する"),
+    "restoreAllData": MessageLookupByLibrary.simpleMessage("設定、AI、ローカルルールを復元"),
     "restoreException": MessageLookupByLibrary.simpleMessage("復元例外"),
     "restoreFromFileDesc": MessageLookupByLibrary.simpleMessage(
-      "ファイルを介してデータを復元する",
+      "バックアップファイルから復元。完全復元には AI とローカルルールを含みます",
     ),
     "restoreFromWebDAVDesc": MessageLookupByLibrary.simpleMessage(
-      "WebDAVを介してデータを復元する",
+      "WebDAV バックアップから復元。完全復元には AI とローカルルールを含みます",
     ),
     "restoreOnlyConfig": MessageLookupByLibrary.simpleMessage("設定ファイルのみを復元する"),
     "restoreStrategy": MessageLookupByLibrary.simpleMessage("復元ストラテジー"),
