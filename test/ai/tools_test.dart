@@ -47,7 +47,8 @@ class _Controller extends Mock implements WorkbenchController {
   List<Map<String, Object?>>? simulationSteps;
   Map<String, Object?>? settingsPatch;
   LocalPolicyDocument? proposedDocument;
-  LocalPolicyDocument currentDocument = const LocalPolicyDocument();
+  LocalPolicyDocument currentDocument = const LocalPolicyDocument()
+      .asStandalone();
   ConfigurationProposal get proposal => const ConfigurationProposal(
     id: 'fixture-proposal',
     summary: 'fixture',
@@ -256,11 +257,12 @@ void main() {
     'AI proposals retain origins, dynamic references and user rule positions',
     () async {
       controller.currentDocument = LocalPolicyDocument.fromJson({
+        ...const LocalPolicyDocument().asStandalone().toJson(),
         'policies': [
           {
             'id': 'terminal',
             'label': 'Remaining',
-            'targetId': 'profile:7',
+            'targetId': localPolicyTargetId,
             'origin': 'manual',
             'candidateNodeIds': ['fixed'],
           },
@@ -273,7 +275,7 @@ void main() {
             {
               'id': 'japan',
               'label': 'Japan set',
-              'targetId': 'profile:7',
+              'targetId': localPolicyTargetId,
               'sourceIds': ['7'],
               'regions': ['JP'],
               'unknownMultiplier': 'assumeOne',
@@ -284,7 +286,7 @@ void main() {
             {
               'id': 'new-ai',
               'label': 'Example traffic',
-              'targetId': 'profile:7',
+              'targetId': localPolicyTargetId,
               'scope': {
                 'type': 'domainSuffix',
                 'values': ['example.test'],
@@ -298,7 +300,7 @@ void main() {
       });
       expect(result.isError, false, reason: '${result.value}');
       final proposed = controller.proposedDocument!;
-      expect(proposed.schemaVersion, 3);
+      expect(proposed.schemaVersion, 4);
       expect(
         proposed.nodeSets.single.unknownMultiplier,
         UnknownMultiplier.assumeOne,
@@ -545,7 +547,7 @@ void main() {
         },
       ];
       final result = await execute('policies_simulate', {
-        'targetId': 'profile:7',
+        'targetId': localPolicyTargetId,
         'now': 1700000000000,
         'steps': steps,
       });
@@ -577,7 +579,7 @@ void main() {
         },
       ]) {
         final invalid = await execute('policies_simulate', {
-          'targetId': 'profile:7',
+          'targetId': localPolicyTargetId,
           'steps': [step],
         });
         expect(invalid.value['code'], 'tool_invalid_arguments');
@@ -695,7 +697,7 @@ void main() {
           'sourceUpdateRoute': 'direct',
           'integrations': [
             {
-              'id': 'fixture',
+              'id': localPolicyProfileId,
               'label': 'fixture',
               'sourceProfileIds': ['$id'],
             },
@@ -703,14 +705,23 @@ void main() {
         },
       });
       expect(policies.isError, false, reason: '${policies.value}');
-      expect(
-        controller.proposedDocument!.integrations.single.sourceProfileIds,
-        [id],
-      );
+      expect(controller.proposedDocument!.localProfile.sourceProfileIds, [id]);
       expect(
         controller.proposedDocument!.sourceUpdateRoute,
         SourceUpdateRoute.direct,
       );
+      final archive = await execute('policies_propose', {
+        'patch': {
+          'integrations': [
+            {
+              'id': 'other',
+              'label': 'Other',
+              'sourceProfileIds': ['$id'],
+            },
+          ],
+        },
+      });
+      expect(archive.value['code'], 'tool_invalid_arguments');
       final unsafe = await execute('policies_propose', {
         'patch': {
           'integrations': [

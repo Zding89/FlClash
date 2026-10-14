@@ -19,7 +19,7 @@ final _captureKey = GlobalKey();
 const _set = PolicyNodeSet(
   id: 'japan',
   label: '日本优选',
-  targetId: 'profile:1',
+  targetId: localPolicyTargetId,
   sourceIds: ['1'],
   regions: ['JP'],
   maxMultiplier: 1,
@@ -27,7 +27,7 @@ const _set = PolicyNodeSet(
 const _rule = LocalPolicy(
   id: 'video',
   label: '视频网站',
-  targetId: 'profile:1',
+  targetId: localPolicyTargetId,
   scope: PolicyMatch(
     type: PolicyMatchType.domainSuffix,
     values: ['youtube.com', 'ytimg.com'],
@@ -246,7 +246,7 @@ void main() {
           tester,
           PolicyNodeSetEditor(
             existing: _set,
-            targetId: 'profile:1',
+            targetId: localPolicyTargetId,
             sources: const {'1': '本地订阅集合'},
             nodes: _nodes,
             snapshot: const {

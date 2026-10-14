@@ -1312,7 +1312,25 @@ class MessageLookup extends MessageLookupByLibrary {
       "Load available nodes",
     ),
     "policyLocalCollection": MessageLookupByLibrary.simpleMessage(
-      "Merged profile",
+      "Local configuration",
+    ),
+    "policyLocalDefaultReject": MessageLookupByLibrary.simpleMessage(
+      "Connections are blocked when no rule produces an available result.",
+    ),
+    "policyLocalMigrationReview": MessageLookupByLibrary.simpleMessage(
+      "Previous rules are preserved and paused. Review them before selecting the local configuration.",
+    ),
+    "policyLocalProfileHint": MessageLookupByLibrary.simpleMessage(
+      "Select independently; edit sources and local rules",
+    ),
+    "policyLocalSourceLimit": MessageLookupByLibrary.simpleMessage(
+      "Select up to 20 subscription sources",
+    ),
+    "policyLocalSourcesEmpty": MessageLookupByLibrary.simpleMessage(
+      "No subscription sources selected; direct and block rules can still be added.",
+    ),
+    "policyLocalSourcesHint": MessageLookupByLibrary.simpleMessage(
+      "Use only nodes from these subscriptions. Subscription rules, groups, scripts and DNS are not inherited. Select up to 20 sources.",
     ),
     "policyManualAttribute": MessageLookupByLibrary.simpleMessage(
       "Manually confirmed",
@@ -1374,7 +1392,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "If no node is available, continue with the next rule.",
     ),
     "policyNoProfilesHint": MessageLookupByLibrary.simpleMessage(
-      "Add a subscription or local profile in Profiles before creating rules and node groups",
+      "No subscription sources yet; direct and block rules can still be added",
     ),
     "policyNodeSet": MessageLookupByLibrary.simpleMessage("Node group"),
     "policyNodeSetHint": MessageLookupByLibrary.simpleMessage(
@@ -1516,7 +1534,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyRuleType": MessageLookupByLibrary.simpleMessage("Rule type"),
     "policyRulesHint": MessageLookupByLibrary.simpleMessage(
-      "Set traffic conditions, active times and actions for the selected profile; applies while that profile is active in rule mode",
+      "Set ordered traffic rules, active times and actions for the local configuration",
     ),
     "policyRulesTab": MessageLookupByLibrary.simpleMessage("Rules"),
     "policyRuntimeState": MessageLookupByLibrary.simpleMessage(
@@ -1622,6 +1640,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySubscriptionExpired": MessageLookupByLibrary.simpleMessage(
       "Subscription expired",
     ),
+    "policySubscriptionSources": MessageLookupByLibrary.simpleMessage(
+      "Subscription sources",
+    ),
     "policySuccesses": MessageLookupByLibrary.simpleMessage(
       "Consecutive successes",
     ),
@@ -1683,7 +1704,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Direct connection",
     ),
     "policyUpdateRouteHint": MessageLookupByLibrary.simpleMessage(
-      "Applies while local policies, integration or budgets are enabled. Unavailable proxy stops updates; direct access requires approval.",
+      "Subscription updates for the local configuration. Unavailable proxy stops updates; direct access requires approval.",
     ),
     "policyUpdateRouteProxy": MessageLookupByLibrary.simpleMessage(
       "Use current proxy",

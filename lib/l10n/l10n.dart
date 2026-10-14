@@ -5764,10 +5764,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Set traffic conditions, active times and actions for the selected profile; applies while that profile is active in rule mode`
+  /// `Set ordered traffic rules, active times and actions for the local configuration`
   String get policyRulesHint {
     return Intl.message(
-      'Set traffic conditions, active times and actions for the selected profile; applies while that profile is active in rule mode',
+      'Set ordered traffic rules, active times and actions for the local configuration',
       name: 'policyRulesHint',
       desc: '',
       args: [],
@@ -6784,10 +6784,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Applies while local policies, integration or budgets are enabled. Unavailable proxy stops updates; direct access requires approval.`
+  /// `Subscription updates for the local configuration. Unavailable proxy stops updates; direct access requires approval.`
   String get policyUpdateRouteHint {
     return Intl.message(
-      'Applies while local policies, integration or budgets are enabled. Unavailable proxy stops updates; direct access requires approval.',
+      'Subscription updates for the local configuration. Unavailable proxy stops updates; direct access requires approval.',
       name: 'policyUpdateRouteHint',
       desc: '',
       args: [],
@@ -7114,10 +7114,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Merged profile`
+  /// `Local configuration`
   String get policyLocalCollection {
     return Intl.message(
-      'Merged profile',
+      'Local configuration',
       name: 'policyLocalCollection',
       desc: '',
       args: [],
@@ -8209,10 +8209,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Add a subscription or local profile in Profiles before creating rules and node groups`
+  /// `No subscription sources yet; direct and block rules can still be added`
   String get policyNoProfilesHint {
     return Intl.message(
-      'Add a subscription or local profile in Profiles before creating rules and node groups',
+      'No subscription sources yet; direct and block rules can still be added',
       name: 'policyNoProfilesHint',
       desc: '',
       args: [],
@@ -9044,6 +9044,76 @@ class AppLocalizations {
     return Intl.message(
       'Any multiplier',
       name: 'policyAnyMultiplier',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Select independently; edit sources and local rules`
+  String get policyLocalProfileHint {
+    return Intl.message(
+      'Select independently; edit sources and local rules',
+      name: 'policyLocalProfileHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Subscription sources`
+  String get policySubscriptionSources {
+    return Intl.message(
+      'Subscription sources',
+      name: 'policySubscriptionSources',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Use only nodes from these subscriptions. Subscription rules, groups, scripts and DNS are not inherited. Select up to 20 sources.`
+  String get policyLocalSourcesHint {
+    return Intl.message(
+      'Use only nodes from these subscriptions. Subscription rules, groups, scripts and DNS are not inherited. Select up to 20 sources.',
+      name: 'policyLocalSourcesHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `No subscription sources selected; direct and block rules can still be added.`
+  String get policyLocalSourcesEmpty {
+    return Intl.message(
+      'No subscription sources selected; direct and block rules can still be added.',
+      name: 'policyLocalSourcesEmpty',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Connections are blocked when no rule produces an available result.`
+  String get policyLocalDefaultReject {
+    return Intl.message(
+      'Connections are blocked when no rule produces an available result.',
+      name: 'policyLocalDefaultReject',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Previous rules are preserved and paused. Review them before selecting the local configuration.`
+  String get policyLocalMigrationReview {
+    return Intl.message(
+      'Previous rules are preserved and paused. Review them before selecting the local configuration.',
+      name: 'policyLocalMigrationReview',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Select up to 20 subscription sources`
+  String get policyLocalSourceLimit {
+    return Intl.message(
+      'Select up to 20 subscription sources',
+      name: 'policyLocalSourceLimit',
       desc: '',
       args: [],
     );

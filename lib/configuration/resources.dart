@@ -899,7 +899,7 @@ final class FlutterResourceEnvironment
 
   @override
   Future<Map<String, Object?>> read(ResourceScope scope) async {
-    final document = await store.readPolicies();
+    final document = (await store.readPolicies()).asStandalone();
     final result = <String, Object?>{
       'scope': scope.toJson(),
       'policyRevision': document.revision,
@@ -1096,7 +1096,7 @@ final class FlutterResourceEnvironment
         throw const ConfigurationChangeException('resource_scope_invalid');
       }
     }
-    final document = await store.readPolicies();
+    final document = (await store.readPolicies()).asStandalone();
     await checkInputs(scope, candidate);
     if (scope.kind == ResourceKind.profile && candidate['profile'] == null) {
       if (document.referencesProfile(scope.id)) {
@@ -1114,6 +1114,13 @@ final class FlutterResourceEnvironment
           .toList();
       if (candidate['script'] == null && references.isNotEmpty) {
         throw const ConfigurationChangeException('resource_script_referenced');
+      }
+      if (document.moduleEnabled && document.integrationEnabled) {
+        return const ResourceValidation({
+          'validated': true,
+          'reversible': true,
+          'networkChanged': false,
+        });
       }
       final active = references
           .where(
@@ -1222,29 +1229,27 @@ final class FlutterResourceEnvironment
     LocalPolicyDocument document, {
     required bool approvedScript,
   }) async {
+    document = document.asStandalone();
     final activeProfileId = ref.read(currentProfileIdProvider);
-    final indirectSource =
-        scope.kind == ResourceKind.profile &&
-        scope.id != 0 &&
-        scope.id != activeProfileId &&
-        document.moduleEnabled &&
-        document.policiesEnabled &&
-        !document.integrationEnabled &&
-        document
-            .sourceProfileIdsForTarget('profile:$activeProfileId')
-            .contains(scope.id);
-    final targetId = indirectSource
-        ? activeProfileId
-        : scope.id == 0
-        ? ref.read(currentProfileIdProvider)
-        : scope.id;
+    final localSelected = document.moduleEnabled && document.integrationEnabled;
+    if (localSelected && scope.kind != ResourceKind.profile) {
+      return const ResourceValidation({
+        'validated': true,
+        'reversible': true,
+        'networkChanged': false,
+      });
+    }
+    final integrated =
+        localSelected &&
+        document.localProfile.sourceProfileIds.contains(scope.id);
+    final targetId = scope.id == 0 ? activeProfileId : scope.id;
     if (targetId == null) {
       return const ResourceValidation({
         'validated': true,
         'networkChanged': false,
       });
     }
-    final data = scope.id == 0 || indirectSource
+    final data = scope.id == 0
         ? await read(ResourceScope(ResourceKind.profile, targetId))
         : candidate;
     final profile = Profile.fromJson(policyObject(data['profile'], 'profile'));
@@ -1264,23 +1269,13 @@ final class FlutterResourceEnvironment
             policyObject(source['proxy-providers'] ?? {}, 'providers').map(
               (key, value) => MapEntry(key, policyObject(value, 'provider')),
             )..removeWhere((key, value) => (value as Map)['type'] != 'file');
-        final editedRaw = indirectSource
-            ? policyObject(
-                normalizePolicyYaml(
-                  loadYaml(candidate['protectedContent'] as String),
-                ),
-                'source',
-              )
-            : raw;
+        final editedRaw = raw;
         if (policyDigest(fileProviders(currentRaw)) !=
             policyDigest(fileProviders(editedRaw))) {
           throw const PolicySourceException('file-provider-definition-change');
         }
       }
     }
-    final integrated =
-        (document.moduleEnabled && document.integrationEnabled) &&
-        document.activeIntegration != null;
     if (profile.overwriteType == OverwriteType.script && !integrated) {
       if (profile.scriptId == null ||
           data['protectedScriptContent'] is! String) {
@@ -1327,12 +1322,13 @@ final class FlutterResourceEnvironment
     final generated = await makeRealProfileTask(
       MakeRealProfileState(
         profilesPath: await appPath.profilesPath,
-        profileId: targetId,
+        profileId: integrated ? 0 : targetId,
         rawConfig: integrated
             ? {
                 'proxies': <Object?>[],
                 'proxy-groups': <Object?>[],
                 'rules': <String>['MATCH,REJECT'],
+                'dns': patch.dns.toJson(),
               }
             : Map<String, dynamic>.from(raw),
         realPatchConfig: patch.copyWith(
@@ -1347,23 +1343,17 @@ final class FlutterResourceEnvironment
       ),
     );
     var yaml = generated.a;
-    if ((document.moduleEnabled && document.integrationEnabled) ||
-        (document.moduleEnabled && document.policiesEnabled) ||
-        (document.moduleEnabled && document.budgetsEnabled)) {
+    if (integrated) {
       final controller = ref.read(workbenchControllerProvider);
       final currentProfiles = await readProfiles();
-      final editedProfile = indirectSource
-          ? Profile.fromJson(policyObject(candidate['profile'], 'profile'))
-          : profile;
+      final editedProfile = profile;
       final replacements =
           currentProfiles.where((item) => item.id != editedProfile.id).toList()
             ..add(editedProfile);
       final loader = PolicySourceLoader(
         store: store,
         readFile: (path) async => path == await profilePath(editedProfile.id)
-            ? (indirectSource
-                  ? candidate['protectedContent'] as String
-                  : content)
+            ? content
             : _readFile(path),
       );
       final selected = controller.profiles.requiredProfiles(
@@ -1393,14 +1383,15 @@ final class FlutterResourceEnvironment
       'validated': true,
       'finalConfigValidated': true,
       'reversible': true,
-      'networkChanged':
-          _resourceUsesProfile(scope, profile, integrated) &&
-          (targetId == ref.read(currentProfileIdProvider) ||
-              integrated &&
-                  (document.activeIntegration?.sourceProfileIds.contains(
-                        targetId,
-                      ) ??
-                      false)),
+      'networkChanged': localSelected
+          ? integrated
+          : _resourceUsesProfile(scope, profile, false) &&
+                (targetId == ref.read(currentProfileIdProvider) ||
+                    integrated &&
+                        (document.activeIntegration?.sourceProfileIds.contains(
+                              targetId,
+                            ) ??
+                            false)),
       'generatedDigest': policyDigest(yaml),
     }, generatedYaml: yaml);
   }
@@ -1551,7 +1542,7 @@ final class FlutterResourceEnvironment
     await ref.read(profilesStreamProvider.future);
     ref.invalidate(profilesProvider);
     ref.invalidate(setupStateProvider);
-    final document = await store.readPolicies();
+    final document = (await store.readPolicies()).asStandalone();
     final selectedId = ref.read(currentProfileIdProvider);
     final targetProfile = scope.kind == ResourceKind.script || scope.id == 0
         ? selectedId == null
@@ -1569,30 +1560,28 @@ final class FlutterResourceEnvironment
               profile.scriptId == scope.id &&
               profile.overwriteType == OverwriteType.script,
         );
+    final localSelected = document.moduleEnabled && document.integrationEnabled;
     final activeSource =
+        localSelected &&
         scope.kind == ResourceKind.profile &&
-        document.moduleEnabled &&
-        document.policiesEnabled &&
-        !document.integrationEnabled &&
-        document
-            .sourceProfileIdsForTarget('profile:$selectedId')
-            .contains(scope.id);
-    final affectsCurrent =
-        _resourceUsesProfile(
-          scope,
-          targetProfile,
-          (document.moduleEnabled && document.integrationEnabled),
-        ) &&
-        (scope.id == 0 ||
-            scope.id == ref.read(currentProfileIdProvider) ||
-            previousSnapshot?['selectedProfileId'] == scope.id ||
-            activeScript ||
-            activeSource ||
-            (document.moduleEnabled && document.integrationEnabled) &&
-                (document.activeIntegration?.sourceProfileIds.contains(
-                      scope.id,
-                    ) ??
-                    false));
+        document.localProfile.sourceProfileIds.contains(scope.id);
+    final affectsCurrent = localSelected
+        ? activeSource
+        : _resourceUsesProfile(
+                scope,
+                targetProfile,
+                (document.moduleEnabled && document.integrationEnabled),
+              ) &&
+              (scope.id == 0 ||
+                  scope.id == ref.read(currentProfileIdProvider) ||
+                  previousSnapshot?['selectedProfileId'] == scope.id ||
+                  activeScript ||
+                  activeSource ||
+                  (document.moduleEnabled && document.integrationEnabled) &&
+                      (document.activeIntegration?.sourceProfileIds.contains(
+                            scope.id,
+                          ) ??
+                          false));
     if (affectsCurrent &&
         ref.read(coreStatusProvider) == CoreStatus.connected) {
       if (scope.kind == ResourceKind.profile && candidate['profile'] == null) {

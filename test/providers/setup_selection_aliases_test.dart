@@ -74,10 +74,12 @@ flclash-selection-aliases:
     () {
       action.updateSelectionAliases(
         managed,
-        const LocalPolicyDocument(
-          moduleEnabled: true,
-          integrationEnabled: true,
-        ),
+        LocalPolicyDocument.fromJson({
+          ...const LocalPolicyDocument().asStandalone().toJson(),
+          'moduleEnabled': true,
+          'integrationEnabled': true,
+          'schemaVersion': 4,
+        }).asStandalone(),
       );
       expect(action.originalSelection('Group', 'Node'), isNull);
 

@@ -273,7 +273,10 @@ void main() {
         (await mainDatabase.profilesDao.query().get()).single.label,
         'Restored',
       );
-      expect((await store.readPolicies()).toJson(), remotePolicy.toJson());
+      expect(
+        (await store.readPolicies()).toJson(),
+        remotePolicy.asStandalone().toJson(),
+      );
       expect(
         (await container.read(workbenchControllerProvider).readAgentSettings())
             .toJson(),

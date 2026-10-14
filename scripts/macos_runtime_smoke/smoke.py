@@ -53,7 +53,7 @@ def main():
     scratch = pathlib.Path(tempfile.mkdtemp(prefix='flclash-macos-smoke-', dir='/private/tmp'))
     report_dir = workspace / 'build/macos-runtime-smoke'
     report_dir.mkdir(parents=True, exist_ok=False)
-    report = {'status': 'running', 'fixture': 'empty isolated hosted macOS runner', 'checks': []}
+    report = {'status': 'running', 'fixture': 'standalone local profile without ordinary profiles on isolated hosted macOS runner', 'checks': []}
     password = secrets.token_urlsafe(32)
     keychain_password = secrets.token_urlsafe(32)
     keychain_path = scratch / 'fixture.keychain-db'
@@ -127,13 +127,32 @@ def main():
                     require(entry.st_uid == os.getuid() and stat.S_IMODE(entry.st_mode) == mode and not path.is_symlink(), 'unsafe control endpoint')
                 status = command('runtime_read')
                 require(status['status'] == 'completed', 'runtime query did not complete')
-                require(status['result']['running'] is False, 'empty fixture unexpectedly activated traffic')
+                require(status['result']['running'] is False, 'isolated fixture unexpectedly activated traffic')
                 if status['result']['coreStatus'] == 'connected':
                     remember_children()
                     require(any(owned_alive(pid, value) for pid, value in children.items()), 'owned Core PID was not observed')
                     return
             time.sleep(0.25)
         raise RuntimeError('app/Keychain/GUI initialization timeout')
+
+    def verify_standalone():
+        document = command('policies_read')['result']['document']
+        require(document['schemaVersion'] == 4, 'standalone schema was not retained')
+        require(document['moduleEnabled'] is True and document['integrationEnabled'] is True, 'local configuration was not selected')
+        require(document['activeIntegrationId'] == 'flclash_local', 'unexpected active local configuration')
+        local = [item for item in document['integrations'] if item['id'] == 'flclash_local']
+        require(len(local) == 1 and local[0]['sourceProfileIds'] == [], 'fixture requires an independent empty source pool')
+        require(len(document['policies']) == 1 and document['policies'][0]['action'] == 'direct', 'fixture direct rule missing')
+        profiles = command('profiles_list')['result']['profiles']
+        require(profiles == [], 'fixture unexpectedly depends on an ordinary profile')
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            status = command('policies_runtime')['result']
+            if status.get('enabled') is True and status.get('targetId') == 'integration:flclash_local':
+                require(len(status.get('policies', [])) == 1 and status['policies'][0]['policyId'] == 'smoke-local-direct', 'owned Core did not receive the standalone rule')
+                return
+            time.sleep(0.2)
+        raise RuntimeError('owned Core did not activate the independent local configuration')
 
     def exit_app(key):
         mutate('app_exit', key)
@@ -172,6 +191,8 @@ def main():
         report['keychainFixture'] = 'temporary dedicated keychain with exact application ACL and code-hash partition'
         start_app()
         checkpoint('signed packaged app starts with its owned Core and authenticated CLI')
+        verify_standalone()
+        checkpoint('schema four local direct rule initializes in owned Core without ordinary profiles')
         wrong = command('runtime_read', secret='wrong-fixture-password', expected=2)
         require(wrong['errorCode'] == 'authentication_failed', 'wrong password was not rejected')
         discovery = json.loads((runtime / 'instance.json').read_text())
@@ -235,6 +256,8 @@ def main():
         require(prior['status'] == 'completed', 'completed operation not queryable across restart')
         require(prior.get('operationId') == hidden_id and (prior.get('result') or {}).get('visible') is False, 'completed result was not preserved across restart')
         checkpoint('same fixed password and prior completed operation survive application restart')
+        verify_standalone()
+        checkpoint('independent local configuration and owned Core rule survive restart')
         exit_app('smoke-exit-two')
         checkpoint('second graceful exit succeeds')
         report['status'] = 'passed'

@@ -23,7 +23,9 @@ final class PolicyProfileService {
         : null;
     final ids = integration != null
         ? integration.sourceProfileIds.toSet()
-        : document.moduleEnabled && document.policiesEnabled
+        : !document.isStandalone &&
+              document.moduleEnabled &&
+              document.policiesEnabled
         ? document.sourceProfileIdsForTarget('profile:$profileId')
         : {?profileId};
     final selected = profiles
@@ -44,6 +46,16 @@ final class PolicyProfileService {
     bool allowNetwork = false,
     bool enforceCandidateReferences = false,
   }) async {
+    if (document.isStandalone &&
+        !(document.moduleEnabled && document.integrationEnabled)) {
+      return compiler.compile(
+        document: document,
+        profileId: profileId,
+        baseConfig: baseConfig,
+        sources: const [],
+        enforceCandidateReferences: enforceCandidateReferences,
+      );
+    }
     final selected = requiredProfiles(
       document: document,
       profiles: profiles,
@@ -70,6 +82,9 @@ final class PolicyProfileService {
     bool refresh = false,
     bool includeAllSources = false,
   }) async {
+    if (document.isStandalone && targetId != localPolicyTargetId) {
+      throw const FormatException('Only the local configuration owns rules');
+    }
     final parts = targetId.split(':');
     if (parts.length != 2) throw const FormatException('Invalid policy target');
     List<Profile> selected;

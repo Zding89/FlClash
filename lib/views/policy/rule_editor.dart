@@ -14,7 +14,7 @@ class LocalPolicyEditor extends StatefulWidget {
   const LocalPolicyEditor({
     super.key,
     this.existing,
-    required this.targets,
+    this.targets = const {},
     required this.loadNodes,
     this.initialPriority = 100,
     this.nodeSets = const [],
@@ -47,7 +47,7 @@ class LocalPolicyEditor extends StatefulWidget {
 class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
   final _form = GlobalKey<FormState>();
   final Map<String, TextEditingController> _fields = {};
-  late String _target;
+  static const _target = localPolicyTargetId;
   late PolicyMatchType _scope;
   late List<PolicyChoice> _choices;
   late List<PolicyNodeSet> _nodeSets;
@@ -69,7 +69,6 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
   void initState() {
     super.initState();
     final policy = widget.existing;
-    _target = policy?.targetId ?? widget.targets.keys.firstOrNull ?? '';
     _scope = policy?.scope.type ?? PolicyMatchType.domainSuffix;
     _choices = policy?.choices.isNotEmpty == true
         ? [...policy!.choices]
@@ -471,60 +470,6 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
     );
   }
 
-  Widget _targetSelector(Map<String, String> targets) {
-    final strings = context.appLocalizations;
-    return DropdownButtonFormField<String>(
-      initialValue: _target.isEmpty ? null : _target,
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: strings.policyTarget,
-        helperText: strings.policyTargetHint,
-        helperMaxLines: 3,
-      ),
-      items: [
-        for (final target in targets.entries)
-          DropdownMenuItem(
-            value: target.key,
-            child: Text(target.value, overflow: TextOverflow.ellipsis),
-          ),
-      ],
-      onChanged: _saving
-          ? null
-          : (value) async {
-              if (value == null || value == _target) {
-                return;
-              }
-              if (_choices.isNotEmpty) {
-                final proceed = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text(strings.policySourceMissing),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: Text(strings.cancel),
-                      ),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: Text(strings.confirm),
-                      ),
-                    ],
-                  ),
-                );
-                if (proceed != true || !mounted) {
-                  return;
-                }
-              }
-              setState(() {
-                _target = value;
-                _choices = [];
-                _nodes = [];
-              });
-              _load();
-            },
-    );
-  }
-
   Widget _effect() {
     final strings = context.appLocalizations;
     final nodeNames = {for (final node in _nodes) node.id: node.label};
@@ -587,11 +532,6 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
   @override
   Widget build(BuildContext context) {
     final strings = context.appLocalizations;
-    final targets = {
-      ...widget.targets,
-      if (_target.isNotEmpty && !widget.targets.containsKey(_target))
-        _target: _target,
-    };
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -625,31 +565,7 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              LayoutBuilder(
-                                builder: (context, constraints) {
-                                  if (constraints.maxWidth >= 560) {
-                                    return Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          child: _field('name', strings.name),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        Expanded(
-                                          child: _targetSelector(targets),
-                                        ),
-                                      ],
-                                    );
-                                  }
-                                  return Column(
-                                    children: [
-                                      _field('name', strings.name),
-                                      _targetSelector(targets),
-                                    ],
-                                  );
-                                },
-                              ),
+                              _field('name', strings.name),
                               const SizedBox(height: 4),
 
                               PolicyMatchEditor(

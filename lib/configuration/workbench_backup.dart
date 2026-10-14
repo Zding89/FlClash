@@ -61,7 +61,7 @@ final class WorkbenchBackup {
     }
     final policies = LocalPolicyDocument.fromJson(
       policyObject(sections['policies'], 'policies'),
-    );
+    ).asStandalone();
     _validateProfileReferences(policies, profileIds);
     final ai = AgentSettings.fromJson(policyObject(sections['ai'], 'ai'));
     if (ai.selectedConnectionId != null && ai.selected == null) {
@@ -184,7 +184,10 @@ void _validateProfileReferences(
   LocalPolicyDocument document,
   Set<int> profileIds,
 ) {
-  for (final integration in document.integrations) {
+  for (final integration
+      in document.isStandalone
+          ? [document.localProfile]
+          : document.integrations) {
     if (!profileIds.containsAll(integration.sourceProfileIds)) {
       throw const FormatException('Integration refers to a missing profile');
     }
@@ -211,8 +214,23 @@ void _validateProfileReferences(
               .firstWhere((i) => i.targetId == set.targetId)
               .sourceProfileIds
               .toSet();
-    if (!allowed.containsAll(set.sourceIds.map(policyIdentifier))) {
+    if (!document.isStandalone &&
+        !allowed.containsAll(set.sourceIds.map(policyIdentifier))) {
       throw const FormatException('Node set source belongs to another target');
+    }
+  }
+  for (final nodeId in [
+    for (final rule in document.policies) ...[
+      ...rule.candidateNodeIds,
+      ...rule.choices
+          .where((choice) => choice.type == PolicyChoiceType.node)
+          .map((choice) => choice.id),
+    ],
+    ...document.overrides.map((override) => override.nodeId),
+  ]) {
+    final sourceId = int.tryParse(nodeId.split(':').first);
+    if (sourceId != null && !profileIds.contains(sourceId)) {
+      throw const FormatException('Node refers to a missing profile');
     }
   }
   for (final budget in document.budgets) {

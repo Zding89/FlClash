@@ -53,6 +53,7 @@ class SetupAction extends _$SetupAction {
 
   @visibleForTesting
   void updateSelectionAliases(String yaml, LocalPolicyDocument document) {
+    document = document.asStandalone();
     final raw = normalizePolicyYaml(loadYaml(yaml)) as Map? ?? const {};
     final extension = raw['flclash-local-policy'];
     _selectionAliases = extension is Map && extension['enabled'] == true
@@ -335,8 +336,9 @@ class SetupAction extends _$SetupAction {
   }) async {
     final profileId = setupState.profileId;
     final document = system.isMacOS
-        ? policyDocument ??
-              await ref.read(workbenchDatabaseProvider).readPolicies()
+        ? (policyDocument ??
+                  await ref.read(workbenchDatabaseProvider).readPolicies())
+              .asStandalone()
         : const LocalPolicyDocument();
     final integrated = (document.moduleEnabled && document.integrationEnabled);
     if (profileId == null && !integrated) return const VM2('', '');
@@ -388,7 +390,7 @@ class SetupAction extends _$SetupAction {
         rules: rules,
         proxyGroups: proxyGroups,
         profilesPath: directory,
-        profileId: profileId ?? 0,
+        profileId: integrated ? 0 : profileId ?? 0,
         rawConfig: rawConfig,
         realPatchConfig: realPatchConfig,
         overrideDns: dnsOverride ?? overrideDns,
@@ -397,10 +399,7 @@ class SetupAction extends _$SetupAction {
         defaultUA: defaultUA,
       ),
     );
-    if (!system.isMacOS ||
-        (!integrated &&
-            !(document.moduleEnabled && document.policiesEnabled) &&
-            !(document.moduleEnabled && document.budgetsEnabled))) {
+    if (!system.isMacOS || !integrated) {
       return res;
     }
     final raw = policyObject(
@@ -438,6 +437,14 @@ class SetupAction extends _$SetupAction {
       final res = await getProfile(
         setupState: setupState,
         patchConfig: patchClashConfig,
+        policyDocument: !system.isMacOS
+            ? null
+            : LocalPolicyDocument.fromJson({
+                ...(await ref.read(workbenchDatabaseProvider).readPolicies())
+                    .asStandalone()
+                    .toJson(),
+                'integrationEnabled': false,
+              }).asStandalone(),
       );
       return res.a;
     } catch (e) {
@@ -493,13 +500,6 @@ class SetupAction extends _$SetupAction {
     FutureOr Function()? onUpdated,
   }) async {
     await configurationWriteBarrier.wait();
-    var profile = ref.read(currentProfileProvider);
-    final nextProfile = await profile?.checkAndUpdateAndCopy();
-    if (nextProfile != null) {
-      profile = nextProfile;
-      ref.read(profilesProvider.notifier).put(nextProfile);
-    }
-    commonPrint.log('setup ===> ${profile?.realLabel}');
     final patchConfig = ref.read(patchClashConfigProvider);
     final shouldContinueSetup = await requestAdmin(patchConfig.tun.enable);
     if (!shouldContinueSetup) {
@@ -511,13 +511,22 @@ class SetupAction extends _$SetupAction {
         !effectiveTunEnable) {
       throw StateError('configuration_tun_authorization_failed');
     }
+    final document = system.isMacOS
+        ? (await ref.read(workbenchDatabaseProvider).readPolicies())
+              .asStandalone()
+        : const LocalPolicyDocument();
+    final integrated = document.moduleEnabled && document.integrationEnabled;
+    var profile = integrated ? null : ref.read(currentProfileProvider);
+    final nextProfile = await profile?.checkAndUpdateAndCopy();
+    if (nextProfile != null) {
+      profile = nextProfile;
+      ref.read(profilesProvider.notifier).put(nextProfile);
+    }
+    commonPrint.log('setup ===> ${profile?.realLabel}');
     final realPatchConfig = patchConfig.copyWith.tun(
       enable: effectiveTunEnable,
     );
     final setupState = await ref.read(setupStateProvider(profile?.id).future);
-    final document = system.isMacOS
-        ? await ref.read(workbenchDatabaseProvider).readPolicies()
-        : const LocalPolicyDocument();
     final initialSignature = system.isMacOS
         ? policyDigest(
             await ref
@@ -546,7 +555,7 @@ class SetupAction extends _$SetupAction {
     final yamlString = vm2.a;
     final yamlMd5 = vm2.b;
     if (yamlMd5 == globalState.lastConfigMd5 && force == false) {
-      await _syncUsageProfile(profile);
+      await _syncUsageProfile(profile, document: document);
       return _SetupTaskResult.completed;
     }
     if (system.isAndroid) {
@@ -619,7 +628,7 @@ class SetupAction extends _$SetupAction {
         } finally {
           if (await staging.exists()) await staging.delete();
         }
-        await _syncUsageProfile(profile);
+        await _syncUsageProfile(profile, document: document);
         globalState.lastConfigMd5 = yamlMd5;
         if (system.isMacOS) {
           await ref
@@ -661,7 +670,10 @@ class SetupAction extends _$SetupAction {
     return encodeYamlTask(parsed);
   }
 
-  Future<void> _syncUsageProfile(Profile? profile) async {
+  Future<void> _syncUsageProfile(
+    Profile? profile, {
+    LocalPolicyDocument? document,
+  }) async {
     if (!ref.read(usagePlatformSupportedProvider)) {
       return;
     }
@@ -669,8 +681,16 @@ class SetupAction extends _$SetupAction {
       await ref
           .read(usageRuntimeProvider.notifier)
           .syncProfile(
-            profileId: profile?.id,
-            profileLabel: profile?.label ?? '',
+            profileId:
+                document?.integrationEnabled == true &&
+                    document?.moduleEnabled == true
+                ? null
+                : profile?.id,
+            profileLabel:
+                document?.integrationEnabled == true &&
+                    document?.moduleEnabled == true
+                ? currentAppLocalizations.policyLocalCollection
+                : profile?.label ?? '',
           );
     } catch (error) {
       commonPrint.log(

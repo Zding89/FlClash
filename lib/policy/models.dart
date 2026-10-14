@@ -7,6 +7,9 @@ import 'package:crypto/crypto.dart';
 import 'node_sets.dart';
 export 'node_sets.dart';
 
+const localPolicyProfileId = 'flclash_local';
+const localPolicyTargetId = 'integration:$localPolicyProfileId';
+
 enum PolicyMatchType {
   global,
   group,
@@ -889,7 +892,7 @@ final class SubscriptionIntegration {
     });
     final ids = json['sourceProfileIds'];
     if (ids is! List ||
-        ids.isEmpty ||
+        (ids.isEmpty && json['id'] != localPolicyProfileId) ||
         ids.length > 20 ||
         ids.map(policyIdentifier).toSet().length != ids.length) {
       throw const FormatException(
@@ -989,6 +992,7 @@ final class LocalPolicyDocument {
   final bool budgetsEnabled;
   final SourceUpdateRoute sourceUpdateRoute;
   final String? activeIntegrationId;
+  final bool migrationReviewRequired;
   final List<SubscriptionIntegration> integrations;
   final List<LocalPolicy> policies;
   final List<SourceBudget> budgets;
@@ -1008,6 +1012,7 @@ final class LocalPolicyDocument {
     this.budgetsEnabled = false,
     this.sourceUpdateRoute = SourceUpdateRoute.proxy,
     this.activeIntegrationId,
+    this.migrationReviewRequired = false,
     this.integrations = const [],
     this.policies = const [],
     this.budgets = const [],
@@ -1019,6 +1024,92 @@ final class LocalPolicyDocument {
 
   SubscriptionIntegration? get activeIntegration => integrations
       .firstWhereOrNull((integration) => integration.id == activeIntegrationId);
+
+  bool get isStandalone => schemaVersion >= 4;
+
+  SubscriptionIntegration get localProfile =>
+      integrations.firstWhereOrNull(
+        (entry) => entry.id == localPolicyProfileId,
+      ) ??
+      const SubscriptionIntegration(
+        id: localPolicyProfileId,
+        label: 'Local configuration',
+        sourceProfileIds: [],
+      );
+
+  LocalPolicyDocument asStandalone() {
+    if (isStandalone) {
+      validate();
+      return this;
+    }
+    final sourceIds = <int>{
+      for (final entry in integrations) ...entry.sourceProfileIds,
+      for (final rule in policies)
+        if (rule.targetId.startsWith('profile:'))
+          ?int.tryParse(rule.targetId.split(':').last),
+      for (final set in nodeSets) ...[
+        if (set.targetId.startsWith('profile:'))
+          ?int.tryParse(set.targetId.split(':').last),
+        ...set.sourceIds.map(int.tryParse).whereType<int>(),
+      ],
+      for (final id in policies.expand(
+        (rule) => [
+          ...rule.candidateNodeIds,
+          ...rule.choices
+              .where((choice) => choice.type == PolicyChoiceType.node)
+              .map((choice) => choice.id),
+        ],
+      ))
+        ?int.tryParse(id.split(':').first),
+    }..removeWhere((id) => id <= 0);
+    final indexed = policies.indexed.toList()
+      ..sort((a, b) {
+        final order = a.$2.priority.compareTo(b.$2.priority);
+        return order == 0 ? a.$1.compareTo(b.$1) : order;
+      });
+    var archivedLocalId = '${localPolicyProfileId}_legacy';
+    var archiveIndex = 1;
+    while (integrations.any((entry) => entry.id == archivedLocalId)) {
+      archivedLocalId = '${localPolicyProfileId}_legacy_${archiveIndex++}';
+    }
+    return LocalPolicyDocument.fromJson({
+      ...toJson(),
+      'schemaVersion': 4,
+      'integrationEnabled': false,
+      'policiesEnabled': false,
+      'activeIntegrationId': localPolicyProfileId,
+      'migrationReviewRequired':
+          policies.isNotEmpty || integrationEnabled || sourceIds.length > 20,
+      'integrations': [
+        {
+          'id': localPolicyProfileId,
+          'label': 'Local configuration',
+          'sourceProfileIds': sourceIds.length > 20
+              ? <String>[]
+              : sourceIds.map((id) => '$id').toList(),
+          'fallback': 'reject',
+        },
+        for (final entry in integrations)
+          {
+            ...entry.toJson(),
+            'id': entry.id == localPolicyProfileId ? archivedLocalId : entry.id,
+          },
+      ],
+      'nodeSets': [
+        for (final set in nodeSets)
+          {...set.toJson(), 'targetId': localPolicyTargetId},
+      ],
+      'policies': [
+        for (var index = 0; index < indexed.length; index++)
+          {
+            ...indexed[index].$2.toJson(),
+            'targetId': localPolicyTargetId,
+            'priority': index + 1,
+            'enabled': false,
+          },
+      ],
+    });
+  }
 
   Set<int> sourceProfileIdsForTarget(
     String targetId, {
@@ -1061,7 +1152,11 @@ final class LocalPolicyDocument {
   }
 
   bool referencesProfile(int id) =>
-      integrations.any((entry) => entry.sourceProfileIds.contains(id)) ||
+      integrations.any(
+        (entry) =>
+            (!isStandalone || entry.id == localPolicyProfileId) &&
+            entry.sourceProfileIds.contains(id),
+      ) ||
       nodeSets.any(
         (set) =>
             set.targetId == 'profile:$id' ||
@@ -1088,6 +1183,7 @@ final class LocalPolicyDocument {
       'policiesEnabled',
       'integrationEnabled',
       'activeIntegrationId',
+      'migrationReviewRequired',
       'integrations',
       'policies',
       'budgets',
@@ -1099,7 +1195,7 @@ final class LocalPolicyDocument {
       'nodeAttributes',
     });
     final version = policyInt(json, 'schemaVersion', fallback: 1, minimum: 1);
-    if (version != 1 && version != 2 && version != 3) {
+    if (version != 1 && version != 2 && version != 3 && version != 4) {
       throw const FormatException('Unsupported local policy schema version');
     }
     final activeId = json['activeIntegrationId'];
@@ -1107,7 +1203,8 @@ final class LocalPolicyDocument {
       throw const FormatException('Invalid active integration');
     }
     final document = LocalPolicyDocument(
-      schemaVersion: 3,
+      schemaVersion: version == 4 ? 4 : 3,
+      migrationReviewRequired: policyBool(json, 'migrationReviewRequired'),
       moduleEnabled: policyBool(
         json,
         'moduleEnabled',
@@ -1136,7 +1233,7 @@ final class LocalPolicyDocument {
         json,
         'integrations',
         SubscriptionIntegration.fromJson,
-        maximum: 20,
+        maximum: version == 4 ? 21 : 20,
       ),
       policies: policyItems(json, 'policies', LocalPolicy.fromJson),
       budgets: policyItems(json, 'budgets', SourceBudget.fromJson, maximum: 20),
@@ -1147,6 +1244,14 @@ final class LocalPolicyDocument {
   }
 
   void validate() {
+    if (isStandalone &&
+        (activeIntegrationId != localPolicyProfileId ||
+            !integrations.any((entry) => entry.id == localPolicyProfileId) ||
+            localProfile.fallback != PolicyFallback.reject ||
+            policies.any((rule) => rule.targetId != localPolicyTargetId) ||
+            nodeSets.any((set) => set.targetId != localPolicyTargetId))) {
+      throw const FormatException('Invalid standalone local configuration');
+    }
     if (integrations.map((entry) => entry.id).toSet().length !=
             integrations.length ||
         policies.map((entry) => entry.id).toSet().length != policies.length ||
@@ -1219,6 +1324,7 @@ final class LocalPolicyDocument {
     budgetsEnabled: budgetsEnabled,
     sourceUpdateRoute: sourceUpdateRoute,
     activeIntegrationId: activeIntegrationId,
+    migrationReviewRequired: migrationReviewRequired,
     integrations: integrations,
     policies: policies,
     budgets: budgets,
@@ -1238,6 +1344,7 @@ final class LocalPolicyDocument {
     'budgetsEnabled': budgetsEnabled,
     'sourceUpdateRoute': sourceUpdateRoute.name,
     'activeIntegrationId': activeIntegrationId,
+    'migrationReviewRequired': migrationReviewRequired,
     'integrations': integrations.map((entry) => entry.toJson()).toList(),
     'policies': policies.map((entry) => entry.toJson()).toList(),
     'budgets': budgets.map((entry) => entry.toJson()).toList(),

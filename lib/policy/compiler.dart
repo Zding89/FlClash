@@ -101,6 +101,18 @@ final class LocalPolicyCompiler {
     bool enforceCandidateReferences = true,
   }) {
     document.validate();
+    if (document.isStandalone &&
+        !(document.moduleEnabled && document.integrationEnabled)) {
+      final raw = policyObject(jsonDecode(jsonEncode(baseConfig)), 'baseConfig')
+        ..remove('flclash-local-policy')
+        ..remove('flclash-selection-aliases');
+      return CompiledPolicyProfile(
+        config: raw,
+        nodes: const [],
+        warnings: const [],
+        targetId: 'profile:$profileId',
+      );
+    }
     final integration = document.moduleEnabled && document.integrationEnabled
         ? document.activeIntegration
         : null;
@@ -186,7 +198,7 @@ final class LocalPolicyCompiler {
               .toList()
         : <SourceBudget>[];
     for (final set in sets) {
-      if (!usedSourceIds.containsAll(set.sourceIds)) {
+      if (!document.isStandalone && !usedSourceIds.containsAll(set.sourceIds)) {
         throw const FormatException('Node set sources are outside the target');
       }
     }
@@ -210,7 +222,9 @@ final class LocalPolicyCompiler {
             .where((c) => c.type == PolicyChoiceType.node)
             .map((c) => c.id),
       ].where((id) => !configuredIds.contains(id)).toList();
-      if (missing.isNotEmpty && enforceCandidateReferences) {
+      if (missing.isNotEmpty &&
+          enforceCandidateReferences &&
+          !document.isStandalone) {
         throw FormatException(
           'Policy ${policy.label} has missing candidates: ${missing.join(', ')}',
         );

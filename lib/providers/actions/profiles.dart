@@ -40,6 +40,13 @@ class ProfilesAction extends _$ProfilesAction {
   }
 
   Future<void> deleteProfile(int id) async {
+    final document = system.isMacOS
+        ? (await ref.read(workbenchDatabaseProvider).readPolicies())
+              .asStandalone()
+        : const LocalPolicyDocument();
+    if (document.referencesProfile(id)) {
+      throw const ConfigurationChangeException('resource_source_referenced');
+    }
     await ref.read(profilesProvider.notifier).del(id);
     await clearEffect(id);
     final currentProfileId = ref.read(currentProfileIdProvider);
@@ -50,7 +57,9 @@ class ProfilesAction extends _$ProfilesAction {
         ref.read(currentProfileIdProvider.notifier).value = updateId;
       } else {
         ref.read(currentProfileIdProvider.notifier).value = null;
-        ref.read(setupActionProvider.notifier).setRunning(false);
+        if (!(document.moduleEnabled && document.integrationEnabled)) {
+          ref.read(setupActionProvider.notifier).setRunning(false);
+        }
       }
     }
   }
@@ -166,19 +175,15 @@ class ProfilesAction extends _$ProfilesAction {
   }
 
   Future<bool> _affectsCurrentProfile(int id) async {
-    if (id == ref.read(currentProfileIdProvider)) return true;
-    if (!system.isMacOS) return false;
-    final document = await ref.read(workbenchDatabaseProvider).readPolicies();
-    if (!document.moduleEnabled) return false;
-    if (document.integrationEnabled) {
-      return document.activeIntegration?.sourceProfileIds.contains(id) == true;
+    if (system.isMacOS) {
+      final document =
+          (await ref.read(workbenchDatabaseProvider).readPolicies())
+              .asStandalone();
+      if (document.moduleEnabled && document.integrationEnabled) {
+        return document.localProfile.sourceProfileIds.contains(id);
+      }
     }
-    return document.policiesEnabled &&
-        document
-            .sourceProfileIdsForTarget(
-              'profile:${ref.read(currentProfileIdProvider)}',
-            )
-            .contains(id);
+    return id == ref.read(currentProfileIdProvider);
   }
 
   Future<void> addProfileFormFile() async {
@@ -220,10 +225,17 @@ class ProfilesAction extends _$ProfilesAction {
     }
   }
 
-  void setProfileAndAutoApply(Profile profile) {
+  Future<void> setProfileAndAutoApply(Profile profile) async {
     ref.read(profilesProvider.notifier).put(profile);
-    if (profile.id == ref.read(currentProfileIdProvider)) {
-      ref.read(setupActionProvider.notifier).applyProfileDebounce();
+    try {
+      if (await _affectsCurrentProfile(profile.id)) {
+        ref.read(setupActionProvider.notifier).applyProfileDebounce();
+      }
+    } catch (_) {
+      commonPrint.log(
+        'Profile activation check failed (${profile.id})',
+        logLevel: LogLevel.warning,
+      );
     }
   }
 

@@ -93,11 +93,13 @@ class WorkbenchDatabase extends _$WorkbenchDatabase {
   }
 
   Future<LocalPolicyDocument> readPolicies() async =>
-      LocalPolicyDocument.fromJson(await readSection('policies') ?? const {});
+      LocalPolicyDocument.fromJson(
+        await readSection('policies') ?? const {},
+      ).asStandalone();
 
-  Stream<LocalPolicyDocument> watchPolicies() => watchSection(
-    'policies',
-  ).map((value) => LocalPolicyDocument.fromJson(value ?? const {}));
+  Stream<LocalPolicyDocument> watchPolicies() => watchSection('policies').map(
+    (value) => LocalPolicyDocument.fromJson(value ?? const {}).asStandalone(),
+  );
 
   Future<WorkbenchChange?> readChange(String id) => (select(
     workbenchChanges,

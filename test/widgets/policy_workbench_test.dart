@@ -1,4 +1,9 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/common/theme.dart';
+import 'package:fl_clash/views/profiles/profiles.dart';
 import 'package:fl_clash/configuration/changes.dart';
 import 'package:fl_clash/database/workbench_database.dart';
 import 'package:fl_clash/l10n/l10n.dart';
@@ -9,21 +14,32 @@ import 'package:fl_clash/providers/database.dart';
 import 'package:fl_clash/providers/workbench.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/views/policy/policy.dart';
-import 'package:fl_clash/views/policy/editors.dart';
+import 'package:fl_clash/views/policy/selection_fields.dart';
 import 'package:fl_clash/views/policy/rule_editor.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 const _document = LocalPolicyDocument(
+  schemaVersion: 4,
+  activeIntegrationId: localPolicyProfileId,
+  integrations: [
+    SubscriptionIntegration(
+      id: localPolicyProfileId,
+      label: 'Local',
+      sourceProfileIds: [1, 2],
+    ),
+  ],
   policiesEnabled: true,
   policies: [
     LocalPolicy(
       id: 'rule',
       label: 'Priority rule',
-      targetId: 'profile:1',
+      targetId: localPolicyTargetId,
       candidateNodeIds: ['1:a', '1:b'],
     ),
   ],
@@ -51,7 +67,7 @@ class _Controller extends Mock implements WorkbenchController {
     LocalPolicyDocument? document,
   }) async {
     loadedTargets.add(targetId);
-    final source = targetId.split(':').last;
+    const source = '1';
     return [
       LocalNode(
         id: '$source:a',
@@ -125,6 +141,8 @@ Future<ProviderContainer> _mountWorkbench(
   List<Profile> profiles = _profiles,
   int initialTab = 0,
   Size size = const Size(944, 568),
+  GlobalKey? capture,
+  Widget? home,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -152,6 +170,7 @@ Future<ProviderContainer> _mountWorkbench(
     UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
+        theme: capture == null ? null : ThemeData(fontFamily: 'StandaloneFont'),
         localizationsDelegates: const [
           AppLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
@@ -161,9 +180,13 @@ Future<ProviderContainer> _mountWorkbench(
         supportedLocales: AppLocalizations.delegate.supportedLocales,
         builder: (context, child) {
           globalState.measure = Measure.of(context, 1);
+          globalState.theme = CommonTheme.of(context, 1);
           return child!;
         },
-        home: LocalPolicyWorkbenchView(initialTab: initialTab),
+        home: RepaintBoundary(
+          key: capture,
+          child: home ?? LocalPolicyWorkbenchView(initialTab: initialTab),
+        ),
       ),
     ),
   );
@@ -180,181 +203,188 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _capture(WidgetTester tester, GlobalKey key, String name) async {
+  if (!const bool.fromEnvironment('GENERATE_STANDALONE_SCREENSHOTS')) return;
+  final boundary =
+      key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+  await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: 1);
+    try {
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      await File(
+        '/private/tmp/flclash-standalone-$name.png',
+      ).writeAsBytes(data!.buffer.asUint8List());
+    } finally {
+      image.dispose();
+    }
+  });
+}
+
 void main() {
+  setUpAll(() async {
+    if (!const bool.fromEnvironment('GENERATE_STANDALONE_SCREENSHOTS')) return;
+    final file = File('/System/Library/Fonts/Supplemental/Arial Unicode.ttf');
+    final data = file.existsSync()
+        ? ByteData.sublistView(await file.readAsBytes())
+        : await rootBundle.load('assets/fonts/JetBrainsMono-Regular.ttf');
+    await (FontLoader('StandaloneFont')..addFont(Future.value(data))).load();
+    await (FontLoader(
+      'MaterialIcons',
+    )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
+  });
+  for (final width in [390.0, 1200.0]) {
+    testWidgets(
+      'standalone profile card retains the original layout at width $width',
+      (tester) async {
+        final key = GlobalKey();
+        await _mountWorkbench(
+          tester,
+          controller: _Controller(),
+          size: Size(width, 900),
+          capture: key,
+          home: const ProfilesView(),
+        );
+        expect(find.byKey(const ValueKey('profiles-local')), findsOneWidget);
+        expect(find.byType(SwitchListTile), findsNothing);
+        expect(tester.takeException(), isNull);
+        await _capture(tester, key, 'profiles-$width');
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(milliseconds: 1));
+      },
+    );
+    testWidgets('standalone rules and sources fit width $width', (
+      tester,
+    ) async {
+      final key = GlobalKey();
+      await _mountWorkbench(
+        tester,
+        controller: _Controller(),
+        size: Size(width, 900),
+        capture: key,
+      );
+      expect(find.text(AppLocalizations.current.policyTarget), findsNothing);
+      expect(
+        find.text(AppLocalizations.current.policyLocalDefaultReject),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      await _capture(tester, key, 'rules-$width');
+      await _tap(
+        tester,
+        find.widgetWithText(Tab, AppLocalizations.current.policyAdvancedTab),
+      );
+      expect(find.byType(PolicyMultiSelect), findsOneWidget);
+      expect(
+        find.text(AppLocalizations.current.policyAddIntegration),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+      await _capture(tester, key, 'sources-$width');
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 1));
+    });
+  }
+  for (final size in [const Size(360, 740), const Size(944, 568)]) {
+    testWidgets(
+      'empty local configuration saves direct rules without sources at $size',
+      (tester) async {
+        final controller = _Controller(
+          const LocalPolicyDocument().asStandalone(),
+        );
+        final container = await _mountWorkbench(
+          tester,
+          controller: controller,
+          profiles: [],
+          size: size,
+        );
+        final strings = AppLocalizations.current;
+        expect(find.byType(Tab), findsNWidgets(4));
+        expect(find.text(strings.policyTarget), findsNothing);
+        expect(find.text(strings.policyLocalDefaultReject), findsOneWidget);
+        await _tap(tester, find.text(strings.policyAddRule));
+        expect(find.byType(LocalPolicyEditor), findsOneWidget);
+        expect(find.text(strings.policyTarget), findsNothing);
+        expect(controller.loadedTargets, [localPolicyTargetId]);
+        await tester.enterText(
+          find.byKey(const ValueKey('root-domainSuffix-values')),
+          'example.com',
+        );
+        await _tap(tester, find.text(strings.policyActionDirect).first);
+        await tester.ensureVisible(find.text(strings.save));
+        await tester.tap(find.text(strings.save));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(
+          controller.proposed!.policies.single.targetId,
+          localPolicyTargetId,
+        );
+        expect(
+          controller.proposed!.policies.single.action,
+          PolicyAction.direct,
+        );
+        expect(controller.proposed!.localProfile.sourceProfileIds, isEmpty);
+        await tester.tap(find.text(strings.aiApprove));
+        await tester.pumpAndSettle();
+        expect(controller.applies, 1);
+        expect(container.read(currentProfileIdProvider), 2);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(milliseconds: 1));
+      },
+    );
+  }
   testWidgets(
-    'disabling one rule retains definitions and rejecting approval prevents apply',
+    'disabling a local rule retains choices and rejecting approval prevents apply',
     (tester) async {
-      tester.view.physicalSize = const Size(680, 580);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
       final controller = _Controller();
-      final container = ProviderContainer(
-        overrides: [
-          workbenchControllerProvider.overrideWithValue(controller),
-          localPoliciesProvider.overrideWith((_) => Stream.value(_document)),
-          localPolicyStatusProvider.overrideWith(
-            (_) => Stream.value({'state': 'core_disconnected'}),
-          ),
-          workbenchChangesProvider.overrideWith((_) => Stream.value([])),
-          profilesProvider.overrideWithBuild((_, _) => []),
-        ],
-      );
-      addTearDown(container.dispose);
-      globalState.container = container;
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: MaterialApp(
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-            ],
-            supportedLocales: AppLocalizations.delegate.supportedLocales,
-            builder: (context, child) {
-              globalState.measure = Measure.of(context, 1);
-              return child!;
-            },
-            home: const LocalPolicyWorkbenchView(),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(AppLocalizations.current.policyRulesTab));
-      await tester.pumpAndSettle();
+      await _mountWorkbench(tester, controller: controller);
       await tester.ensureVisible(find.byType(Switch).last);
       await tester.pumpAndSettle();
       await tester.tap(find.byType(Switch).last);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
-      expect(controller.proposed?.policies.single.enabled, false);
-      expect(controller.proposed?.policies.single.candidateNodeIds, [
+      expect(controller.proposed!.policies.single.enabled, false);
+      expect(controller.proposed!.policies.single.candidateNodeIds, [
         '1:a',
         '1:b',
       ]);
-      expect(controller.applies, 0);
       await tester.tap(find.text(AppLocalizations.current.aiReject));
       await tester.pumpAndSettle();
       expect(controller.applies, 0);
-      expect(
-        find.text(AppLocalizations.current.policyRejectedStatus),
-        findsOneWidget,
-      );
       expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 1));
     },
   );
-  for (final size in [const Size(360, 740), const Size(944, 568)]) {
-    testWidgets('single profile saves a rule without integration at $size', (
-      tester,
-    ) async {
-      final controller = _Controller(const LocalPolicyDocument());
-      final container = await _mountWorkbench(
-        tester,
-        controller: controller,
-        profiles: [_profiles.last],
-        size: size,
-      );
-      final strings = AppLocalizations.current;
-      expect(find.byType(Tab), findsNWidgets(4));
-      await _tap(tester, find.text(strings.policyAddRule));
-      expect(find.byType(LocalPolicyEditor), findsOneWidget);
-      expect(find.byType(PolicyIntegrationEditor), findsNothing);
-      expect(controller.loadedTargets, ['profile:2']);
-      await tester.enterText(
-        find.byKey(const ValueKey('root-domainSuffix-values')),
-        'example.com',
-      );
-      await _tap(tester, find.byKey(const ValueKey('policy-processing-null')));
-      await _tap(tester, find.textContaining('Node A').last);
-      await tester.ensureVisible(find.text(strings.save));
-      await tester.tap(find.text(strings.save));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(controller.proposed?.policies.single.targetId, 'profile:2');
-      expect(controller.proposed?.integrations, isEmpty);
-      await tester.tap(find.text(strings.aiApprove));
-      await tester.pumpAndSettle();
-      expect(controller.applies, 1);
-      expect(container.read(currentProfileIdProvider), 2);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('no profiles disables new rules and node sets at $size', (
-      tester,
-    ) async {
+  testWidgets(
+    'local group list has no target binding and uses friendly filter summaries',
+    (tester) async {
+      final document = LocalPolicyDocument.fromJson({
+        ..._document.toJson(),
+        'nodeSets': [
+          const PolicyNodeSet(
+            id: 'filtered',
+            label: 'Filtered',
+            targetId: localPolicyTargetId,
+            sourceIds: ['1'],
+            regions: ['JP', 'HK'],
+            maxMultiplier: 1,
+          ).toJson(),
+          const PolicyNodeSet(
+            id: 'unrestricted',
+            label: 'Unrestricted',
+            targetId: localPolicyTargetId,
+            sourceIds: ['1'],
+          ).toJson(),
+        ],
+      });
       await _mountWorkbench(
         tester,
-        controller: _Controller(const LocalPolicyDocument()),
-        profiles: [],
-        size: size,
+        controller: _Controller(document),
+        initialTab: 1,
       );
       final strings = AppLocalizations.current;
-      final addRule = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, strings.policyAddRule),
-      );
-      expect(addRule.onPressed, isNull);
-      expect(find.text(strings.policyNoProfilesHint), findsOneWidget);
-      await _tap(tester, find.widgetWithText(Tab, strings.policyNodeSets));
-      final addSet = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, strings.policyNodeSet),
-      );
-      expect(addSet.onPressed, isNull);
-      expect(find.text(strings.policyNoProfilesHint), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
-  }
-
-  testWidgets('enabled integration is the initial rule target', (tester) async {
-    final controller = _Controller(
-      const LocalPolicyDocument(
-        moduleEnabled: true,
-        integrationEnabled: true,
-        activeIntegrationId: 'saved',
-        integrations: [
-          SubscriptionIntegration(
-            id: 'saved',
-            label: 'Saved integration',
-            sourceProfileIds: [1, 2],
-          ),
-        ],
-      ),
-    );
-    final container = await _mountWorkbench(tester, controller: controller);
-    await _tap(tester, find.text(AppLocalizations.current.policyAddRule));
-    expect(controller.loadedTargets, ['integration:saved']);
-    expect(container.read(currentProfileIdProvider), 2);
-    expect(controller.selectedTargets, isEmpty);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets(
-    'node group summary uses friendly regions and explicit unrestricted filters',
-    (tester) async {
-      final controller = _Controller(
-        const LocalPolicyDocument(
-          nodeSets: [
-            PolicyNodeSet(
-              id: 'filtered',
-              label: 'Filtered',
-              targetId: 'profile:2',
-              sourceIds: ['1'],
-              regions: ['JP', 'HK'],
-              maxMultiplier: 1,
-            ),
-            PolicyNodeSet(
-              id: 'unrestricted',
-              label: 'Unrestricted',
-              targetId: 'profile:2',
-              sourceIds: ['1'],
-            ),
-          ],
-        ),
-      );
-      await _mountWorkbench(tester, controller: controller, initialTab: 1);
-      final strings = AppLocalizations.current;
-      expect(find.text(strings.policyNodeSetTarget), findsOneWidget);
+      expect(find.text(strings.policyNodeSetTarget), findsNothing);
       expect(
         find.textContaining(
           '${strings.policyRegionJP} · ${strings.policyRegionHK}',
@@ -367,153 +397,144 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.textContaining('—×'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 1));
     },
   );
-
   testWidgets(
-    'editing target and filtering keep the running profile unchanged',
+    'source selection updates only the local integration and keeps legacy records and rules',
     (tester) async {
-      const document = LocalPolicyDocument(
-        moduleEnabled: true,
-        policiesEnabled: true,
-        activeIntegrationId: 'saved',
-        integrations: [
-          SubscriptionIntegration(
-            id: 'saved',
-            label: 'Saved integration',
-            sourceProfileIds: [1, 2],
-          ),
-        ],
-        nodeSets: [
-          PolicyNodeSet(
-            id: 'first',
-            label: 'First set',
-            targetId: 'profile:1',
+      final document = LocalPolicyDocument.fromJson({
+        ..._document.toJson(),
+        'nodeSets': [
+          const PolicyNodeSet(
+            id: 'preserved-group',
+            label: 'Preserved group',
+            targetId: localPolicyTargetId,
             sourceIds: ['1'],
-          ),
-          PolicyNodeSet(
-            id: 'second',
-            label: 'Second set',
-            targetId: 'profile:2',
-            sourceIds: ['2'],
-          ),
+          ).toJson(),
         ],
-      );
-      final controller = _Controller(document);
-      final container = await _mountWorkbench(tester, controller: controller);
-      final strings = AppLocalizations.current;
-      await _tap(tester, find.text(strings.policyAddRule));
-      expect(controller.loadedTargets, ['profile:2']);
-      final editor = tester.widget<LocalPolicyEditor>(
-        find.byType(LocalPolicyEditor),
-      );
-      expect(editor.targets.keys, [
-        'profile:2',
-        'profile:1',
-        'integration:saved',
-      ]);
-      await _tap(
-        tester,
-        find.widgetWithText(DropdownButtonFormField<String>, 'Source 2').last,
-      );
-      await _tap(tester, find.text('Source 1').last);
-      expect(controller.loadedTargets.last, 'profile:1');
-      expect(container.read(currentProfileIdProvider), 2);
-      await _tap(tester, find.text(strings.cancel));
-      await _tap(tester, find.text(strings.policyDiscardChanges));
-      await _tap(
-        tester,
-        find.widgetWithText(DropdownButtonFormField<String>, 'Source 2').first,
-      );
-      await _tap(tester, find.text('Source 1').last);
-      await _tap(tester, find.widgetWithText(Tab, strings.policyNodeSets));
-      expect(find.text('First set'), findsOneWidget);
-      expect(find.text('Second set'), findsNothing);
-      expect(container.read(currentProfileIdProvider), 2);
-      expect(controller.proposed, isNull);
-      expect(tester.takeException(), isNull);
-    },
-  );
-
-  testWidgets(
-    'advanced keeps integrations and budgets accessible and read only',
-    (tester) async {
-      const document = LocalPolicyDocument(
-        activeIntegrationId: 'saved',
-        integrations: [
-          SubscriptionIntegration(
-            id: 'saved',
-            label: 'Saved integration',
-            sourceProfileIds: [1, 2],
-          ),
+        'integrations': [
+          const SubscriptionIntegration(
+            id: localPolicyProfileId,
+            label: 'Local',
+            sourceProfileIds: [1],
+            nameFilter: 'preserved',
+            excludedNodeIds: ['1:excluded'],
+          ).toJson(),
+          const SubscriptionIntegration(
+            id: 'legacy',
+            label: 'Legacy preserved',
+            sourceProfileIds: [2],
+          ).toJson(),
         ],
-        budgets: [SourceBudget(sourceId: '1', limitBytes: 1073741824)],
-      );
+      });
       final controller = _Controller(document);
-      await _mountWorkbench(tester, controller: controller);
+      final container = await _mountWorkbench(
+        tester,
+        controller: controller,
+        initialTab: 2,
+      );
       final strings = AppLocalizations.current;
-      await _tap(tester, find.widgetWithText(Tab, strings.policyAdvancedTab));
       expect(find.text(strings.policyAddIntegration), findsNothing);
       expect(find.text(strings.policyAddBudget), findsNothing);
-      await _tap(tester, find.text(strings.policyIntegrationTab));
-      expect(find.text(strings.policyAddIntegration), findsOneWidget);
-      expect(find.text('Saved integration'), findsWidgets);
-      await _tap(tester, find.text(strings.policyIntegrationTab));
+      final select = find.widgetWithText(
+        PolicyMultiSelect,
+        strings.policySubscriptionSources,
+      );
+      await _tap(tester, select);
+      await tester.tap(find.widgetWithText(CheckboxListTile, 'Source 2'));
+      await tester.tap(find.text(strings.confirm));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(controller.proposed!.localProfile.sourceProfileIds, [1, 2]);
+      expect(controller.proposed!.localProfile.nameFilter, 'preserved');
+      expect(controller.proposed!.localProfile.excludedNodeIds, ['1:excluded']);
+      expect(controller.proposed!.integrations.last.id, 'legacy');
+      expect(
+        controller.proposed!.nodeSets.single.toJson(),
+        document.nodeSets.single.toJson(),
+      );
+      expect(
+        controller.proposed!.policies.single.toJson(),
+        document.policies.single.toJson(),
+      );
+      expect(container.read(currentProfileIdProvider), 2);
+      expect(controller.selectedTargets, isEmpty);
+      await tester.tap(find.text(strings.aiReject));
+      await tester.pumpAndSettle();
+      expect(controller.applies, 0);
       await _tap(tester, find.text(strings.policyBudgetTab));
       expect(find.text(strings.policyAddBudget), findsOneWidget);
-      expect(controller.proposed, isNull);
-      expect(controller.applies, 0);
       expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 1));
+    },
+  );
+  testWidgets(
+    'source capacity errors keep the current configuration unchanged',
+    (tester) async {
+      final controller = _Controller();
+      await _mountWorkbench(tester, controller: controller, initialTab: 2);
+      tester
+          .widget<PolicyMultiSelect>(find.byType(PolicyMultiSelect))
+          .onChanged(List.generate(21, (index) => '${index + 1}'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(AppLocalizations.current.policyLocalSourceLimit),
+        findsOneWidget,
+      );
+      expect(controller.proposed, isNull);
+      expect(tester.takeException(), isNull);
+      final callback = tester
+          .widget<PolicyMultiSelect>(find.byType(PolicyMultiSelect))
+          .onChanged;
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 1));
+      callback(['1']);
+      expect(tester.takeException(), isNull);
+      expect(controller.proposed, isNull);
     },
   );
 
   testWidgets(
-    'advanced explicitly selects an integration or original profile',
+    'legacy rules are paused with a static review notice and do not select a profile',
     (tester) async {
       final controller = _Controller(
         const LocalPolicyDocument(
-          moduleEnabled: true,
-          activeIntegrationId: 'saved',
-          integrations: [
-            SubscriptionIntegration(
-              id: 'saved',
-              label: 'Saved integration',
-              sourceProfileIds: [1, 2],
+          policiesEnabled: true,
+          policies: [
+            LocalPolicy(
+              id: 'legacy',
+              label: 'Legacy rule',
+              targetId: 'profile:1',
+              candidateNodeIds: ['1:a'],
             ),
           ],
         ),
       );
       await _mountWorkbench(tester, controller: controller);
       final strings = AppLocalizations.current;
-      await _tap(tester, find.widgetWithText(Tab, strings.policyAdvancedTab));
-      await _tap(tester, find.text(strings.policyIntegrationTab));
-      await _tap(
-        tester,
-        find.byKey(const ValueKey('policy-use-integration:saved')),
-      );
-      expect(controller.selectedTargets.single['integrationId'], 'saved');
-      await _tap(tester, find.byKey(const ValueKey('policy-use-profile:1')));
-      expect(controller.selectedTargets.last['profileId'], 1);
-      expect(controller.selectedTargets.length, 2);
+      expect(find.text(strings.policyLocalMigrationReview), findsOneWidget);
+      expect(find.text('Legacy rule'), findsOneWidget);
+      expect(tester.widget<Switch>(find.byType(Switch).last).value, false);
+      expect(controller.proposed, isNull);
+      expect(controller.selectedTargets, isEmpty);
+      expect(find.text(strings.policyTarget), findsNothing);
       expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 1));
     },
   );
-
-  testWidgets('legacy history deep link selects history', (tester) async {
-    await _mountWorkbench(
-      tester,
-      controller: _Controller(const LocalPolicyDocument()),
-      initialTab: 4,
-    );
-    final element = tester.element(find.byType(TabBar));
-    expect(DefaultTabController.of(element).index, 3);
+  testWidgets('history remains available as the fourth tab', (tester) async {
+    await _mountWorkbench(tester, controller: _Controller(), initialTab: 4);
     expect(
       find.text(AppLocalizations.current.policyEmptyHistory),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
   });
 }

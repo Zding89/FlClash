@@ -231,7 +231,10 @@ class FlutterApplicationCapabilityGateway
       case 'profile_effective_export':
         final id = resourceId(params, 'id');
         final setup = await ref.read(setupStateProvider(id).future);
-        final document = await controller.readPolicies();
+        final document = LocalPolicyDocument.fromJson({
+          ...(await controller.readPolicies()).toJson(),
+          'integrationEnabled': false,
+        }).asStandalone();
         var scriptApproved = false;
         if (setup.overwriteType == OverwriteType.script &&
             setup.script != null &&

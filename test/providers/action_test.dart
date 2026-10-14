@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:drift/native.dart';
+import 'package:fl_clash/database/workbench_database.dart';
+import 'package:fl_clash/providers/workbench.dart';
 import 'package:fl_clash/core/desktop/model.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
@@ -100,18 +103,21 @@ void main() {
       },
     );
 
-    test('setProfileAndAutoApply stores a non-current profile', () {
+    test('setProfileAndAutoApply stores a non-current profile', () async {
       final current = Profile.normal(label: 'Current');
       final other = Profile.normal(label: 'Other');
+      final store = WorkbenchDatabase(NativeDatabase.memory());
+      addTearDown(store.close);
       final container = ProviderContainer(
         overrides: [
+          workbenchDatabaseProvider.overrideWithValue(store),
           currentProfileIdProvider.overrideWithBuild((_, _) => current.id),
           profilesProvider.overrideWith(() => _TestProfiles([current])),
         ],
       );
       addTearDown(container.dispose);
 
-      container
+      await container
           .read(profilesActionProvider.notifier)
           .setProfileAndAutoApply(other);
 

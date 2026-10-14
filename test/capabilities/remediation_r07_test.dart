@@ -246,7 +246,7 @@ void main() {
   }
 
   test(
-    'R07 export is generated, validated and contains patch and local rules; raw stays raw',
+    'R07 ordinary export contains its patch and rules without local overlay; raw stays raw',
     () async {
       final gateway = create();
       final (result, file) = await export(gateway, 'profile_effective_export');
@@ -255,15 +255,12 @@ void main() {
       expect(result['status'], 'completed');
       expect(core.validated, text);
       expect(output['mixed-port'], 17891);
-      expect(
-        (output['rules'] as List).first.toString(),
-        contains('local.example'),
-      );
+      expect(output['rules'].toString(), isNot(contains('local.example')));
       expect(
         output['rules'],
         contains('DOMAIN-SUFFIX,override.example,DIRECT'),
       );
-      expect((output['flclash-local-policy'] as Map)['policies'], hasLength(1));
+      expect(output.containsKey('flclash-local-policy'), isFalse);
       final (_, original) = await export(gateway, 'profile_export');
       expect(jsonDecode(await original.readAsString()), raw);
       expect(approvals, 0);
@@ -292,7 +289,7 @@ void main() {
       expect(output['script-marker'], 'executed');
       expect(output['mixed-port'], 17891);
       expect(output['rules'], contains('DOMAIN,script.example,DIRECT'));
-      expect((output['flclash-local-policy'] as Map)['policies'], hasLength(1));
+      expect(output.containsKey('flclash-local-policy'), isFalse);
       expect(core.validated, text);
       expect(approvals, 1);
       expect(launches, 1);

@@ -139,7 +139,10 @@ void main() {
       );
       await restoreWorkbenchBackup(target, parsed);
 
-      expect((await target.readPolicies()).toJson(), policy.toJson());
+      expect(
+        (await target.readPolicies()).toJson(),
+        policy.asStandalone().toJson(),
+      );
       expect(
         await EncryptedConfigAgentCredentialStore(
           target,
@@ -241,9 +244,55 @@ void main() {
         target,
         await WorkbenchBackup.parse(exported, profileIds: {7, 8}),
       );
-      expect((await target.readPolicies()).toJson(), document.toJson());
+      expect(
+        (await target.readPolicies()).toJson(),
+        document.asStandalone().toJson(),
+      );
       await expectLater(
         WorkbenchBackup.parse(exported, profileIds: {7}),
+        throwsFormatException,
+      );
+    },
+  );
+
+  test(
+    'standalone backups preserve unchecked source filters and archived integrations',
+    () async {
+      final document = LocalPolicyDocument.fromJson({
+        ...const LocalPolicyDocument(
+          integrations: [
+            SubscriptionIntegration(
+              id: 'archive',
+              label: 'Archive',
+              sourceProfileIds: [999],
+            ),
+            SubscriptionIntegration(
+              id: localPolicyProfileId,
+              label: 'Local',
+              sourceProfileIds: [],
+            ),
+          ],
+          nodeSets: [
+            PolicyNodeSet(
+              id: 'saved',
+              label: 'Saved',
+              targetId: localPolicyTargetId,
+              sourceIds: ['7'],
+            ),
+          ],
+        ).toJson(),
+        'schemaVersion': 4,
+        'activeIntegrationId': localPolicyProfileId,
+      }).asStandalone();
+      await source.writeSection('policies', document.toJson());
+      final exported = await exportWorkbenchBackup(source, profileIds: {7});
+      await restoreWorkbenchBackup(
+        target,
+        await WorkbenchBackup.parse(exported, profileIds: {7}),
+      );
+      expect((await target.readPolicies()).toJson(), document.toJson());
+      await expectLater(
+        WorkbenchBackup.parse(exported, profileIds: {}),
         throwsFormatException,
       );
     },
@@ -269,6 +318,10 @@ void main() {
         copy()
           ..['sections']['policies']['integrations'][0]['sourceProfileIds'] = [
             '8',
+          ],
+        copy()
+          ..['sections']['policies']['policies'][0]['candidateNodeIds'] = [
+            '8:missing-node',
           ],
         copy()..['sections']['policies']['budgets'][0]['sourceId'] = '8',
         copy()

@@ -877,7 +877,25 @@ class MessageLookup extends MessageLookupByLibrary {
       "原有多个选择仍保留；选择新的节点组或节点后才会替换",
     ),
     "policyLoadNodes": MessageLookupByLibrary.simpleMessage("读取可用节点"),
-    "policyLocalCollection": MessageLookupByLibrary.simpleMessage("合并配置"),
+    "policyLocalCollection": MessageLookupByLibrary.simpleMessage("本地配置"),
+    "policyLocalDefaultReject": MessageLookupByLibrary.simpleMessage(
+      "没有规则匹配到可用结果时，拒绝连接。",
+    ),
+    "policyLocalMigrationReview": MessageLookupByLibrary.simpleMessage(
+      "旧规则已保留并暂停，请检查后再选择本地配置。",
+    ),
+    "policyLocalProfileHint": MessageLookupByLibrary.simpleMessage(
+      "独立选择使用，编辑来源和本地规则",
+    ),
+    "policyLocalSourceLimit": MessageLookupByLibrary.simpleMessage(
+      "最多选择20个订阅来源",
+    ),
+    "policyLocalSourcesEmpty": MessageLookupByLibrary.simpleMessage(
+      "还未选择订阅来源；可以先添加直连或拦截规则。",
+    ),
+    "policyLocalSourcesHint": MessageLookupByLibrary.simpleMessage(
+      "只使用所选订阅的节点，不继承订阅的规则、策略组、脚本或 DNS。最多选择20个来源。",
+    ),
     "policyManualAttribute": MessageLookupByLibrary.simpleMessage("人工确认"),
     "policyManualOrigin": MessageLookupByLibrary.simpleMessage("手动添加"),
     "policyMatchAll": MessageLookupByLibrary.simpleMessage("同时满足（高级）"),
@@ -908,7 +926,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "没有可用节点时继续匹配下一条规则",
     ),
     "policyNoProfilesHint": MessageLookupByLibrary.simpleMessage(
-      "先在“配置”页面添加订阅或本地配置，再创建规则和节点组",
+      "还没有订阅来源；可先添加直连或拦截规则",
     ),
     "policyNodeSet": MessageLookupByLibrary.simpleMessage("节点组"),
     "policyNodeSetHint": MessageLookupByLibrary.simpleMessage(
@@ -996,7 +1014,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyRuleType": MessageLookupByLibrary.simpleMessage("规则类型"),
     "policyRulesHint": MessageLookupByLibrary.simpleMessage(
-      "为选定配置设置流量条件、生效时间和处理方式；使用该配置并处于规则模式时生效",
+      "为本地配置设置有序流量规则、生效时间和处理方式",
     ),
     "policyRulesTab": MessageLookupByLibrary.simpleMessage("规则"),
     "policyRuntimeState": MessageLookupByLibrary.simpleMessage("运行状态"),
@@ -1060,6 +1078,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "套餐流量已用完",
     ),
     "policySubscriptionExpired": MessageLookupByLibrary.simpleMessage("订阅已到期"),
+    "policySubscriptionSources": MessageLookupByLibrary.simpleMessage("订阅来源"),
     "policySuccesses": MessageLookupByLibrary.simpleMessage("连续成功次数"),
     "policySupersededStatus": MessageLookupByLibrary.simpleMessage("已被后续修改替代"),
     "policyTarget": MessageLookupByLibrary.simpleMessage("规则生效配置"),
@@ -1093,7 +1112,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyUpdateRoute": MessageLookupByLibrary.simpleMessage("订阅更新路径"),
     "policyUpdateRouteDirect": MessageLookupByLibrary.simpleMessage("直接联网"),
     "policyUpdateRouteHint": MessageLookupByLibrary.simpleMessage(
-      "仅在启用本地策略、整合或预算时使用。代理不可用时停止更新；直连需要确认。",
+      "本地配置的订阅更新方式。代理不可用时停止更新；直连需要确认。",
     ),
     "policyUpdateRouteProxy": MessageLookupByLibrary.simpleMessage("使用当前代理"),
     "policyUsage": MessageLookupByLibrary.simpleMessage("本机已用"),

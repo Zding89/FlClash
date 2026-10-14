@@ -14,7 +14,7 @@ class PolicySimulationDialog extends ConsumerStatefulWidget {
   const PolicySimulationDialog({
     super.key,
     required this.document,
-    required this.targets,
+    this.targets = const {},
     required this.snapshot,
     required this.controller,
   });
@@ -29,7 +29,7 @@ class PolicySimulationDialog extends ConsumerStatefulWidget {
 
 class _PolicySimulationDialogState
     extends ConsumerState<PolicySimulationDialog> {
-  late String _target;
+  static const _target = localPolicyTargetId;
   bool _assume = false;
   bool _busy = false;
   List<Map<String, Object?>>? _results;
@@ -42,12 +42,6 @@ class _PolicySimulationDialogState
   void dispose() {
     _steps.dispose();
     super.dispose();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _target = widget.targets.keys.first;
   }
 
   Future<void> _simulate() async {
@@ -110,9 +104,9 @@ class _PolicySimulationDialogState
       }
       final result = await widget.controller.simulatePolicies(
         document: widget.document.budgetsEnabled
-            ? widget.document
+            ? widget.document.asStandalone()
             : LocalPolicyDocument.fromJson({
-                ...widget.document.toJson(),
+                ...widget.document.asStandalone().toJson(),
                 'budgets': <Object?>[],
               }),
         targetId: _target,
@@ -181,31 +175,6 @@ class _PolicySimulationDialogState
             children: [
               Text(strings.policySimulationHint),
               const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: _target,
-                isExpanded: true,
-                items: [
-                  for (final target in widget.targets.entries)
-                    DropdownMenuItem(
-                      value: target.key,
-                      child: Text(
-                        target.value,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                ],
-                onChanged: _busy
-                    ? null
-                    : (value) {
-                        if (value != null) {
-                          setState(() {
-                            _target = value;
-                            _results = null;
-                            _timeline = [];
-                          });
-                        }
-                      },
-              ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(strings.policyAssumeHealthy),

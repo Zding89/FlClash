@@ -38,7 +38,7 @@ final _captureKey = GlobalKey();
 const _nodeSet = PolicyNodeSet(
   id: 'fixture-japan',
   label: '日本常用节点集',
-  targetId: 'profile:1',
+  targetId: localPolicyTargetId,
   sourceIds: ['1', '2'],
   regions: ['JP'],
   maxMultiplier: 1.5,
@@ -47,7 +47,7 @@ const _nodeSet = PolicyNodeSet(
 const _manual = LocalPolicy(
   id: 'fixture-manual',
   label: '办公网站',
-  targetId: 'profile:1',
+  targetId: localPolicyTargetId,
   priority: 1,
   origin: PolicyOrigin.manual,
   scope: PolicyMatch(
@@ -62,7 +62,7 @@ const _manual = LocalPolicy(
 const _ai = LocalPolicy(
   id: 'fixture-ai',
   label: 'AI 初始规则',
-  targetId: 'profile:1',
+  targetId: localPolicyTargetId,
   priority: 2,
   origin: PolicyOrigin.ai,
   scope: PolicyMatch(
@@ -74,12 +74,22 @@ const _ai = LocalPolicy(
 const _remaining = LocalPolicy(
   id: 'fixture-remaining',
   label: '其余流量',
-  targetId: 'profile:1',
+  targetId: localPolicyTargetId,
   priority: 3,
   scope: PolicyMatch(type: PolicyMatchType.global),
   candidateNodeIds: ['1:fixture-known'],
 );
 const _document = LocalPolicyDocument(
+  schemaVersion: 4,
+  integrationEnabled: true,
+  activeIntegrationId: localPolicyProfileId,
+  integrations: [
+    SubscriptionIntegration(
+      id: localPolicyProfileId,
+      label: 'Local',
+      sourceProfileIds: [1, 2],
+    ),
+  ],
   moduleEnabled: true,
   policiesEnabled: true,
   policies: [_manual, _ai, _remaining],
@@ -409,7 +419,7 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final nodes = List.generate(5000, (index) => _nodes.first);
       const capacity = <String, Object?>{
-        'targetId': 'profile:1',
+        'targetId': localPolicyTargetId,
         'checkTaskCount': 5000,
         'maxCheckTimeoutSeconds': 5,
         'recommendedCheckCycleSeconds': 3960,
@@ -422,7 +432,7 @@ void main() {
         Scaffold(
           body: PolicyNodeSetEditor(
             existing: existing,
-            targetId: 'profile:1',
+            targetId: localPolicyTargetId,
             sources: const {'1': '测试来源 A'},
             nodes: nodes,
             snapshot: snapshot,
@@ -514,7 +524,7 @@ void main() {
       Scaffold(
         body: PolicyNodeSetEditor(
           existing: _nodeSet,
-          targetId: 'profile:1',
+          targetId: localPolicyTargetId,
           sources: const {'1': '测试来源 A'},
           nodes: nodes,
           snapshot: _snapshot,
@@ -600,7 +610,7 @@ void main() {
         expect(container.read(currentPageLabelProvider), PageLabel.aiAssistant);
         expect(
           container.read(aiComposerContextProvider),
-          strings.policyAiOptimizationRequest('profile:1'),
+          strings.policyAiOptimizationRequest(localPolicyTargetId),
         );
         expect(find.byType(AiAssistantView), findsNothing);
         expect(controller.commits, 0);
@@ -632,7 +642,7 @@ void main() {
         Scaffold(
           body: PolicyNodeSetEditor(
             existing: _nodeSet,
-            targetId: 'profile:1',
+            targetId: localPolicyTargetId,
             sources: const {'1': '测试来源 A', '2': '测试来源 B'},
             nodes: _nodes,
             snapshot: _snapshot,
@@ -730,7 +740,7 @@ void main() {
         Scaffold(
           body: PolicyNodeSetEditor(
             existing: _nodeSet,
-            targetId: 'profile:1',
+            targetId: localPolicyTargetId,
             sources: const {'1': '测试来源 A', '2': '测试来源 B'},
             nodes: _nodes,
             snapshot: _snapshot,
@@ -901,7 +911,7 @@ void main() {
         Scaffold(
           body: PolicyNodeSetEditor(
             existing: _nodeSet,
-            targetId: 'profile:1',
+            targetId: localPolicyTargetId,
             sources: const {'1': '测试来源 A', '2': '测试来源 B'},
             nodes: _nodes,
             snapshot: _snapshot,

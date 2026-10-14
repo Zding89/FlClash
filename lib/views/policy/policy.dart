@@ -41,7 +41,6 @@ class _LocalPolicyWorkbenchViewState
   String? _message;
   bool _failed = false;
   int _epoch = 0;
-  String? _viewTarget;
   @override
   void initState() {
     super.initState();
@@ -98,7 +97,7 @@ class _LocalPolicyWorkbenchViewState
 
   Future<void> _apply(LocalPolicyDocument before, Object candidate) =>
       _operation((isCurrent) async {
-        final current = await _controller.readPolicies();
+        final current = (await _controller.readPolicies()).asStandalone();
         if (policyDigest(current.toJson()) != policyDigest(before.toJson())) {
           throw const ConfigurationChangeException(
             'configuration_version_conflict',
@@ -132,66 +131,15 @@ class _LocalPolicyWorkbenchViewState
     if (next != null && mounted) await _apply(document, next);
   }
 
-  Future<void> _integration(
-    LocalPolicyDocument document,
-    List<Profile> profiles,
-    SubscriptionIntegration? existing,
-  ) async {
-    await showDialog<SubscriptionIntegration>(
-      context: context,
-      builder: (_) => PolicyIntegrationEditor(
-        existing: existing,
-        profiles: profiles,
-        loadNodes: (ids) async {
-          final sources = await _controller.profiles.loader.load(
-            profiles.where((p) => ids.contains(p.id)).toList(),
-          );
-          return sources
-              .expand(_controller.profiles.compiler.extractNodes)
-              .toList();
-        },
-        onSave: (next) async {
-          await _commitDocument(
-            document,
-            LocalPolicyDocument.fromJson(
-              _patch(document, {
-                'integrations': [
-                  for (final i in document.integrations)
-                    (i.id == next.id ? next : i).toJson(),
-                  if (existing == null) next.toJson(),
-                ],
-                'activeIntegrationId': document.activeIntegrationId ?? next.id,
-              }),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   Future<void> _rule(
     LocalPolicyDocument document,
     Map<String, String> targets,
     LocalPolicy? existing,
   ) async {
-    final availableTargets = _availableTargets(
-      document,
-      ref.read(profilesProvider),
-    );
-    if (existing == null && availableTargets.isEmpty) return;
-    final preferredTarget =
-        existing?.targetId ?? _selectedTarget(document, availableTargets);
-    final orderedTargets = <String, String>{
-      if (preferredTarget != null &&
-          availableTargets.containsKey(preferredTarget))
-        preferredTarget: availableTargets[preferredTarget]!,
-      ...availableTargets,
-    };
     await showDialog<LocalPolicy>(
       context: context,
       builder: (_) => LocalPolicyEditor(
         existing: existing,
-        targets: orderedTargets,
         loadNodes: (target) => _controller.loadNodes(target),
         initialPriority: existing?.priority ?? 100,
         nodeSets: document.nodeSets,
@@ -263,7 +211,9 @@ class _LocalPolicyWorkbenchViewState
     LocalPolicyDocument before,
     LocalPolicyDocument next,
   ) async {
-    if (policyDigest((await _controller.readPolicies()).toJson()) !=
+    if (policyDigest(
+          (await _controller.readPolicies()).asStandalone().toJson(),
+        ) !=
         policyDigest(before.toJson())) {
       throw const ConfigurationChangeException(
         'configuration_version_conflict',
@@ -290,13 +240,7 @@ class _LocalPolicyWorkbenchViewState
     Map<String, Object?> snapshot,
     PolicyNodeSet? existing,
   ) async {
-    final availableTargets = _availableTargets(
-      document,
-      ref.read(profilesProvider),
-    );
-    final target =
-        existing?.targetId ?? _selectedTarget(document, availableTargets);
-    if (target == null) return;
+    const target = localPolicyTargetId;
     try {
       final nodes = await _controller.loadNodes(target);
       if (!mounted) return;
@@ -377,7 +321,6 @@ class _LocalPolicyWorkbenchViewState
     final strings = context.appLocalizations;
     final selected = _selectedTarget(document, targets);
     return _list([
-      _targetSelector(document, targets, nodeSets: true),
       const SizedBox(height: 12),
       Text(strings.policyNodeSetHint),
       const SizedBox(height: 8),
@@ -387,7 +330,7 @@ class _LocalPolicyWorkbenchViewState
           child: ListTile(
             title: Text(set.label),
             subtitle: Text(
-              '${targets[set.targetId] ?? set.targetId} · ${set.regions.isEmpty ? strings.policyAnyRegion : set.regions.map((region) => policyRegionOptions(context, set.regions)[region] ?? region).join(' · ')} · ${set.maxMultiplier == null ? strings.policyAnyMultiplier : '${set.maxMultiplier}×'}',
+              '${set.regions.isEmpty ? strings.policyAnyRegion : set.regions.map((region) => policyRegionOptions(context, set.regions)[region] ?? region).join(' · ')} · ${set.maxMultiplier == null ? strings.policyAnyMultiplier : '${set.maxMultiplier}×'}',
             ),
             onTap: _busy
                 ? null
@@ -436,14 +379,14 @@ class _LocalPolicyWorkbenchViewState
           ),
         ),
       FilledButton.tonalIcon(
-        onPressed: _busy || ref.watch(profilesProvider).isEmpty
+        onPressed: _busy
             ? null
             : () => _nodeSet(document, targets, snapshot, null),
         icon: const Icon(Icons.add),
         label: Text(strings.policyNodeSet),
       ),
-      if (ref.watch(profilesProvider).isEmpty)
-        Text(strings.policyNoProfilesHint),
+      if (document.localProfile.sourceProfileIds.isEmpty)
+        Text(strings.policyLocalSourcesEmpty),
     ]);
   }
 
@@ -526,60 +469,10 @@ class _LocalPolicyWorkbenchViewState
   Widget _list(List<Widget> children) =>
       ListView(padding: const EdgeInsets.all(16), children: children);
 
-  Map<String, String> _availableTargets(
-    LocalPolicyDocument document,
-    List<Profile> profiles,
-  ) => {
-    for (final profile in profiles) 'profile:${profile.id}': profile.realLabel,
-    for (final integration in document.integrations)
-      if (integration.sourceProfileIds.every(
-        (id) => profiles.any((profile) => profile.id == id),
-      ))
-        integration.targetId: integration.label,
-  };
-
-  String? _selectedTarget(
+  String _selectedTarget(
     LocalPolicyDocument document,
     Map<String, String> targets,
-  ) {
-    if (targets.containsKey(_viewTarget)) return _viewTarget;
-    final profileId = ref.read(currentProfileIdProvider);
-    final running = document.moduleEnabled && document.integrationEnabled
-        ? document.activeIntegration?.targetId
-        : profileId == null
-        ? null
-        : 'profile:$profileId';
-    return targets.containsKey(running) ? running : targets.keys.firstOrNull;
-  }
-
-  Widget _targetSelector(
-    LocalPolicyDocument document,
-    Map<String, String> targets, {
-    bool nodeSets = false,
-  }) => targets.isEmpty
-      ? const SizedBox.shrink()
-      : DropdownButtonFormField<String>(
-          key: ValueKey(_selectedTarget(document, targets)),
-          initialValue: _selectedTarget(document, targets),
-          isExpanded: true,
-          decoration: InputDecoration(
-            labelText: nodeSets
-                ? context.appLocalizations.policyNodeSetTarget
-                : context.appLocalizations.policyTarget,
-            helperText: context.appLocalizations.policyTargetHint,
-            helperMaxLines: 3,
-          ),
-          items: [
-            for (final entry in targets.entries)
-              DropdownMenuItem(
-                value: entry.key,
-                child: Text(entry.value, overflow: TextOverflow.ellipsis),
-              ),
-          ],
-          onChanged: _busy
-              ? null
-              : (value) => setState(() => _viewTarget = value),
-        );
+  ) => localPolicyTargetId;
 
   Widget _section(List<Widget> children) => Padding(
     padding: const EdgeInsets.all(16),
@@ -589,78 +482,50 @@ class _LocalPolicyWorkbenchViewState
     ),
   );
 
-  Widget _targetUse({
-    required bool selected,
-    required VoidCallback? onSelect,
-    required String targetKey,
-  }) => Padding(
-    padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
-    child: Align(
-      alignment: Alignment.centerRight,
-      child: selected
-          ? Text(
-              ref.watch(coreStatusProvider) == CoreStatus.connected
-                  ? context.appLocalizations.policyAppliedStatus
-                  : context.appLocalizations.policySelectedOffline,
-            )
-          : FilledButton.tonal(
-              key: ValueKey('policy-use-$targetKey'),
-              onPressed: _busy ? null : onSelect,
-              child: Text(context.appLocalizations.policySelectCollection),
-            ),
-    ),
-  );
-
-  Widget _integrations(LocalPolicyDocument document, List<Profile> profiles) {
+  Widget _sources(LocalPolicyDocument document, List<Profile> profiles) {
     final strings = context.appLocalizations;
+    final local = document.localProfile;
+    final selected = local.sourceProfileIds.map((id) => '$id').toList();
     return _section([
-      Text(strings.policyIntegrationHint),
-      for (final profile in profiles)
-        Card(
-          child: Column(
-            children: [
-              _PolicySourceFacts(profile: profile),
-              _targetUse(
-                selected:
-                    !document.integrationEnabled &&
-                    ref.watch(currentProfileIdProvider) == profile.id,
-                onSelect: () => _operation(
-                  (_) => _controller.selectPolicyTarget(
-                    profileId: profile.id,
-                    approve: _approve,
-                  ),
-                ),
-                targetKey: 'profile:${profile.id}',
-              ),
-            ],
-          ),
-        ),
-      if (document.integrations.isNotEmpty)
-        DropdownButtonFormField<String>(
-          key: ValueKey(document.activeIntegrationId),
-          initialValue: document.activeIntegrationId,
-          isExpanded: true,
-          decoration: InputDecoration(
-            labelText: strings.policyActiveIntegration,
-          ),
-          items: [
-            for (final integration in document.integrations)
-              DropdownMenuItem(
-                value: integration.id,
-                child: Text(integration.label, overflow: TextOverflow.ellipsis),
-              ),
-          ],
-          onChanged: _busy
-              ? null
-              : (id) {
-                  if (id != null && id != document.activeIntegrationId) {
-                    _apply(
-                      document,
-                      _patch(document, {'activeIntegrationId': id}),
-                    );
-                  }
-                },
-        ),
+      Text(strings.policyLocalSourcesHint),
+      const SizedBox(height: 12),
+      PolicyMultiSelect(
+        label: strings.policySubscriptionSources,
+        options: {
+          for (final profile in profiles) '${profile.id}': profile.realLabel,
+        },
+        value: selected,
+        enabled: !_busy,
+        onChanged: (ids) {
+          if (!mounted || _busy) return;
+          if (ids.length > 20) {
+            setState(() {
+              _failed = true;
+              _message = strings.policyLocalSourceLimit;
+            });
+            return;
+          }
+          _apply(
+            document,
+            _patch(document, {
+              'integrations': [
+                for (final integration in document.integrations)
+                  integration.id == localPolicyProfileId
+                      ? {
+                          ...integration.toJson(),
+                          'sourceProfileIds': ids.map(int.parse).toList(),
+                        }
+                      : integration.toJson(),
+              ],
+            }),
+          );
+        },
+      ),
+      if (selected.isEmpty) Text(strings.policyLocalSourcesEmpty),
+      for (final profile in profiles.where(
+        (profile) => selected.contains('${profile.id}'),
+      ))
+        Card(child: _PolicySourceFacts(profile: profile)),
       const SizedBox(height: 16),
       DropdownButtonFormField<SourceUpdateRoute>(
         key: ValueKey(document.sourceUpdateRoute),
@@ -691,105 +556,6 @@ class _LocalPolicyWorkbenchViewState
                   );
                 }
               },
-      ),
-      const SizedBox(height: 16),
-      if (document.integrations.isEmpty) Text(strings.policyEmptyIntegrations),
-      for (final integration in document.integrations)
-        Card(
-          child: Column(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.merge_outlined),
-                title: Text(integration.label),
-                subtitle: Text(
-                  integration.sourceProfileIds
-                      .map(
-                        (id) =>
-                            profiles
-                                .where((profile) => profile.id == id)
-                                .firstOrNull
-                                ?.label ??
-                            '$id',
-                      )
-                      .join(' · '),
-                ),
-                onTap: _busy
-                    ? null
-                    : () => _integration(document, profiles, integration),
-                trailing: IconButton(
-                  onPressed: _busy
-                      ? null
-                      : () {
-                          if (document.policies.any(
-                            (rule) => rule.targetId == integration.targetId,
-                          )) {
-                            setState(() {
-                              _failed = true;
-                              _message = strings.policyDeleteLinked;
-                            });
-                            return;
-                          }
-                          if (document.integrationEnabled &&
-                              document.activeIntegrationId == integration.id) {
-                            setState(
-                              () => _message = strings.policyDeleteLinked,
-                            );
-                            return;
-                          }
-                          final remaining = document.integrations
-                              .where((entry) => entry.id != integration.id)
-                              .toList();
-                          final active =
-                              document.activeIntegrationId == integration.id
-                              ? null
-                              : document.activeIntegrationId;
-                          _apply(
-                            document,
-                            _patch(document, {
-                              'integrations': remaining
-                                  .map((entry) => entry.toJson())
-                                  .toList(),
-                              'activeIntegrationId': active,
-                              'integrationEnabled':
-                                  document.integrationEnabled && active != null,
-                            }),
-                          );
-                        },
-                  tooltip: strings.delete,
-                  icon: const Icon(Icons.delete_outline),
-                ),
-              ),
-              _targetUse(
-                selected:
-                    document.moduleEnabled &&
-                    document.integrationEnabled &&
-                    document.activeIntegrationId == integration.id,
-                onSelect:
-                    document.moduleEnabled &&
-                        _availableTargets(
-                          document,
-                          profiles,
-                        ).containsKey(integration.targetId)
-                    ? () => _operation(
-                        (_) => _controller.selectPolicyTarget(
-                          integrationId: integration.id,
-                          approve: _approve,
-                        ),
-                      )
-                    : null,
-                targetKey: integration.targetId,
-              ),
-            ],
-          ),
-        ),
-      const SizedBox(height: 16),
-      FilledButton.tonalIcon(
-        onPressed:
-            _busy || profiles.isEmpty || document.integrations.length >= 20
-            ? null
-            : () => _integration(document, profiles, null),
-        icon: const Icon(Icons.add),
-        label: Text(strings.policyAddIntegration),
       ),
     ]);
   }
@@ -823,7 +589,7 @@ class _LocalPolicyWorkbenchViewState
           .where((s) => s['policyId'] == rule.id)
           .firstOrNull;
       final runtime = !document.moduleEnabled
-          ? strings.policyModuleOffHint
+          ? strings.policySavedInactive
           : !document.policiesEnabled || !rule.enabled
           ? strings.policySavedInactive
           : rule.targetId != active
@@ -1003,27 +769,25 @@ class _LocalPolicyWorkbenchViewState
     }
 
     return _list([
-      _targetSelector(document, targets),
       const SizedBox(height: 12),
-      if (ref.watch(profilesProvider).isEmpty)
-        Text(strings.policyNoProfilesHint),
+      if (document.localProfile.sourceProfileIds.isEmpty)
+        Text(strings.policyLocalSourcesEmpty),
       Text(strings.policyRuleOrderHint),
+      const SizedBox(height: 8),
+      Text(strings.policyLocalDefaultReject),
       const SizedBox(height: 12),
       Wrap(
         spacing: 12,
         children: [
           FilledButton.tonalIcon(
-            onPressed:
-                _busy ||
-                    ref.watch(profilesProvider).isEmpty ||
-                    document.policies.length >= 100
+            onPressed: _busy || document.policies.length >= 100
                 ? null
                 : () => _rule(document, targets, null),
             icon: const Icon(Icons.add),
             label: Text(strings.policyAddRule),
           ),
           OutlinedButton.icon(
-            onPressed: _busy || selected == null
+            onPressed: _busy
                 ? null
                 : () {
                     final navigator = Navigator.of(context);
@@ -1149,6 +913,8 @@ class _LocalPolicyWorkbenchViewState
         : {if (profileId != null) '$profileId'};
     final running =
         document.moduleEnabled &&
+        document.integrationEnabled &&
+        integration?.id == localPolicyProfileId &&
         document.budgetsEnabled &&
         ref.watch(coreStatusProvider) == CoreStatus.connected &&
         snapshot['enabled'] == true &&
@@ -1609,7 +1375,7 @@ class _LocalPolicyWorkbenchViewState
           IconButton(
             onPressed: _busy || value.asData == null
                 ? null
-                : () => _json(value.asData!.value),
+                : () => _json(value.asData!.value.asStandalone()),
             tooltip: strings.policyAdvancedJson,
             icon: const Icon(Icons.data_object),
           ),
@@ -1617,23 +1383,10 @@ class _LocalPolicyWorkbenchViewState
         body: value.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, _) => Center(child: Text(strings.policyOperationFailed)),
-          data: (document) {
-            final targets = <String, String>{
-              ..._availableTargets(document, profiles),
-              for (final integration in document.integrations)
-                integration.targetId: integration.label,
-              for (final rule in document.policies)
-                if (!profiles.any((p) => 'profile:${p.id}' == rule.targetId) &&
-                    !document.integrations.any(
-                      (i) => i.targetId == rule.targetId,
-                    ))
-                  rule.targetId: rule.targetId,
-              for (final set in document.nodeSets)
-                if (!profiles.any((p) => 'profile:${p.id}' == set.targetId) &&
-                    !document.integrations.any(
-                      (i) => i.targetId == set.targetId,
-                    ))
-                  set.targetId: set.targetId,
+          data: (stored) {
+            final document = stored.asStandalone();
+            final targets = {
+              localPolicyTargetId: strings.policyLocalCollection,
             };
             final sources = {
               for (final profile in profiles) '${profile.id}': profile.label,
@@ -1644,19 +1397,11 @@ class _LocalPolicyWorkbenchViewState
                 constraints: const BoxConstraints(maxWidth: 980),
                 child: Column(
                   children: [
-                    SwitchListTile(
-                      title: Text(strings.policyModule),
-                      subtitle: Text(strings.policyModuleOffHint),
-                      value: document.moduleEnabled,
-                      onChanged: _busy
-                          ? null
-                          : (enabled) => _operation(
-                              (_) => _controller.selectPolicyTarget(
-                                moduleEnabled: enabled,
-                                approve: _approve,
-                              ),
-                            ),
-                    ),
+                    if (document.migrationReviewRequired)
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(strings.policyLocalMigrationReview),
+                      ),
                     TabBar(
                       isScrollable: true,
                       tabs: [
@@ -1689,9 +1434,10 @@ class _LocalPolicyWorkbenchViewState
                           _nodeSets(document, targets, snapshot),
                           _list([
                             ExpansionTile(
-                              key: const PageStorageKey('policy-integrations'),
-                              title: Text(strings.policyIntegrationTab),
-                              children: [_integrations(document, profiles)],
+                              key: const PageStorageKey('policy-sources'),
+                              initiallyExpanded: true,
+                              title: Text(strings.policySubscriptionSources),
+                              children: [_sources(document, profiles)],
                             ),
                             ExpansionTile(
                               key: const PageStorageKey('policy-budgets'),

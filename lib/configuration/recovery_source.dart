@@ -40,7 +40,7 @@ class RecoverySourceBackend
         documents.add(
           LocalPolicyDocument.fromJson(
             policyObject(state['policies'], 'policies'),
-          ),
+          ).asStandalone(),
         );
       }
     }

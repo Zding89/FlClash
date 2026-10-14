@@ -147,7 +147,7 @@ void main() {
           existing: const LocalPolicy(
             id: 'direct',
             label: 'Direct CN',
-            targetId: 'profile:1',
+            targetId: localPolicyTargetId,
             action: PolicyAction.direct,
             scope: PolicyMatch(
               type: PolicyMatchType.destinationRegion,
@@ -181,7 +181,7 @@ void main() {
           existing: const LocalPolicy(
             id: 'legacy',
             label: 'Legacy',
-            targetId: 'profile:1',
+            targetId: localPolicyTargetId,
             candidateNodeIds: ['one', 'two'],
             scope: PolicyMatch(
               type: PolicyMatchType.domainSuffix,
@@ -219,7 +219,7 @@ void main() {
         const original = PolicyNodeSet(
           id: 'group',
           label: 'Group',
-          targetId: 'profile:1',
+          targetId: localPolicyTargetId,
           sourceIds: ['1', '2'],
           regions: ['JP'],
           preferences: [
@@ -240,7 +240,7 @@ void main() {
           tester,
           PolicyNodeSetEditor(
             existing: original,
-            targetId: 'profile:1',
+            targetId: localPolicyTargetId,
             sources: const {'1': 'Alpha', '2': 'Beta'},
             nodes: const [],
             onSave: (value) async => saved = value,
@@ -356,11 +356,11 @@ void main() {
             existing: PolicyNodeSet(
               id: 'legacy-group',
               label: 'Legacy',
-              targetId: 'profile:1',
+              targetId: localPolicyTargetId,
               sourceIds: const ['1'],
               strategy: strategy,
             ),
-            targetId: 'profile:1',
+            targetId: localPolicyTargetId,
             sources: const {'1': 'Provider'},
             nodes: const [],
           ),

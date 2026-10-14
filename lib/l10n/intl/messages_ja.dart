@@ -1001,7 +1001,25 @@ class MessageLookup extends MessageLookupByLibrary {
       "別のグループまたはノードを選ぶまで既存の選択を保持します",
     ),
     "policyLoadNodes": MessageLookupByLibrary.simpleMessage("利用可能なノードを読み込む"),
-    "policyLocalCollection": MessageLookupByLibrary.simpleMessage("統合プロファイル"),
+    "policyLocalCollection": MessageLookupByLibrary.simpleMessage("ローカル設定"),
+    "policyLocalDefaultReject": MessageLookupByLibrary.simpleMessage(
+      "利用可能な結果を返すルールがない場合、接続を拒否します。",
+    ),
+    "policyLocalMigrationReview": MessageLookupByLibrary.simpleMessage(
+      "以前のルールは保存して一時停止しました。確認後にローカル設定を選択してください。",
+    ),
+    "policyLocalProfileHint": MessageLookupByLibrary.simpleMessage(
+      "独立して選択し、ソースとローカルルールを編集",
+    ),
+    "policyLocalSourceLimit": MessageLookupByLibrary.simpleMessage(
+      "購読ソースは最大20件選べます",
+    ),
+    "policyLocalSourcesEmpty": MessageLookupByLibrary.simpleMessage(
+      "購読ソースが未選択です。直接接続やブロックのルールは追加できます。",
+    ),
+    "policyLocalSourcesHint": MessageLookupByLibrary.simpleMessage(
+      "選んだ購読のノードのみ使用します。購読のルール、グループ、スクリプト、DNSは引き継ぎません。最大20件選べます。",
+    ),
     "policyManualAttribute": MessageLookupByLibrary.simpleMessage("手動確認"),
     "policyManualOrigin": MessageLookupByLibrary.simpleMessage("手動追加"),
     "policyMatchAll": MessageLookupByLibrary.simpleMessage("全条件（詳細）"),
@@ -1036,7 +1054,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "利用できるノードがなければ次のルールに進みます",
     ),
     "policyNoProfilesHint": MessageLookupByLibrary.simpleMessage(
-      "ルールやノードグループを作る前に、「プロファイル」で購読またはローカル設定を追加してください",
+      "購読ソースはまだありません。直接接続やブロックのルールは追加できます",
     ),
     "policyNodeSet": MessageLookupByLibrary.simpleMessage("ノードグループ"),
     "policyNodeSetHint": MessageLookupByLibrary.simpleMessage(
@@ -1132,7 +1150,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyRuleType": MessageLookupByLibrary.simpleMessage("ルールの種類"),
     "policyRulesHint": MessageLookupByLibrary.simpleMessage(
-      "選択したプロファイルに通信条件、有効時間、処理方法を設定します。そのプロファイルをルールモードで使用中に適用されます",
+      "ローカル設定の通信ルール、有効時間、処理方法を順番に設定します",
     ),
     "policyRulesTab": MessageLookupByLibrary.simpleMessage("ルール"),
     "policyRuntimeState": MessageLookupByLibrary.simpleMessage("実行状態"),
@@ -1208,6 +1226,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySubscriptionExpired": MessageLookupByLibrary.simpleMessage(
       "購読の期限切れ",
     ),
+    "policySubscriptionSources": MessageLookupByLibrary.simpleMessage("購読ソース"),
     "policySuccesses": MessageLookupByLibrary.simpleMessage("連続成功回数"),
     "policySupersededStatus": MessageLookupByLibrary.simpleMessage("後続の変更で置換"),
     "policyTarget": MessageLookupByLibrary.simpleMessage("ルールを適用するプロファイル"),
@@ -1245,7 +1264,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyUpdateRoute": MessageLookupByLibrary.simpleMessage("サブスクリプション更新経路"),
     "policyUpdateRouteDirect": MessageLookupByLibrary.simpleMessage("直接接続"),
     "policyUpdateRouteHint": MessageLookupByLibrary.simpleMessage(
-      "ローカルポリシー、統合、予算の有効時に使用します。プロキシ停止中は更新しません。直接接続には確認が必要です。",
+      "ローカル設定の購読更新方式です。プロキシが利用できなければ更新を停止します。直接接続には確認が必要です。",
     ),
     "policyUpdateRouteProxy": MessageLookupByLibrary.simpleMessage(
       "現在のプロキシを使用",

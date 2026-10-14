@@ -30,15 +30,16 @@ const fixtureIcons = String.fromEnvironment('POLICY_BUDGET_FIXTURE_ICONS');
 const gib = 1073741824;
 final captureKey = GlobalKey();
 const document = LocalPolicyDocument(
+  schemaVersion: 4,
   revision: 12,
   moduleEnabled: true,
   policiesEnabled: true,
   integrationEnabled: true,
   budgetsEnabled: true,
-  activeIntegrationId: 'fixture_pool',
+  activeIntegrationId: localPolicyProfileId,
   integrations: [
     SubscriptionIntegration(
-      id: 'fixture_pool',
+      id: localPolicyProfileId,
       label: '办公与日常测试集合',
       sourceProfileIds: [1, 2],
     ),
@@ -67,7 +68,7 @@ Map<String, Object?> status({
   'enabled': true,
   'revision': 19,
   'documentRevision': 12,
-  'targetId': 'integration:fixture_pool',
+  'targetId': localPolicyTargetId,
   'policies': <Object?>[],
   'nodeSets': <Object?>[],
   'budgets': [
@@ -213,6 +214,15 @@ Future<void> mount(
   );
   await tap(
     tester,
+    find
+        .widgetWithText(
+          ListTile,
+          AppLocalizations.current.policySubscriptionSources,
+        )
+        .first,
+  );
+  await tap(
+    tester,
     find.widgetWithText(
       ExpansionTile,
       AppLocalizations.current.policyBudgetTab,
@@ -311,7 +321,7 @@ void main() {
     );
     await finish(tester);
   });
-  testWidgets('UI-A01-06 original profile source also uses its active budget', (
+  testWidgets('UI-A01-06 ordinary subscriptions do not use local budgets', (
     tester,
   ) async {
     await mount(
@@ -332,10 +342,7 @@ void main() {
         },
       ),
     );
-    expect(
-      find.byKey(const ValueKey('policy-budget-reached-1')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('policy-budget-reached-1')), findsNothing);
     await finish(tester);
   });
   final scenarios =

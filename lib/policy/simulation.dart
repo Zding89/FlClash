@@ -37,6 +37,11 @@ final class LocalPolicySimulation {
     Map<String, int> localUsage = const {},
     List<Map<String, Object?>> steps = const [],
   }) async {
+    if (document.isStandalone && targetId != localPolicyTargetId) {
+      throw const FormatException(
+        'Only the local configuration can be simulated',
+      );
+    }
     final parts = targetId.split(':');
     if (parts.length != 2 ||
         !{'profile', 'integration'}.contains(parts.first)) {

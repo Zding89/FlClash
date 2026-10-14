@@ -16,10 +16,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _collection = SubscriptionIntegration(
-  id: 'collection',
+  id: localPolicyProfileId,
   label: 'Collection',
   sourceProfileIds: [1],
 );
+Map<String, Object?> _standaloneFixture(LocalPolicyDocument value) => {
+  ...value.toJson(),
+  'schemaVersion': 4,
+  'activeIntegrationId': localPolicyProfileId,
+};
 Map<String, Object?> _copy(Map<String, Object?> value) =>
     Map<String, Object?>.from(jsonDecode(jsonEncode(value)) as Map);
 
@@ -139,10 +144,12 @@ void main() {
       backend = _Backend(ref: ref, store: store);
       backend.state = {
         'config': {'currentProfileId': 1},
-        'policies': const LocalPolicyDocument(
-          moduleEnabled: true,
-          integrations: [_collection],
-        ).toJson(),
+        'policies': _standaloneFixture(
+          const LocalPolicyDocument(
+            moduleEnabled: true,
+            integrations: [_collection],
+          ),
+        ),
       };
       return _Controller(
         ref,
@@ -177,8 +184,108 @@ void main() {
   void setDocument(LocalPolicyDocument value, {int? profileId = 1}) =>
       backend.state = {
         'config': {'currentProfileId': profileId},
-        'policies': value.toJson(),
+        'policies': _standaloneFixture(value),
       };
+
+  test(
+    'selecting local configuration opens its module and acknowledges migration without enabling old rules',
+    () async {
+      backend.state['policies'] = {
+        ..._standaloneFixture(
+          const LocalPolicyDocument(
+            moduleEnabled: false,
+            policiesEnabled: false,
+            integrations: [_collection],
+            policies: [
+              LocalPolicy(
+                id: 'migrated',
+                label: 'Migrated',
+                targetId: localPolicyTargetId,
+                enabled: false,
+                action: PolicyAction.direct,
+              ),
+            ],
+          ),
+        ),
+        'migrationReviewRequired': true,
+      };
+      var approvals = 0;
+      final result = await controller.selectPolicyTarget(
+        integrationId: localPolicyProfileId,
+        approve: (_) async {
+          approvals++;
+          return true;
+        },
+      );
+      expect(result['status'], 'applied');
+      expect(approvals, 1);
+      expect(document().moduleEnabled, true);
+      expect(document().integrationEnabled, true);
+      expect(document().migrationReviewRequired, false);
+      expect(document().policiesEnabled, false);
+      expect(document().policies.single.enabled, false);
+      expect((backend.state['config'] as Map)['currentProfileId'], 1);
+    },
+  );
+
+  test(
+    'legacy integration cannot be activated through the target API',
+    () async {
+      backend.state['policies'] = {
+        ..._standaloneFixture(
+          const LocalPolicyDocument(
+            integrations: [
+              _collection,
+              SubscriptionIntegration(
+                id: 'archived',
+                label: 'Archived',
+                sourceProfileIds: [2],
+              ),
+            ],
+          ),
+        ),
+      };
+      await expectLater(
+        controller.selectPolicyTarget(
+          integrationId: 'archived',
+          approve: approve,
+        ),
+        throwsA(isA<ConfigurationChangeException>()),
+      );
+      expect(backend.writes, 0);
+      expect(backend.activations, isEmpty);
+    },
+  );
+
+  test(
+    'legacy proposals are normalized to paused local rules before persistence',
+    () async {
+      final proposal = await controller.proposePolicies(
+        const LocalPolicyDocument(
+          moduleEnabled: true,
+          policiesEnabled: true,
+          policies: [
+            LocalPolicy(
+              id: 'old',
+              label: 'Old',
+              targetId: 'profile:1',
+              action: PolicyAction.direct,
+            ),
+          ],
+        ),
+      );
+      final stored = (await store.readChange(proposal.id))!;
+      final after = jsonDecode(stored.afterPayload) as Map;
+      final policies = LocalPolicyDocument.fromJson(
+        policyObject(after['policies'], 'policies'),
+      );
+      expect(policies.schemaVersion, 4);
+      expect(policies.integrationEnabled, false);
+      expect(policies.migrationReviewRequired, true);
+      expect(policies.policies.single.targetId, localPolicyTargetId);
+      expect(policies.policies.single.enabled, false);
+    },
+  );
 
   test(
     'latest queued target intent supersedes older selections before any write',
@@ -190,7 +297,7 @@ void main() {
       );
       await backend.readStarted.future;
       final second = controller.selectPolicyTarget(
-        integrationId: 'collection',
+        integrationId: localPolicyProfileId,
         approve: approve,
       );
       final latest = controller.selectPolicyTarget(
@@ -215,7 +322,7 @@ void main() {
         const LocalPolicyDocument(
           moduleEnabled: false,
           integrations: [_collection],
-          activeIntegrationId: 'collection',
+          activeIntegrationId: localPolicyProfileId,
         ),
       );
       var approvals = 0;
@@ -229,7 +336,7 @@ void main() {
       expect(result['status'], 'applied');
       expect(document().moduleEnabled, true);
       expect(document().integrationEnabled, false);
-      expect(document().activeIntegrationId, 'collection');
+      expect(document().activeIntegrationId, localPolicyProfileId);
       expect(document().integrations.single.sourceProfileIds, [1]);
       expect((backend.state['config'] as Map)['currentProfileId'], 1);
       expect(approvals, 0);
@@ -244,7 +351,7 @@ void main() {
           moduleEnabled: true,
           integrationEnabled: true,
           integrations: [_collection],
-          activeIntegrationId: 'collection',
+          activeIntegrationId: localPolicyProfileId,
         ),
         profileId: 2,
       );
@@ -255,7 +362,7 @@ void main() {
       expect(result['status'], 'applied');
       expect(document().moduleEnabled, false);
       expect(document().integrationEnabled, false);
-      expect(document().activeIntegrationId, 'collection');
+      expect(document().activeIntegrationId, localPolicyProfileId);
       expect(document().integrations, hasLength(1));
       expect(
         (backend.activations.single['config'] as Map)['currentProfileId'],
@@ -273,7 +380,7 @@ void main() {
             moduleEnabled: true,
             integrationEnabled: true,
             integrations: [_collection],
-            activeIntegrationId: 'collection',
+            activeIntegrationId: localPolicyProfileId,
           ),
           profileId: missing,
         );
@@ -303,7 +410,7 @@ void main() {
           moduleEnabled: true,
           integrationEnabled: true,
           integrations: [_collection],
-          activeIntegrationId: 'collection',
+          activeIntegrationId: localPolicyProfileId,
         ),
       );
       expect(
@@ -315,7 +422,7 @@ void main() {
       );
       expect(document().integrationEnabled, false);
       expect(document().moduleEnabled, true);
-      expect(document().activeIntegrationId, 'collection');
+      expect(document().activeIntegrationId, localPolicyProfileId);
       expect(document().integrations, hasLength(1));
       expect((backend.state['config'] as Map)['currentProfileId'], 2);
     },
@@ -344,7 +451,7 @@ void main() {
       final original = policyDigest(backend.state);
       var approvals = 0;
       final result = await controller.selectPolicyTarget(
-        integrationId: 'collection',
+        integrationId: localPolicyProfileId,
         approve: (_) async {
           approvals++;
           return false;
@@ -368,7 +475,7 @@ void main() {
       final gate = Completer<bool>();
       final entered = Completer<void>();
       final first = controller.selectPolicyTarget(
-        integrationId: 'collection',
+        integrationId: localPolicyProfileId,
         approve: (_) {
           entered.complete();
           return gate.future;

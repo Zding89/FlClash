@@ -745,7 +745,7 @@ final class AgentTools {
           'offset': offset,
         };
       case 'policies_propose':
-        final document = await controller.readPolicies();
+        final document = (await controller.readPolicies()).asStandalone();
         _current(request);
         final patch = policyObject(args['patch'], 'patch');
         policyKeys(patch, {
@@ -795,6 +795,11 @@ final class AgentTools {
                     .toList();
               }
               final id = policyString(object, key);
+              if (entry.key == 'integrations' && id != localPolicyProfileId) {
+                throw const FormatException(
+                  'Only the local configuration can be changed',
+                );
+              }
               final index = existing.indexWhere((item) => item[key] == id);
               if (index == -1) {
                 if (entry.key == 'policies') {
@@ -843,7 +848,7 @@ final class AgentTools {
         }
         return _proposal(
           await controller.proposePolicies(
-            LocalPolicyDocument.fromJson(candidate),
+            LocalPolicyDocument.fromJson(candidate).asStandalone(),
           ),
         );
       case 'policies_simulate':

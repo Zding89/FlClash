@@ -21,22 +21,27 @@ class _Controller extends Mock implements WorkbenchController {
   PolicyProfileService get profiles =>
       PolicyProfileService(loader: PolicySourceLoader(store: database));
   int calls = 0;
+  String? suppliedTarget;
   Map<String, bool?>? suppliedHealth;
   @override
   Future<List<LocalNode>> loadNodes(
     String targetId, {
     bool refresh = false,
     LocalPolicyDocument? document,
-  }) async => [
-    LocalNode(
-      id: '1:a',
-      sourceId: '1',
-      label: 'Node A',
-      sourceLabel: 'Source',
-      protocol: 'ss',
-      raw: {},
-    ),
-  ];
+  }) async {
+    suppliedTarget = targetId;
+    return [
+      LocalNode(
+        id: '1:a',
+        sourceId: '1',
+        label: 'Node A',
+        sourceLabel: 'Source',
+        protocol: 'ss',
+        raw: {},
+      ),
+    ];
+  }
+
   @override
   Future<PolicySimulationResult> simulatePolicies({
     required LocalPolicyDocument document,
@@ -102,6 +107,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(controller.calls, 1);
+      expect(controller.suppliedTarget, localPolicyTargetId);
+      expect(find.byType(DropdownButtonFormField<String>), findsNothing);
       expect(controller.suppliedHealth, {'1:a': null});
       expect(find.text('1970-01-01 08:00:00'), findsOneWidget);
       expect(find.textContaining('rule: Source · Node A'), findsOneWidget);

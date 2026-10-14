@@ -1356,7 +1356,25 @@ class MessageLookup extends MessageLookupByLibrary {
       "Загрузить доступные узлы",
     ),
     "policyLocalCollection": MessageLookupByLibrary.simpleMessage(
-      "Объединённый профиль",
+      "Локальная конфигурация",
+    ),
+    "policyLocalDefaultReject": MessageLookupByLibrary.simpleMessage(
+      "Если ни одно правило не даёт доступного результата, соединение блокируется.",
+    ),
+    "policyLocalMigrationReview": MessageLookupByLibrary.simpleMessage(
+      "Прежние правила сохранены и приостановлены. Проверьте их перед выбором локальной конфигурации.",
+    ),
+    "policyLocalProfileHint": MessageLookupByLibrary.simpleMessage(
+      "Выбирайте отдельно; редактируйте источники и локальные правила",
+    ),
+    "policyLocalSourceLimit": MessageLookupByLibrary.simpleMessage(
+      "Можно выбрать до 20 источников подписок",
+    ),
+    "policyLocalSourcesEmpty": MessageLookupByLibrary.simpleMessage(
+      "Источники подписок не выбраны; можно добавить правила прямого подключения и блокировки.",
+    ),
+    "policyLocalSourcesHint": MessageLookupByLibrary.simpleMessage(
+      "Используются только узлы выбранных подписок. Их правила, группы, скрипты и DNS не наследуются. Можно выбрать до 20 источников.",
     ),
     "policyManualAttribute": MessageLookupByLibrary.simpleMessage(
       "Подтверждено вручную",
@@ -1422,7 +1440,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Если доступных узлов нет, перейти к следующему правилу.",
     ),
     "policyNoProfilesHint": MessageLookupByLibrary.simpleMessage(
-      "Перед созданием правил и групп узлов добавьте подписку или локальный профиль в разделе «Профили»",
+      "Источников пока нет; можно добавить правила прямого подключения и блокировки",
     ),
     "policyNodeSet": MessageLookupByLibrary.simpleMessage("Группа узлов"),
     "policyNodeSetHint": MessageLookupByLibrary.simpleMessage(
@@ -1566,7 +1584,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyRuleType": MessageLookupByLibrary.simpleMessage("Тип правила"),
     "policyRulesHint": MessageLookupByLibrary.simpleMessage(
-      "Задайте условия трафика, время действия и способ обработки для выбранного профиля; применяется, когда он активен в режиме правил",
+      "Задайте порядок правил трафика, время действия и обработку для локальной конфигурации",
     ),
     "policyRulesTab": MessageLookupByLibrary.simpleMessage("Правила"),
     "policyRuntimeState": MessageLookupByLibrary.simpleMessage("Состояние"),
@@ -1668,6 +1686,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySubscriptionExpired": MessageLookupByLibrary.simpleMessage(
       "Подписка истекла",
     ),
+    "policySubscriptionSources": MessageLookupByLibrary.simpleMessage(
+      "Источники подписок",
+    ),
     "policySuccesses": MessageLookupByLibrary.simpleMessage(
       "Успешных проверок подряд",
     ),
@@ -1731,7 +1752,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Прямое соединение",
     ),
     "policyUpdateRouteHint": MessageLookupByLibrary.simpleMessage(
-      "Действует при включённых локальных политиках, объединении или бюджетах. Недоступный прокси останавливает обновления; прямой доступ требует подтверждения.",
+      "Обновление подписок локальной конфигурации. Если прокси недоступен, обновление останавливается; прямой доступ требует подтверждения.",
     ),
     "policyUpdateRouteProxy": MessageLookupByLibrary.simpleMessage(
       "Через текущий прокси",
