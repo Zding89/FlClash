@@ -178,6 +178,11 @@ void main() {
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
       await tester.ensureVisible(
+        find.byKey(const ValueKey('policy-more-settings')),
+      );
+      await tester.tap(find.text(AppLocalizations.current.policyMoreSettings));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
         find.text(AppLocalizations.current.policyProbe),
       );
       await tester.tap(find.text(AppLocalizations.current.policyProbe));

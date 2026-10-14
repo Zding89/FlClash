@@ -12,6 +12,14 @@ import 'package:fl_clash/l10n/l10n.dart';
 import 'package:fl_clash/providers/workbench.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/views/ai/assistant.dart';
+import 'package:fl_clash/views/ai/composer_context.dart';
+import 'package:fl_clash/views/ai/settings.dart';
+import 'package:fl_clash/views/ai/presentation.dart';
+import 'package:fl_clash/capabilities/service.dart';
+import 'package:fl_clash/capabilities/manifest.dart';
+import 'package:fl_clash/configuration/changes.dart';
+
+import '../support/ai_visual_capture.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,8 +27,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _Transport implements AgentTransport {
-  final outgoing = StreamController<List<int>>();
-  final diagnostic = StreamController<List<int>>();
+  _Transport({this.tools = false});
+  final bool tools;
+  Map<String, dynamic>? prompt;
+  int toolResults = 0;
+  int promptCalls = 0;
+
+  void event(String type, Map<String, Object?> data) {
+    final encoded = jsonEncode({...prompt!, 'type': type, 'data': data});
+    outgoing.add(utf8.encode('$encoded\n'));
+  }
+
+  void request(String command) => event('toolRequest', {
+    'requestId': 'visual-$toolResults',
+    'toolCallId': 'call-$toolResults',
+    'name': 'application_invoke',
+    'arguments': {'command': command, 'params': <String, Object?>{}},
+  });
+  final outgoing = StreamController<List<int>>.broadcast();
+  final diagnostic = StreamController<List<int>>.broadcast();
   final exited = Completer<int>();
   bool closed = false;
 
@@ -33,7 +58,23 @@ class _Transport implements AgentTransport {
   @override
   Future<void> write(List<int> bytes) async {
     final frame = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+    if (frame['type'] == 'toolResult') {
+      toolResults++;
+      if (toolResults == 1) {
+        request('proxy_select');
+      } else {
+        event('done', {'cancelled': false, 'failed': false});
+      }
+      return;
+    }
     if (frame['type'] != 'prompt') return;
+    promptCalls++;
+    prompt = frame;
+    if (tools) {
+      event('text', {'text': '已检查当前连接。下面的方案等待你的确认。'});
+      request('runtime_read');
+      return;
+    }
     for (final event in [
       {
         'type': 'text',
@@ -54,8 +95,8 @@ class _Transport implements AgentTransport {
     if (closed) return;
     closed = true;
     exited.complete(0);
-    await outgoing.close();
-    await diagnostic.close();
+    unawaited(outgoing.close());
+    unawaited(diagnostic.close());
   }
 }
 
@@ -90,6 +131,66 @@ class _Controller extends Mock implements WorkbenchController {
   Future<void> closeAgent() => runtime.close();
 }
 
+const _proposal = ConfigurationProposal(
+  id: 'visual-proposal',
+  summary: '调整视频流量规则',
+  highRisk: true,
+  expiresAt: 9999999999999,
+  differences: [
+    ConfigurationDifference(
+      path: 'video.primary',
+      before: '自动选择',
+      after: '日本节点集',
+    ),
+    ConfigurationDifference(
+      path: 'video.fallback',
+      before: null,
+      after: '香港节点集',
+    ),
+  ],
+  validation: {
+    'finalConfigValidated': true,
+    'finalConfigDifferences': [
+      {'path': 'rules.video', 'before': 'MATCH', 'after': '日本 → 香港 → 阻断'},
+    ],
+  },
+);
+
+class _CapabilityService extends Mock implements ApplicationCapabilityService {
+  bool? approved;
+  Completer<Map<String, Object?>>? readPending;
+  final pending = Completer<void>();
+  @override
+  List<Map<String, Object?>> get manifest =>
+      applicationCapabilities.map((capability) => capability.toJson()).toList();
+  @override
+  Future<Map<String, Object?>> execute(
+    String command,
+    Map<String, Object?> params, {
+    String? idempotencyKey,
+    int? credentialGeneration,
+    String origin = 'cli',
+    bool Function()? isCurrent,
+    ConfigurationApproval? approve,
+  }) async {
+    if (command == 'runtime_read') {
+      if (readPending != null) return readPending!.future;
+      return {
+        'status': 'completed',
+        'result': {
+          'running': true,
+          'mode': 'rule',
+          'node': '日本 01',
+          'latency': '32 ms',
+        },
+      };
+    }
+    if (!pending.isCompleted) pending.complete();
+    approved = await approve!(_proposal);
+    return {'status': approved! ? 'applied' : 'rejected'};
+  }
+}
+
 const _settings = AgentSettings(
   enabled: true,
   selectedConnectionId: 'test',
@@ -107,6 +208,8 @@ Future<ProviderContainer> _mount(
   WidgetTester tester,
   _Controller controller, {
   String? initialPrompt,
+  String? offeredContext,
+  _CapabilityService? capabilities,
 }) async {
   final container = ProviderContainer(
     overrides: [
@@ -115,13 +218,24 @@ Future<ProviderContainer> _mount(
         return controller;
       }),
       agentSettingsProvider.overrideWith((_) => Stream.value(_settings)),
+      if (capabilities != null)
+        applicationCapabilityServiceProvider.overrideWithValue(capabilities),
     ],
   );
   globalState.container = container;
+  if (offeredContext != null) {
+    container.read(aiComposerContextProvider.notifier).offer(offeredContext);
+  }
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
+        locale: aiVisualCapture ? const Locale('zh', 'CN') : null,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+          fontFamily: aiVisualCapture ? 'AiVisualLatin' : null,
+          fontFamilyFallback: aiVisualCapture ? const ['AiVisualCjk'] : null,
+        ),
         localizationsDelegates: const [
           AppLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
@@ -131,9 +245,15 @@ Future<ProviderContainer> _mount(
         supportedLocales: AppLocalizations.delegate.supportedLocales,
         builder: (context, child) {
           globalState.measure = Measure.of(context, 1);
-          return child!;
+          return RepaintBoundary(
+            key: const ValueKey('ai-visual-root'),
+            child: child,
+          );
         },
-        home: AiAssistantView(initialPrompt: initialPrompt),
+        home: aiVisualSurface(
+          'V3 AI 助手',
+          AiAssistantView(initialPrompt: initialPrompt),
+        ),
       ),
     ),
   );
@@ -142,7 +262,675 @@ Future<ProviderContainer> _mount(
   return container;
 }
 
+Finder _conversationScrollable(WidgetTester tester) {
+  final list = tester.widget<ListView>(
+    find.byKey(const ValueKey('ai-conversation-list')),
+  );
+  final scrollable = find.descendant(
+    of: find.byKey(const ValueKey('ai-conversation-list')),
+    matching: find.byWidgetPredicate(
+      (widget) =>
+          widget is Scrollable && identical(widget.controller, list.controller),
+    ),
+  );
+  expect(scrollable, findsOneWidget);
+  return scrollable;
+}
+
+Future<void> _tapAi(WidgetTester tester, Finder target) async {
+  expect(target, findsOneWidget);
+  await tester.ensureVisible(target);
+  await tester.pump();
+  await tester.ensureVisible(target);
+  await tester.pump(const Duration(milliseconds: 100));
+  expect(target.hitTestable(), findsOneWidget);
+  await tester.tap(target.hitTestable());
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+}
+
 void main() {
+  testWidgets(
+    'context offered before first mount fills composer once without launching runtime',
+    (tester) async {
+      final transport = _Transport();
+      var launches = 0;
+      final runtime = AgentRuntime(
+        launcher: () async {
+          launches++;
+          return transport;
+        },
+      );
+      final container = await _mount(
+        tester,
+        _Controller(runtime, _Credentials()),
+        offeredContext: 'Inspect profile:1 before proposing a change',
+      );
+      addTearDown(container.dispose);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('ai-prompt')))
+            .controller!
+            .text,
+        'Inspect profile:1 before proposing a change',
+      );
+      expect(container.read(aiComposerContextProvider), isNull);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('ai-prompt')))
+            .controller!
+            .text,
+        'Inspect profile:1 before proposing a change',
+      );
+      expect(launches, 0);
+      expect(transport.promptCalls, 0);
+      expect(find.byType(AiAssistantView), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'offered context preserves the same assistant state chat and existing draft without sending',
+    (tester) async {
+      final transport = _Transport();
+      var launches = 0;
+      final runtime = AgentRuntime(
+        launcher: () async {
+          launches++;
+          return transport;
+        },
+      );
+      final container = await _mount(
+        tester,
+        _Controller(runtime, _Credentials()),
+      );
+      addTearDown(container.dispose);
+      final state = tester.state(find.byType(AiAssistantView));
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-prompt')),
+        'Original conversation',
+      );
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+      await tester.pumpAndSettle();
+      expect(find.text('streamed answer'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-prompt')),
+        'Keep this unfinished draft',
+      );
+      container
+          .read(aiComposerContextProvider.notifier)
+          .offer('Inspect policy for profile:1');
+      await tester.pumpAndSettle();
+      expect(
+        identical(state, tester.state(find.byType(AiAssistantView))),
+        true,
+      );
+      expect(find.byType(AiAssistantView), findsOneWidget);
+      expect(find.text('Original conversation'), findsOneWidget);
+      expect(find.text('streamed answer'), findsOneWidget);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('ai-prompt')))
+            .controller!
+            .text,
+        'Keep this unfinished draft\n\nInspect policy for profile:1',
+      );
+      expect(container.read(aiComposerContextProvider), isNull);
+      expect(launches, 1);
+      expect(transport.promptCalls, 1);
+      await tester.pumpAndSettle();
+      expect(transport.promptCalls, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'latest busy context survives credential wait and the later sent-input clear',
+    (tester) async {
+      final pending = Completer<String?>();
+      final transport = _Transport();
+      var launches = 0;
+      final runtime = AgentRuntime(
+        launcher: () async {
+          launches++;
+          return transport;
+        },
+      );
+      final container = await _mount(
+        tester,
+        _Controller(runtime, _Credentials(pending: pending)),
+      );
+      addTearDown(container.dispose);
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-prompt')),
+        'Send only this original request',
+      );
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+      container
+          .read(aiComposerContextProvider.notifier)
+          .offer('Superseded context');
+      container
+          .read(aiComposerContextProvider.notifier)
+          .offer('Latest policy context');
+      await tester.pump();
+      expect(
+        container.read(aiComposerContextProvider),
+        'Latest policy context',
+      );
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('ai-prompt')))
+            .controller!
+            .text,
+        'Send only this original request',
+      );
+      expect(launches, 0);
+      pending.complete('test-secret');
+      await waitAiCondition(
+        tester,
+        () =>
+            tester
+                .widget<TextField>(find.byKey(const ValueKey('ai-prompt')))
+                .controller!
+                .text ==
+            'Latest policy context',
+        'Queued context must reach composer after the existing send clears its input',
+      );
+      expect(
+        transport.prompt!['data']['user'],
+        'Send only this original request',
+      );
+      expect(find.text('streamed answer'), findsOneWidget);
+      expect(container.read(aiComposerContextProvider), isNull);
+      expect(launches, 1);
+      expect(transport.promptCalls, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'failed credential read preserves original draft and queued context without sending',
+    (tester) async {
+      final pending = Completer<String?>();
+      final transport = _Transport();
+      var launches = 0;
+      final runtime = AgentRuntime(
+        launcher: () async {
+          launches++;
+          return transport;
+        },
+      );
+      final container = await _mount(
+        tester,
+        _Controller(runtime, _Credentials(pending: pending)),
+      );
+      addTearDown(container.dispose);
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-prompt')),
+        'Unsent draft',
+      );
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+      container
+          .read(aiComposerContextProvider.notifier)
+          .offer('Policy context after failure');
+      pending.complete(null);
+      await waitAiCondition(
+        tester,
+        () =>
+            tester
+                .widget<TextField>(find.byKey(const ValueKey('ai-prompt')))
+                .controller!
+                .text ==
+            'Unsent draft\n\nPolicy context after failure',
+        'Failed send must append queued context to its unsent draft',
+      );
+      expect(find.text(AppLocalizations.current.aiKeyMissing), findsOneWidget);
+      expect(container.read(aiComposerContextProvider), isNull);
+      expect(launches, 0);
+      expect(transport.promptCalls, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'stopping a credential wait appends context and late credentials cannot erase it',
+    (tester) async {
+      final pending = Completer<String?>();
+      final transport = _Transport();
+      var launches = 0;
+      final runtime = AgentRuntime(
+        launcher: () async {
+          launches++;
+          return transport;
+        },
+      );
+      final container = await _mount(
+        tester,
+        _Controller(runtime, _Credentials(pending: pending)),
+      );
+      addTearDown(container.dispose);
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-prompt')),
+        'Keep unsent request',
+      );
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+      container
+          .read(aiComposerContextProvider.notifier)
+          .offer('Context after stop');
+      await _tapAi(tester, find.byTooltip(AppLocalizations.current.aiStop));
+      await waitAiCondition(
+        tester,
+        () =>
+            tester
+                .widget<TextField>(find.byKey(const ValueKey('ai-prompt')))
+                .controller!
+                .text ==
+            'Keep unsent request\n\nContext after stop',
+        'Stopping must accept its pending composer context',
+      );
+      pending.complete('late-secret');
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('ai-prompt')))
+            .controller!
+            .text,
+        'Keep unsent request\n\nContext after stop',
+      );
+      expect(container.read(aiComposerContextProvider), isNull);
+      expect(launches, 0);
+      expect(transport.promptCalls, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'opening settings keeps chat and draft while accepting context on the same assistant',
+    (tester) async {
+      final transport = _Transport();
+      var launches = 0;
+      final runtime = AgentRuntime(
+        launcher: () async {
+          launches++;
+          return transport;
+        },
+      );
+      final container = await _mount(
+        tester,
+        _Controller(runtime, _Credentials()),
+      );
+      addTearDown(container.dispose);
+      final state = tester.state(find.byType(AiAssistantView));
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-prompt')),
+        'Existing conversation',
+      );
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-prompt')),
+        'Keep settings draft',
+      );
+      await _tapAi(
+        tester,
+        find.byTooltip(AppLocalizations.current.aiSettingsTitle),
+      );
+      container
+          .read(aiComposerContextProvider.notifier)
+          .offer('Context across settings');
+      await waitAiCondition(
+        tester,
+        () => find.byType(AiSettingsView).evaluate().isNotEmpty,
+        'Settings must open on its own route',
+      );
+      expect(find.byType(AiAssistantView, skipOffstage: false), findsOneWidget);
+      Navigator.of(tester.element(find.byType(AiSettingsView))).pop();
+      await waitAiCondition(
+        tester,
+        () =>
+            find.byKey(const ValueKey('ai-prompt')).evaluate().isNotEmpty &&
+            tester
+                    .widget<TextField>(find.byKey(const ValueKey('ai-prompt')))
+                    .controller!
+                    .text ==
+                'Keep settings draft\n\nContext across settings',
+        'Returning from settings must retain the existing draft and consume pending context',
+      );
+      expect(
+        identical(state, tester.state(find.byType(AiAssistantView))),
+        true,
+      );
+      expect(find.text('Existing conversation'), findsOneWidget);
+      expect(find.text('streamed answer'), findsOneWidget);
+      expect(container.read(aiComposerContextProvider), isNull);
+      expect(launches, 1);
+      expect(transport.promptCalls, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final width in [1100.0, 944.0, 390.0, 360.0]) {
+    testWidgets('real tool result and pending approval layout $width', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, switch (width) {
+        944 => 568,
+        360 => 740,
+        _ => width > 500 ? 850 : 700,
+      });
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await loadAiVisualFonts(tester);
+      final transport = _Transport(tools: true);
+      final runtime = AgentRuntime(launcher: () async => transport);
+      final capabilities = _CapabilityService();
+      final container = await _mount(
+        tester,
+        _Controller(runtime, _Credentials()),
+        capabilities: capabilities,
+      );
+      addTearDown(container.dispose);
+      expect(
+        find.byType(AiCapabilityPanel),
+        width > 500 ? findsOneWidget : findsNothing,
+      );
+      expect(transport.prompt, isNull);
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-prompt')),
+        '检查当前连接，再提出视频流量方案',
+      );
+      await tester.pump();
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(
+        find.byKey(const ValueKey('ai-result-visual-proposal')),
+        findsOneWidget,
+      );
+      expect(capabilities.approved, isNull);
+      expect(
+        find.text(AppLocalizations.current.aiAwaitingApproval),
+        findsOneWidget,
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('ai-result-check')),
+        -150,
+        scrollable: _conversationScrollable(tester),
+      );
+      await captureAiVisual(tester, 'v3-check-${width.toInt()}');
+      await tester.scrollUntilVisible(
+        find.text(AppLocalizations.current.aiReviewPlan),
+        150,
+        scrollable: _conversationScrollable(tester),
+      );
+      await captureAiVisual(tester, 'v3-pending-${width.toInt()}');
+      await tester.ensureVisible(
+        find.text(AppLocalizations.current.aiReviewPlan),
+      );
+      await _tapAi(tester, find.text(AppLocalizations.current.aiReviewPlan));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        find.text(AppLocalizations.current.aiFinalConfigDifferences),
+        findsOneWidget,
+      );
+      expect(capabilities.approved, isNull);
+      await _tapAi(tester, find.text(AppLocalizations.current.cancel).last);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.ensureVisible(find.text(AppLocalizations.current.aiApprove));
+      await _tapAi(tester, find.text(AppLocalizations.current.aiApprove));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        find.text(AppLocalizations.current.aiFinalConfigDifferences),
+        findsOneWidget,
+      );
+      expect(capabilities.approved, isNull);
+      await _tapAi(tester, find.text(AppLocalizations.current.aiReject));
+      await tester.pumpAndSettle();
+      expect(capabilities.approved, false);
+      expect(
+        find.text(AppLocalizations.current.policyAppliedStatus),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+      await captureAiVisual(tester, 'v3-rejected-${width.toInt()}');
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      var closed = false;
+      unawaited(runtime.close().then((_) => closed = true));
+      await waitAiCondition(
+        tester,
+        () => closed && transport.closed,
+        'Disposed assistant must finish runtime closure',
+      );
+    });
+  }
+
+  testWidgets(
+    'narrow capability catalog opens without sending a model request',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 740);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await loadAiVisualFonts(tester);
+      final transport = _Transport();
+      final runtime = AgentRuntime(launcher: () async => transport);
+      final container = await _mount(
+        tester,
+        _Controller(runtime, _Credentials()),
+        capabilities: _CapabilityService(),
+      );
+      addTearDown(container.dispose);
+      await _tapAi(tester, find.byTooltip(AppLocalizations.current.aiCanHelp));
+      await tester.pumpAndSettle();
+      expect(find.byType(AiCapabilityPanel), findsOneWidget);
+      expect(find.text(AppLocalizations.current.delayTest), findsWidgets);
+      expect(transport.prompt, isNull);
+      await captureAiVisual(tester, 'v3-capabilities-360');
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets('approved decision is separate from actual applied tool result', (
+    tester,
+  ) async {
+    final transport = _Transport(tools: true);
+    final runtime = AgentRuntime(launcher: () async => transport);
+    final capabilities = _CapabilityService();
+    final container = await _mount(
+      tester,
+      _Controller(runtime, _Credentials()),
+      capabilities: capabilities,
+    );
+    addTearDown(container.dispose);
+    await tester.enterText(
+      find.byKey(const ValueKey('ai-prompt')),
+      'inspect connection',
+    );
+    await tester.pump();
+    await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tester.ensureVisible(find.text(AppLocalizations.current.aiApprove));
+    await _tapAi(tester, find.text(AppLocalizations.current.aiApprove));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(capabilities.approved, isNull);
+    expect(
+      find.text(AppLocalizations.current.aiFinalConfigDifferences),
+      findsOneWidget,
+    );
+    await _tapAi(tester, find.text(AppLocalizations.current.aiApprove).last);
+    await tester.pumpAndSettle();
+    expect(capabilities.approved, true);
+    expect(find.text(AppLocalizations.current.aiApproved), findsOneWidget);
+    expect(
+      find.text(AppLocalizations.current.policyAppliedStatus),
+      findsOneWidget,
+    );
+    expect(
+      find.text(AppLocalizations.current.aiAwaitingApproval),
+      findsNothing,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    var closed = false;
+    unawaited(runtime.close().then((_) => closed = true));
+    await waitAiCondition(
+      tester,
+      () => closed && transport.closed,
+      'Approved conversation must close its runtime on disposal',
+    );
+  });
+
+  testWidgets(
+    'stop rejects pending approval and suppresses late tool results',
+    (tester) async {
+      final transport = _Transport(tools: true);
+      final runtime = AgentRuntime(launcher: () async => transport);
+      final capabilities = _CapabilityService()
+        ..readPending = Completer<Map<String, Object?>>();
+      final container = await _mount(
+        tester,
+        _Controller(runtime, _Credentials()),
+        capabilities: capabilities,
+      );
+      addTearDown(container.dispose);
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-prompt')),
+        'inspect connection',
+      );
+      await tester.pump();
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await _tapAi(tester, find.byTooltip(AppLocalizations.current.aiStop));
+      FocusManager.instance.primaryFocus?.unfocus();
+      await waitAiCondition(
+        tester,
+        () =>
+            transport.closed &&
+            find.byType(CircularProgressIndicator).evaluate().isEmpty,
+        'Stopping assistant must close the transport and clear progress',
+      );
+      capabilities.readPending!.complete({
+        'status': 'completed',
+        'result': {'running': true},
+      });
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(
+        find.text(AppLocalizations.current.aiResultCompleted),
+        findsNothing,
+      );
+      expect(find.byType(AiToolResultCard), findsNothing);
+      expect(transport.closed, true);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'stop while local approval is pending rejects its original callback',
+    (tester) async {
+      final transport = _Transport(tools: true);
+      final runtime = AgentRuntime(launcher: () async => transport);
+      final capabilities = _CapabilityService();
+      final container = await _mount(
+        tester,
+        _Controller(runtime, _Credentials()),
+        capabilities: capabilities,
+      );
+      addTearDown(container.dispose);
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-prompt')),
+        'inspect connection',
+      );
+      await tester.pump();
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(capabilities.approved, isNull);
+      await _tapAi(tester, find.byTooltip(AppLocalizations.current.aiStop));
+      FocusManager.instance.primaryFocus?.unfocus();
+      await waitAiCondition(
+        tester,
+        () =>
+            transport.closed &&
+            find.byType(CircularProgressIndicator).evaluate().isEmpty,
+        'Stopping assistant must close the transport and clear progress',
+      );
+      expect(capabilities.approved, false);
+      expect(
+        find.text(AppLocalizations.current.aiAwaitingApproval),
+        findsNothing,
+      );
+      expect(find.text(AppLocalizations.current.aiApprove), findsNothing);
+      expect(
+        find.text(AppLocalizations.current.policyAppliedStatus),
+        findsNothing,
+      );
+      await tester.ensureVisible(
+        find.text(AppLocalizations.current.aiReviewPlan),
+      );
+      await _tapAi(tester, find.text(AppLocalizations.current.aiReviewPlan));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(AppLocalizations.current.aiFinalConfigDifferences),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('failed and pending user results never display applied status', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.delegate.supportedLocales,
+        home: Scaffold(
+          body: ListView(
+            children: const [
+              AiToolResultCard(
+                result: {'status': 'failed', 'errorCode': 'core_timeout'},
+              ),
+              AiToolResultCard(
+                result: {
+                  'status': 'pending_user_input',
+                  'result': {'panel': 'file_picker'},
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text(AppLocalizations.current.policyAppliedStatus),
+      findsNothing,
+    );
+    expect(
+      find.text(AppLocalizations.current.aiAwaitingApproval),
+      findsOneWidget,
+    );
+    expect(find.text(AppLocalizations.current.aiRequestFailed), findsWidgets);
+  });
+
   testWidgets('rule generation prefill does not launch a paid model request', (
     tester,
   ) async {
@@ -191,7 +979,7 @@ void main() {
         'inspect settings',
       );
       await tester.pump();
-      await tester.tap(find.byKey(const ValueKey('ai-send')));
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
       await tester.pumpAndSettle();
       expect(
         launches,
@@ -204,7 +992,13 @@ void main() {
       expect(find.text('streamed answer'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
-      await tester.runAsync(() => runtime.close());
+      var closed = false;
+      unawaited(runtime.close().then((_) => closed = true));
+      await waitAiCondition(
+        tester,
+        () => closed && transport.closed,
+        'Runtime closure must finish after assistant disposal',
+      );
       expect(transport.closed, true);
       expect(tester.takeException(), isNull);
     },
@@ -231,10 +1025,17 @@ void main() {
         'inspect settings',
       );
       await tester.pump();
-      await tester.tap(find.byKey(const ValueKey('ai-send')));
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
       await tester.pump();
-      await tester.tap(find.byTooltip(AppLocalizations.current.aiStop));
-      await tester.pumpAndSettle();
+      await _tapAi(tester, find.byTooltip(AppLocalizations.current.aiStop));
+      FocusManager.instance.primaryFocus?.unfocus();
+      await waitAiCondition(
+        tester,
+        () =>
+            launches == 0 &&
+            find.byType(CircularProgressIndicator).evaluate().isEmpty,
+        'Stopping assistant must close the transport and clear progress',
+      );
       pending.complete('late-secret');
       await tester.pumpAndSettle();
       expect(launches, 0);

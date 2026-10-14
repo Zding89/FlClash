@@ -8,6 +8,10 @@ import 'package:fl_clash/control/password.dart';
 import 'package:fl_clash/control/service.dart';
 import 'package:fl_clash/control/transport.dart';
 import 'package:fl_clash/l10n/l10n.dart';
+import 'package:fl_clash/enum/enum.dart';
+import 'package:fl_clash/views/ai/composer_context.dart';
+import 'package:fl_clash/views/ai/assistant.dart';
+import 'package:fl_clash/widgets/sheet.dart';
 import 'package:fl_clash/models/profile.dart';
 import 'package:fl_clash/policy/models.dart';
 import 'package:fl_clash/providers/app.dart';
@@ -549,6 +553,71 @@ void main() {
     await tester.pump();
     expect(tester.takeException(), null);
   });
+  for (final width in [944.0, 360.0]) {
+    testWidgets(
+      'rule AI shortcut uses the main module without execution $width',
+      (tester) async {
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final controller = _FixtureWorkbench();
+        final desktop = width > 600;
+        final launcher = Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showExtend<void>(
+                context,
+                props: const ExtendProps(forceFull: true),
+                builder: (_) => const LocalPolicyWorkbenchView(),
+              ),
+              child: const Text('Open rules'),
+            ),
+          ),
+        );
+        await _pump(
+          tester,
+          desktop ? const LocalPolicyWorkbenchView() : launcher,
+          Size(width, desktop ? 568 : 740),
+          workbench: controller,
+        );
+        if (!desktop) await _tapVisible(tester, find.text('Open rules'));
+        final strings = AppLocalizations.current;
+        await tester.scrollUntilVisible(
+          find.text(strings.policyAiOptimizeRule),
+          200,
+          scrollable: find
+              .descendant(
+                of: find.byType(ListView).first,
+                matching: find.byType(Scrollable),
+              )
+              .first,
+          maxScrolls: 12,
+        );
+        await _tapVisible(tester, find.text(strings.policyAiOptimizeRule));
+        final container = globalState.container;
+        expect(container.read(currentPageLabelProvider), PageLabel.aiAssistant);
+        expect(
+          container.read(aiComposerContextProvider),
+          strings.policyAiOptimizationRequest('profile:1'),
+        );
+        expect(find.byType(AiAssistantView), findsNothing);
+        expect(controller.commits, 0);
+        expect(controller.proposed, isNull);
+        if (!desktop) {
+          expect(find.byType(LocalPolicyWorkbenchView), findsNothing);
+          expect(find.text('Open rules'), findsOneWidget);
+        }
+        final ai = navigation.getItems().singleWhere(
+          (item) => item.label == PageLabel.aiAssistant,
+        );
+        expect(ai.modes, contains(NavigationItemMode.mobile));
+        expect(ai.modes, contains(NavigationItemMode.desktop));
+        expect(ai.modes, isNot(contains(NavigationItemMode.more)));
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+      skip: !Platform.isMacOS,
+    );
+  }
   testWidgets(
     'node set ordinary advanced preserves values and unknown multiplier modes exclude each other',
     (tester) async {
@@ -586,10 +655,7 @@ void main() {
         tester,
         _switch(strings.policyUnknownMultiplierAllowed),
       );
-      expect(
-        tester.widget<SwitchListTile>(_switch(strings.policyUnknownOne)).value,
-        false,
-      );
+      expect(_switch(strings.policyUnknownOne), findsNothing);
       expect(
         tester
             .widget<SwitchListTile>(
@@ -639,6 +705,7 @@ void main() {
       expect(saved!.nodeSet.unknownMultiplier, UnknownMultiplier.assumeOne);
       expect(saved!.nodeSet.probe.timeoutSeconds, 7);
       expect(find.byType(PolicyNodeSetEditor), findsOneWidget);
+      await _tapVisible(tester, find.text(strings.general));
       expect(
         tester
             .widget<TextFormField>(_field(strings.policyMultiplierLimit))

@@ -7863,6 +7863,206 @@ class AppLocalizations {
       args: [seconds],
     );
   }
+
+  /// `Which traffic`
+  String get policyTrafficSection {
+    return Intl.message(
+      'Which traffic',
+      name: 'policyTrafficSection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Preferred and backups`
+  String get policyChoiceSection {
+    return Intl.message(
+      'Preferred and backups',
+      name: 'policyChoiceSection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Current effect`
+  String get policyCurrentEffect {
+    return Intl.message(
+      'Current effect',
+      name: 'policyCurrentEffect',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Check method`
+  String get policyCheckMethodSection {
+    return Intl.message(
+      'Check method',
+      name: 'policyCheckMethodSection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Check frequency`
+  String get policyCheckFrequencySection {
+    return Intl.message(
+      'Check frequency',
+      name: 'policyCheckFrequencySection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Selection and recovery`
+  String get policySelectionRecoverySection {
+    return Intl.message(
+      'Selection and recovery',
+      name: 'policySelectionRecoverySection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Check status`
+  String get policyCheckStatusSection {
+    return Intl.message(
+      'Check status',
+      name: 'policyCheckStatusSection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Draft changed; save to view check results`
+  String get policyDraftStatusHint {
+    return Intl.message(
+      'Draft changed; save to view check results',
+      name: 'policyDraftStatusHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Intervals are scheduling targets; many nodes may queue`
+  String get policyCheckFrequencyHint {
+    return Intl.message(
+      'Intervals are scheduling targets; many nodes may queue',
+      name: 'policyCheckFrequencyHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Can help with`
+  String get aiCanHelp {
+    return Intl.message('Can help with', name: 'aiCanHelp', desc: '', args: []);
+  }
+
+  /// `Request an action in natural language using the current capability catalog`
+  String get aiCapabilityHint {
+    return Intl.message(
+      'Request an action in natural language using the current capability catalog',
+      name: 'aiCapabilityHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Service and credentials`
+  String get aiServiceCredentials {
+    return Intl.message(
+      'Service and credentials',
+      name: 'aiServiceCredentials',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Check result`
+  String get aiCheckResult {
+    return Intl.message(
+      'Check result',
+      name: 'aiCheckResult',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Review plan`
+  String get aiReviewPlan {
+    return Intl.message(
+      'Review plan',
+      name: 'aiReviewPlan',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Awaiting approval; changes have not been applied`
+  String get aiAwaitingApproval {
+    return Intl.message(
+      'Awaiting approval; changes have not been applied',
+      name: 'aiAwaitingApproval',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Unsaved connection changes`
+  String get aiUnsavedChanges {
+    return Intl.message(
+      'Unsaved connection changes',
+      name: 'aiUnsavedChanges',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Discard changes`
+  String get aiDiscardChanges {
+    return Intl.message(
+      'Discard changes',
+      name: 'aiDiscardChanges',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Completed`
+  String get aiResultCompleted {
+    return Intl.message(
+      'Completed',
+      name: 'aiResultCompleted',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Approved`
+  String get aiApproved {
+    return Intl.message('Approved', name: 'aiApproved', desc: '', args: []);
+  }
+
+  /// `Optimize rules with AI`
+  String get policyAiOptimizeRule {
+    return Intl.message(
+      'Optimize rules with AI',
+      name: 'policyAiOptimizeRule',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Read the existing rules, nodes and subscription sources for target {target}, and propose reviewable rule improvements. Keep the current order and existing remaining-traffic rule. Only prepare proposals; wait for my confirmation before applying changes.`
+  String policyAiOptimizationRequest(String target) {
+    return Intl.message(
+      'Read the existing rules, nodes and subscription sources for target $target, and propose reviewable rule improvements. Keep the current order and existing remaining-traffic rule. Only prepare proposals; wait for my confirmation before applying changes.',
+      name: 'policyAiOptimizationRequest',
+      desc: '',
+      args: [target],
+    );
+  }
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<AppLocalizations> {

@@ -49,7 +49,7 @@ class Navigation {
         builder: (_) =>
             const AiAssistantView(key: GlobalObjectKey(PageLabel.aiAssistant)),
         modes: system.isMacOS
-            ? [NavigationItemMode.desktop, NavigationItemMode.more]
+            ? [NavigationItemMode.mobile, NavigationItemMode.desktop]
             : [],
       ),
       NavigationItem(

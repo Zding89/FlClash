@@ -68,23 +68,26 @@ class MessageLookup extends MessageLookupByLibrary {
   static String m22(target) =>
       "请读取目标 ${target} 的已有规则、节点和订阅来源，基于这些资源生成可审查的新增方案。保留现有顺序，不重排已有规则，不重复添加其余流量规则。只建立提案，待我确认后再应用。";
 
-  static String m23(sampleAt) => "最后有效读数：${sampleAt}";
+  static String m23(target) =>
+      "请读取目标 ${target} 的已有规则、节点和订阅来源，提出可审查的规则优化方案。保留当前顺序和已有其余流量规则。只建立提案，待我确认后再应用修改。";
 
-  static String m24(startAt) => "统计周期起点：${startAt}";
+  static String m24(sampleAt) => "最后有效读数：${sampleAt}";
 
-  static String m25(seconds) => "当前容量估计建议有效期至少 ${seconds} 秒；这是排队估计，实际完成时间可能更长。";
+  static String m25(startAt) => "统计周期起点：${startAt}";
 
-  static String m26(option) => "该来源使用暂不支持的参数：${option}。未应用本地管控，请先移除此参数。";
+  static String m26(seconds) => "当前容量估计建议有效期至少 ${seconds} 秒；这是排队估计，实际完成时间可能更长。";
 
-  static String m27(label) => "${label} 必须在 1024 到 49151 之间";
+  static String m27(option) => "该来源使用暂不支持的参数：${option}。未应用本地管控，请先移除此参数。";
 
-  static String m28(count) => "${count} 秒";
+  static String m28(label) => "${label} 必须在 1024 到 49151 之间";
 
-  static String m29(count) => "已选择 ${count} 项";
+  static String m29(count) => "${count} 秒";
 
-  static String m30(label) => "${label}必须为URL";
+  static String m30(count) => "已选择 ${count} 项";
 
-  static String m31(count) => "${count} 年前";
+  static String m31(label) => "${label}必须为URL";
+
+  static String m32(count) => "${count} 年前";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
   static Map<String, Function> _notInlinedMessages(_) => <String, Function>{
@@ -127,13 +130,20 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiApprovalTitle": MessageLookupByLibrary.simpleMessage("确认配置修改"),
     "aiApprove": MessageLookupByLibrary.simpleMessage("确认应用"),
     "aiApproveScriptExecution": MessageLookupByLibrary.simpleMessage("授权预览执行"),
+    "aiApproved": MessageLookupByLibrary.simpleMessage("已批准"),
     "aiAssistant": MessageLookupByLibrary.simpleMessage("AI"),
     "aiAssistantRole": MessageLookupByLibrary.simpleMessage("助手"),
     "aiAssistantTitle": MessageLookupByLibrary.simpleMessage("AI 配置助手"),
     "aiAuthFailed": MessageLookupByLibrary.simpleMessage("鉴权失败，请检查该端点的 Key"),
+    "aiAwaitingApproval": MessageLookupByLibrary.simpleMessage("等待确认，尚未执行修改"),
     "aiBaseUrl": MessageLookupByLibrary.simpleMessage("服务地址"),
     "aiBefore": MessageLookupByLibrary.simpleMessage("修改前"),
+    "aiCanHelp": MessageLookupByLibrary.simpleMessage("可帮你做"),
     "aiCancelled": MessageLookupByLibrary.simpleMessage("已停止"),
+    "aiCapabilityHint": MessageLookupByLibrary.simpleMessage(
+      "根据当前能力目录，用自然语言发起操作",
+    ),
+    "aiCheckResult": MessageLookupByLibrary.simpleMessage("检查结果"),
     "aiChinaApi": MessageLookupByLibrary.simpleMessage("中国 API"),
     "aiChinaCoding": MessageLookupByLibrary.simpleMessage("中国 Coding 套餐"),
     "aiClearConversation": MessageLookupByLibrary.simpleMessage("清空对话"),
@@ -153,6 +163,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "删除 Key 会取消当前 AI 任务，本地策略继续运行",
     ),
     "aiDisabled": MessageLookupByLibrary.simpleMessage("AI 助手已关闭"),
+    "aiDiscardChanges": MessageLookupByLibrary.simpleMessage("放弃更改"),
     "aiEditConnection": MessageLookupByLibrary.simpleMessage("编辑连接"),
     "aiEmptyConversation": MessageLookupByLibrary.simpleMessage(
       "可以先检查当前配置，再预览需要的修改",
@@ -217,6 +228,8 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiResourceUpdateAccepted": MessageLookupByLibrary.simpleMessage(
       "已受理更新请求，完成结果由本地 Core 确认。",
     ),
+    "aiResultCompleted": MessageLookupByLibrary.simpleMessage("已完成"),
+    "aiReviewPlan": MessageLookupByLibrary.simpleMessage("查看方案"),
     "aiSaveAndUse": MessageLookupByLibrary.simpleMessage("保存并使用"),
     "aiSaveFailed": MessageLookupByLibrary.simpleMessage(
       "保存失败，连接和密钥已尝试恢复；请检查后重试",
@@ -235,6 +248,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiSelectConnection": MessageLookupByLibrary.simpleMessage("使用此连接"),
     "aiSelected": MessageLookupByLibrary.simpleMessage("当前连接"),
     "aiSend": MessageLookupByLibrary.simpleMessage("发送"),
+    "aiServiceCredentials": MessageLookupByLibrary.simpleMessage("服务与凭据"),
     "aiSettingsTitle": MessageLookupByLibrary.simpleMessage("AI 连接与模型"),
     "aiStop": MessageLookupByLibrary.simpleMessage("停止生成"),
     "aiTargetChanged": MessageLookupByLibrary.simpleMessage(
@@ -253,6 +267,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiTimedOut": MessageLookupByLibrary.simpleMessage("模型请求超时，请重试或调整连接"),
     "aiTimeout": MessageLookupByLibrary.simpleMessage("请求超时（秒）"),
     "aiToolWorking": MessageLookupByLibrary.simpleMessage("正在执行应用命令…"),
+    "aiUnsavedChanges": MessageLookupByLibrary.simpleMessage("有未保存的连接更改"),
     "aiUsageClearIrreversible": MessageLookupByLibrary.simpleMessage(
       "清除用量历史后无法撤销，来源额度计数会保留。",
     ),
@@ -679,6 +694,8 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyAdvancedJson": MessageLookupByLibrary.simpleMessage("高级结构化 JSON"),
     "policyAiGenerate": MessageLookupByLibrary.simpleMessage("AI 生成方案"),
     "policyAiGenerationRequest": m22,
+    "policyAiOptimizationRequest": m23,
+    "policyAiOptimizeRule": MessageLookupByLibrary.simpleMessage("AI优化规则"),
     "policyAiOrigin": MessageLookupByLibrary.simpleMessage("AI 生成"),
     "policyApplication": MessageLookupByLibrary.simpleMessage("应用"),
     "policyAppliedStatus": MessageLookupByLibrary.simpleMessage("已应用"),
@@ -690,8 +707,8 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyBudgetHint": MessageLookupByLibrary.simpleMessage(
       "仅统计本机经 FlClash 的用量；不是机场总用量，也不是字节级硬限额",
     ),
-    "policyBudgetLastSample": m23,
-    "policyBudgetPeriod": m24,
+    "policyBudgetLastSample": m24,
+    "policyBudgetPeriod": m25,
     "policyBudgetReached": MessageLookupByLibrary.simpleMessage(
       "已达本机预算，此来源的新连接受限",
     ),
@@ -703,16 +720,23 @@ class MessageLookup extends MessageLookupByLibrary {
       "只在这些节点中按顺序选择，不随机改用其他节点",
     ),
     "policyCandidates": MessageLookupByLibrary.simpleMessage("精确节点顺序"),
-    "policyCheckCapacityHint": m25,
+    "policyCheckCapacityHint": m26,
+    "policyCheckFrequencyHint": MessageLookupByLibrary.simpleMessage(
+      "间隔是调度目标，大量节点可能需要排队",
+    ),
+    "policyCheckFrequencySection": MessageLookupByLibrary.simpleMessage("检查频率"),
     "policyCheckMeasurementHint": MessageLookupByLibrary.simpleMessage(
       "测量连通性与请求延迟，不是下载速度",
     ),
+    "policyCheckMethodSection": MessageLookupByLibrary.simpleMessage("检查方式"),
     "policyCheckNow": MessageLookupByLibrary.simpleMessage("立即检查"),
     "policyCheckPending": MessageLookupByLibrary.simpleMessage("待检查"),
     "policyCheckPreset": MessageLookupByLibrary.simpleMessage("检查地址预设"),
     "policyCheckSave": MessageLookupByLibrary.simpleMessage("检查并保存"),
+    "policyCheckStatusSection": MessageLookupByLibrary.simpleMessage("检查状态"),
     "policyChecksInFlight": MessageLookupByLibrary.simpleMessage("正在检查"),
     "policyChecksWaiting": MessageLookupByLibrary.simpleMessage("排队检查"),
+    "policyChoiceSection": MessageLookupByLibrary.simpleMessage("首选与备用"),
     "policyCollectionPending": MessageLookupByLibrary.simpleMessage("待配置"),
     "policyCombinedConditions": MessageLookupByLibrary.simpleMessage("组合条件"),
     "policyContinueEditing": MessageLookupByLibrary.simpleMessage("继续编辑"),
@@ -720,6 +744,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyCoreStopped": MessageLookupByLibrary.simpleMessage(
       "Core 未运行，策略暂不执行",
     ),
+    "policyCurrentEffect": MessageLookupByLibrary.simpleMessage("当前效果"),
     "policyCustomCheck": MessageLookupByLibrary.simpleMessage("自定义"),
     "policyDeclaredAttribute": MessageLookupByLibrary.simpleMessage("订阅声明"),
     "policyDeleteLinked": MessageLookupByLibrary.simpleMessage(
@@ -730,6 +755,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyDomainScope": MessageLookupByLibrary.simpleMessage("完整域名"),
     "policyDomainSuffix": MessageLookupByLibrary.simpleMessage("域名后缀"),
     "policyDraftStatus": MessageLookupByLibrary.simpleMessage("待确认"),
+    "policyDraftStatusHint": MessageLookupByLibrary.simpleMessage(
+      "草稿已修改；保存后再查看检查结果",
+    ),
     "policyEditIntegration": MessageLookupByLibrary.simpleMessage("编辑整合"),
     "policyEditRule": MessageLookupByLibrary.simpleMessage("编辑规则"),
     "policyEligible": MessageLookupByLibrary.simpleMessage("符合当前条件"),
@@ -859,6 +887,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySelectCollection": MessageLookupByLibrary.simpleMessage("选择使用"),
     "policySelectedNode": MessageLookupByLibrary.simpleMessage("当前节点"),
     "policySelectedOffline": MessageLookupByLibrary.simpleMessage("已选择，连接后使用"),
+    "policySelectionRecoverySection": MessageLookupByLibrary.simpleMessage(
+      "选择与恢复",
+    ),
     "policySharedSetImpact": MessageLookupByLibrary.simpleMessage(
       "共享集合修改会影响引用它的规则",
     ),
@@ -898,6 +929,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyTerminateHint": MessageLookupByLibrary.simpleMessage(
       "会打断既有连接，提交前需要确认",
     ),
+    "policyTrafficSection": MessageLookupByLibrary.simpleMessage("什么流量"),
     "policyUndo": MessageLookupByLibrary.simpleMessage("撤销此修改"),
     "policyUnknownAttribute": MessageLookupByLibrary.simpleMessage("未知"),
     "policyUnknownHealth": MessageLookupByLibrary.simpleMessage("探测状态未知"),
@@ -911,7 +943,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "仅用于筛选和排序，仍标记为未知",
     ),
     "policyUnsavedTitle": MessageLookupByLibrary.simpleMessage("修改尚未保存"),
-    "policyUnsupportedSourceOption": m26,
+    "policyUnsupportedSourceOption": m27,
     "policyUpdateProxyUnavailable": MessageLookupByLibrary.simpleMessage(
       "代理尚未运行，订阅更新已停止。请启动代理或明确选择直连更新。",
     ),
@@ -930,7 +962,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyWorkbenchTitle": MessageLookupByLibrary.simpleMessage("本地策略工作台"),
     "port": MessageLookupByLibrary.simpleMessage("端口"),
     "portConflictTip": MessageLookupByLibrary.simpleMessage("请输入不同的端口"),
-    "portTip": m27,
+    "portTip": m28,
     "preferH3Desc": MessageLookupByLibrary.simpleMessage("优先使用DOH的http/3"),
     "prerequisites": MessageLookupByLibrary.simpleMessage("前置条件"),
     "pressKeyboard": MessageLookupByLibrary.simpleMessage("请按下按键"),
@@ -1121,7 +1153,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "search": MessageLookupByLibrary.simpleMessage("搜索"),
     "seconds": MessageLookupByLibrary.simpleMessage("秒"),
-    "secondsCount": m28,
+    "secondsCount": m29,
     "selectAll": MessageLookupByLibrary.simpleMessage("全选"),
     "selectProxies": MessageLookupByLibrary.simpleMessage("选择代理"),
     "selectProxyProviders": MessageLookupByLibrary.simpleMessage("选择代理集"),
@@ -1129,7 +1161,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "selectSplitStrategy": MessageLookupByLibrary.simpleMessage("请选择分流策略"),
     "selectSubRule": MessageLookupByLibrary.simpleMessage("请选择子规则"),
     "selected": MessageLookupByLibrary.simpleMessage("已选择"),
-    "selectedCountTitle": m29,
+    "selectedCountTitle": m30,
     "settings": MessageLookupByLibrary.simpleMessage("设置"),
     "show": MessageLookupByLibrary.simpleMessage("显示"),
     "shrink": MessageLookupByLibrary.simpleMessage("紧凑"),
@@ -1219,7 +1251,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "upload": MessageLookupByLibrary.simpleMessage("上传"),
     "url": MessageLookupByLibrary.simpleMessage("URL"),
     "urlDesc": MessageLookupByLibrary.simpleMessage("通过URL获取配置文件"),
-    "urlTip": m30,
+    "urlTip": m31,
     "usage": MessageLookupByLibrary.simpleMessage("用量"),
     "usageApplications": MessageLookupByLibrary.simpleMessage("应用"),
     "usageConnections": MessageLookupByLibrary.simpleMessage("连接数"),
@@ -1266,7 +1298,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "vpnTip": MessageLookupByLibrary.simpleMessage("重启VPN后改变生效"),
     "webDAVConfiguration": MessageLookupByLibrary.simpleMessage("WebDAV配置"),
     "whitelistMode": MessageLookupByLibrary.simpleMessage("白名单模式"),
-    "yearsAgo": m31,
+    "yearsAgo": m32,
     "zh_CN": MessageLookupByLibrary.simpleMessage("中文简体"),
   };
 }

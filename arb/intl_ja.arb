@@ -942,5 +942,33 @@
         "type": "int"
       }
     }
+  },
+  "policyTrafficSection": "対象の通信",
+  "policyChoiceSection": "優先と予備",
+  "policyCurrentEffect": "現在の動作",
+  "policyCheckMethodSection": "チェック方法",
+  "policyCheckFrequencySection": "チェック頻度",
+  "policySelectionRecoverySection": "選択と復帰",
+  "policyCheckStatusSection": "チェック状態",
+  "policyDraftStatusHint": "下書きが変更されています。保存後にチェック結果を表示",
+  "policyCheckFrequencyHint": "間隔は実行目安です。ノード数が多い場合は待機が発生します",
+  "aiCanHelp": "できること",
+  "aiCapabilityHint": "現在の機能一覧から自然言語で操作を依頼できます",
+  "aiServiceCredentials": "サービスと認証情報",
+  "aiCheckResult": "確認結果",
+  "aiReviewPlan": "プランを確認",
+  "aiAwaitingApproval": "確認待ち・変更は未適用",
+  "aiUnsavedChanges": "接続の変更が未保存です",
+  "aiDiscardChanges": "変更を破棄",
+  "aiResultCompleted": "完了",
+  "aiApproved": "承認済み",
+  "policyAiOptimizeRule": "AIでルールを最適化",
+  "policyAiOptimizationRequest": "対象 {target} の既存ルール、ノード、サブスクリプションを確認し、レビュー可能な最適化案を提案してください。現在の順序と残りの通信ルールを維持し、提案のみを作成して、変更の適用は私の確認を待ってください。",
+  "@policyAiOptimizationRequest": {
+    "placeholders": {
+      "target": {
+        "type": "String"
+      }
+    }
   }
 }

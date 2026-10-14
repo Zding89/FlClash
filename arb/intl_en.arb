@@ -956,5 +956,33 @@
         "type": "int"
       }
     }
+  },
+  "policyTrafficSection": "Which traffic",
+  "policyChoiceSection": "Preferred and backups",
+  "policyCurrentEffect": "Current effect",
+  "policyCheckMethodSection": "Check method",
+  "policyCheckFrequencySection": "Check frequency",
+  "policySelectionRecoverySection": "Selection and recovery",
+  "policyCheckStatusSection": "Check status",
+  "policyDraftStatusHint": "Draft changed; save to view check results",
+  "policyCheckFrequencyHint": "Intervals are scheduling targets; many nodes may queue",
+  "aiCanHelp": "Can help with",
+  "aiCapabilityHint": "Request an action in natural language using the current capability catalog",
+  "aiServiceCredentials": "Service and credentials",
+  "aiCheckResult": "Check result",
+  "aiReviewPlan": "Review plan",
+  "aiAwaitingApproval": "Awaiting approval; changes have not been applied",
+  "aiUnsavedChanges": "Unsaved connection changes",
+  "aiDiscardChanges": "Discard changes",
+  "aiResultCompleted": "Completed",
+  "aiApproved": "Approved",
+  "policyAiOptimizeRule": "Optimize rules with AI",
+  "policyAiOptimizationRequest": "Read the existing rules, nodes and subscription sources for target {target}, and propose reviewable rule improvements. Keep the current order and existing remaining-traffic rule. Only prepare proposals; wait for my confirmation before applying changes.",
+  "@policyAiOptimizationRequest": {
+    "placeholders": {
+      "target": {
+        "type": "String"
+      }
+    }
   }
 }

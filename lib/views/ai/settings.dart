@@ -26,6 +26,13 @@ class AiSettingsView extends ConsumerStatefulWidget {
 
 class _AiSettingsViewState extends ConsumerState<AiSettingsView> {
   bool _busy = false;
+  bool _initialized = false;
+  int _editorEpoch = 0;
+  bool _editorLoading = false;
+  bool _editorOpen = false;
+  AgentConnection? _editingConnection;
+  bool _editorHasKey = false;
+  GlobalKey<_AiConnectionEditorState> _editorKey = GlobalKey();
   String? _message;
   bool _failed = false;
 
@@ -74,8 +81,15 @@ class _AiSettingsViewState extends ConsumerState<AiSettingsView> {
     return result['status'] == 'applied';
   }
 
-  Future<void> _edit(AgentConnection? existing) async {
-    if (_busy) return;
+  Future<void> _edit(AgentConnection? existing, {bool protect = true}) async {
+    final epoch = ++_editorEpoch;
+    if (_busy ||
+        (protect && !_editorLoading && !await _canLeaveEditor()) ||
+        !mounted ||
+        epoch != _editorEpoch) {
+      return;
+    }
+    setState(() => _editorLoading = true);
     final controller = ref.read(workbenchControllerProvider);
     bool hasKey = false;
     try {
@@ -86,25 +100,31 @@ class _AiSettingsViewState extends ConsumerState<AiSettingsView> {
               ))?.isNotEmpty ==
               true;
     } catch (error) {
-      if (mounted) {
+      if (mounted && epoch == _editorEpoch) {
         setState(() {
+          _editorLoading = false;
           _failed = true;
           _message = aiErrorText(context, error);
         });
       }
       return;
     }
-    if (!mounted) return;
-    final draft = await showDialog<AiConnectionDraft>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AiConnectionEditor(
-        existing: existing,
-        hasKey: hasKey,
-        runtimeFactory: widget.runtimeFactory,
-      ),
-    );
-    if (draft == null || !mounted) return;
+    if (!mounted || epoch != _editorEpoch) return;
+    setState(() {
+      _editorLoading = false;
+      _editingConnection = existing;
+      _editorHasKey = hasKey;
+      _editorKey = GlobalKey();
+      _editorOpen = true;
+    });
+  }
+
+  Future<bool> _canLeaveEditor() async =>
+      await _editorKey.currentState?.confirmDiscard() ?? true;
+
+  Future<void> _saveDraft(AiConnectionDraft draft) async {
+    final existing = _editingConnection;
+    final controller = ref.read(workbenchControllerProvider);
     await _perform(() async {
       final before = await controller.readAgentSettings();
       final current = existing == null
@@ -206,6 +226,13 @@ class _AiSettingsViewState extends ConsumerState<AiSettingsView> {
         }
       }
     });
+    if (mounted && !_failed && _message == context.appLocalizations.aiSaved) {
+      setState(() {
+        _editingConnection = draft.connection;
+        _editorHasKey = true;
+        _editorKey = GlobalKey();
+      });
+    }
   }
 
   Future<void> _deleteKey(AgentConnection connection) async {
@@ -228,11 +255,19 @@ class _AiSettingsViewState extends ConsumerState<AiSettingsView> {
       ),
     );
     if (approved != true || !mounted) return;
+    var deleted = false;
     await _perform(() async {
       final controller = ref.read(workbenchControllerProvider);
       await controller.closeAgent();
       await controller.credentials.delete(connection.credentialId);
+      deleted = true;
     });
+    if (deleted && mounted && _editingConnection?.id == connection.id) {
+      setState(() {
+        _editorHasKey = false;
+        _editorKey = GlobalKey();
+      });
+    }
   }
 
   Future<void> _deleteConnection(
@@ -288,29 +323,128 @@ class _AiSettingsViewState extends ConsumerState<AiSettingsView> {
     }
   });
 
+  Widget _connectionList(AgentSettings settings) {
+    final strings = context.appLocalizations;
+    return Card(
+      margin: EdgeInsets.zero,
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      child: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          for (final connection in settings.connections)
+            ListTile(
+              key: ValueKey('ai-edit-${connection.id}'),
+              minLeadingWidth: 24,
+              horizontalTitleGap: 8,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+              selected: _editorOpen && _editingConnection?.id == connection.id,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              leading: const Icon(Icons.link),
+              title: Tooltip(
+                message: connection.label,
+                child: Text(
+                  connection.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              subtitle: Text(
+                connection.model,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: _busy ? null : () => _edit(connection),
+              trailing: PopupMenuButton<String>(
+                enabled: !_busy && !_editorLoading,
+                onSelected: (action) async {
+                  if (!await _canLeaveEditor() || !mounted) return;
+                  switch (action) {
+                    case 'select':
+                      await _perform(() async {
+                        await ref
+                            .read(workbenchControllerProvider)
+                            .closeAgent();
+                        await _commitSettings(
+                          AgentSettings(
+                            enabled: settings.enabled,
+                            selectedConnectionId: connection.id,
+                            connections: settings.connections,
+                          ),
+                        );
+                      });
+                      if (mounted) await _edit(connection, protect: false);
+                    case 'key':
+                      await _deleteKey(connection);
+                    case 'delete':
+                      await _deleteConnection(connection);
+                      final latest = await ref
+                          .read(workbenchControllerProvider)
+                          .readAgentSettings();
+                      if (mounted &&
+                          _editingConnection?.id == connection.id &&
+                          !latest.connections.any(
+                            (entry) => entry.id == connection.id,
+                          )) {
+                        _editorEpoch++;
+                        setState(() => _editorOpen = false);
+                      }
+                  }
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'select',
+                    child: Text(strings.aiSelectConnection),
+                  ),
+                  PopupMenuItem(value: 'key', child: Text(strings.aiDeleteKey)),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Text(strings.aiDeleteConnection),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _busy || settings.connections.length >= 20
+                ? null
+                : () => _edit(null),
+            icon: const Icon(Icons.add),
+            label: Text(strings.aiAddConnection),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = context.appLocalizations;
-    return CommonScaffold(
-      title: strings.aiSettingsTitle,
-      actions: [
-        IconButton(
-          onPressed: _busy ? null : () => _edit(null),
-          tooltip: strings.aiAddConnection,
-          icon: const Icon(Icons.add),
-        ),
-      ],
-      body: ref
-          .watch(agentSettingsProvider)
-          .when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, _) => Center(child: Text(strings.aiRequestFailed)),
-            data: (settings) => Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 860),
-                child: ListView(
-                  padding: const EdgeInsets.all(16),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (!didPop && !_busy && await _canLeaveEditor() && context.mounted) {
+          Navigator.of(context).pop(result);
+        }
+      },
+      child: CommonScaffold(
+        title: strings.aiSettingsTitle,
+        body: ref
+            .watch(agentSettingsProvider)
+            .when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (_, _) => Center(child: Text(strings.aiRequestFailed)),
+              data: (settings) {
+                if (!_initialized) {
+                  _initialized = true;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted && settings.selected != null) {
+                      unawaited(_edit(settings.selected));
+                    }
+                  });
+                }
+                return Column(
                   children: [
                     SwitchListTile(
                       title: Text(strings.aiEnable),
@@ -334,98 +468,73 @@ class _AiSettingsViewState extends ConsumerState<AiSettingsView> {
                               );
                             }),
                     ),
-                    const SizedBox(height: 12),
-                    if (_busy) const LinearProgressIndicator(),
+                    if (_busy || _editorLoading)
+                      const LinearProgressIndicator(),
                     if (_message != null)
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.all(8),
                         child: Text(
                           _message!,
-                          style: _failed
-                              ? TextStyle(
-                                  color: Theme.of(context).colorScheme.error,
+                          style: TextStyle(
+                            color: _failed
+                                ? Theme.of(context).colorScheme.error
+                                : null,
+                          ),
+                        ),
+                      ),
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final list = _connectionList(settings);
+                          final editor = _editorOpen
+                              ? AiConnectionEditor(
+                                  key: _editorKey,
+                                  existing: _editingConnection,
+                                  hasKey: _editorHasKey,
+                                  embedded: true,
+                                  saving: _busy || _editorLoading,
+                                  onSave: _saveDraft,
+                                  onCancel: () async {
+                                    if (await _canLeaveEditor() && mounted) {
+                                      _editorEpoch++;
+                                      setState(() => _editorOpen = false);
+                                    }
+                                  },
+                                  runtimeFactory: widget.runtimeFactory,
                                 )
-                              : null,
-                        ),
-                      ),
-                    if (settings.connections.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(strings.aiNoConnection),
-                      ),
-                    for (final connection in settings.connections)
-                      Card(
-                        child: ListTile(
-                          leading: Icon(
-                            connection.id == settings.selectedConnectionId
-                                ? Icons.check_circle
-                                : Icons.smart_toy_outlined,
-                          ),
-                          title: Text(connection.label),
-                          subtitle: Text(
-                            '${connection.model}\n${connection.id == settings.selectedConnectionId ? strings.aiSelected : connection.provider}',
-                          ),
-                          isThreeLine: true,
-                          onTap: _busy ? null : () => _edit(connection),
-                          trailing: PopupMenuButton<String>(
-                            enabled: !_busy,
-                            onSelected: (action) {
-                              switch (action) {
-                                case 'select':
-                                  _perform(() async {
-                                    await ref
-                                        .read(workbenchControllerProvider)
-                                        .closeAgent();
-                                    await _commitSettings(
-                                      AgentSettings(
-                                        enabled: settings.enabled,
-                                        selectedConnectionId: connection.id,
-                                        connections: settings.connections,
-                                      ),
-                                    );
-                                  });
-                                case 'edit':
-                                  _edit(connection);
-                                case 'key':
-                                  _deleteKey(connection);
-                                case 'delete':
-                                  _deleteConnection(connection);
-                              }
-                            },
-                            itemBuilder: (_) => [
-                              PopupMenuItem(
-                                value: 'select',
-                                child: Text(strings.aiSelectConnection),
+                              : Center(child: Text(strings.aiNoConnection));
+                          if (constraints.maxWidth >= 760) {
+                            return Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  SizedBox(
+                                    width: constraints.maxWidth < 1000
+                                        ? 210
+                                        : 250,
+                                    child: list,
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(child: editor),
+                                ],
                               ),
-                              PopupMenuItem(
-                                value: 'edit',
-                                child: Text(strings.aiEditConnection),
-                              ),
-                              PopupMenuItem(
-                                value: 'key',
-                                child: Text(strings.aiDeleteKey),
-                              ),
-                              PopupMenuItem(
-                                value: 'delete',
-                                child: Text(strings.aiDeleteConnection),
-                              ),
+                            );
+                          }
+                          return Column(
+                            children: [
+                              SizedBox(height: 170, child: list),
+                              Expanded(child: editor),
                             ],
-                          ),
-                        ),
+                          );
+                        },
                       ),
-                    const SizedBox(height: 16),
-                    FilledButton.tonalIcon(
-                      onPressed: _busy || settings.connections.length >= 20
-                          ? null
-                          : () => _edit(null),
-                      icon: const Icon(Icons.add),
-                      label: Text(strings.aiAddConnection),
                     ),
                   ],
-                ),
-              ),
+                );
+              },
             ),
-          ),
+      ),
     );
   }
 }
@@ -442,7 +551,15 @@ class AiConnectionEditor extends ConsumerStatefulWidget {
     this.existing,
     required this.hasKey,
     this.runtimeFactory = createAiTestRuntime,
+    this.embedded = false,
+    this.saving = false,
+    this.onSave,
+    this.onCancel,
   });
+  final bool embedded;
+  final bool saving;
+  final Future<void> Function(AiConnectionDraft)? onSave;
+  final VoidCallback? onCancel;
   final AgentConnection? existing;
   final bool hasKey;
   final AgentRuntime Function() runtimeFactory;
@@ -489,6 +606,41 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
       text: '${connection?.timeoutSeconds ?? 90}',
     );
     _tokens = TextEditingController(text: '${connection?.maxTokens ?? 4096}');
+  }
+
+  bool get _dirty {
+    final original = widget.existing;
+    return _label.text.trim() != (original?.label ?? '') ||
+        _model.text.trim() != (original?.model ?? '') ||
+        _url.text.trim() != (original?.baseUrl ?? '') ||
+        _provider != (original?.provider ?? 'deepseek') ||
+        _api != (original?.api ?? 'openai-completions') ||
+        _useProxy != (original?.useProxy ?? false) ||
+        _timeout.text != '${original?.timeoutSeconds ?? 90}' ||
+        _tokens.text != '${original?.maxTokens ?? 4096}' ||
+        _secret.text.isNotEmpty;
+  }
+
+  Future<bool> confirmDiscard() async {
+    if (!_dirty && !_testing && !_fetching) return true;
+    final strings = context.appLocalizations;
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(strings.aiUnsavedChanges),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(strings.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(strings.aiDiscardChanges),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   bool get _targetChanged =>
@@ -758,30 +910,56 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
     });
   }
 
+  Widget _group(List<Widget> children) => SizedBox(
+    width: double.infinity,
+    child: Material(
+      color: Theme.of(context).colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: children,
+        ),
+      ),
+    ),
+  );
+
+  Widget _sectionTitle(IconData icon, String title) => Row(
+    children: [
+      Icon(icon, color: Theme.of(context).colorScheme.primary),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+      ),
+    ],
+  );
+
   @override
   Widget build(BuildContext context) {
     final strings = context.appLocalizations;
     String? requiredText(String? value) => value == null || value.trim().isEmpty
         ? strings.aiInvalidConnection
         : null;
-    return AlertDialog(
-      title: Text(
-        widget.existing == null
-            ? strings.aiAddConnection
-            : strings.aiEditConnection,
-      ),
-      content: SizedBox(
-        width: 720,
-        child: SingleChildScrollView(
-          child: Form(
-            key: _form,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+    final content = SizedBox(
+      width: 720,
+      child: SingleChildScrollView(
+        child: Form(
+          key: _form,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _group([
+                _sectionTitle(Icons.dns_outlined, strings.aiServiceCredentials),
+                const SizedBox(height: 16),
                 TextFormField(
                   key: const ValueKey('ai-connection-name'),
                   controller: _label,
-                  enabled: !_testing,
+                  enabled: !_testing && !widget.saving,
                   maxLength: 200,
                   decoration: InputDecoration(
                     labelText: strings.name,
@@ -805,7 +983,7 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                         ),
                       ),
                   ],
-                  onChanged: _testing
+                  onChanged: _testing || widget.saving
                       ? null
                       : (value) {
                           if (value == null) return;
@@ -829,7 +1007,7 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                 TextFormField(
                   key: const ValueKey('ai-connection-url'),
                   controller: _url,
-                  enabled: !_testing,
+                  enabled: !_testing && !widget.saving,
                   maxLength: 4096,
                   decoration: InputDecoration(
                     labelText: strings.aiBaseUrl,
@@ -864,7 +1042,7 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                         child: Text('Anthropic Messages'),
                       ),
                     ],
-                    onChanged: _testing
+                    onChanged: _testing || widget.saving
                         ? null
                         : (value) {
                             if (value != null) {
@@ -882,7 +1060,7 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                 TextFormField(
                   key: const ValueKey('ai-connection-key'),
                   controller: _secret,
-                  enabled: !_testing,
+                  enabled: !_testing && !widget.saving,
                   obscureText: !_showKey,
                   autocorrect: false,
                   enableSuggestions: false,
@@ -912,7 +1090,9 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                   onChanged: (_) => _invalidateModels(),
                 ),
                 if (_targetChanged) Text(strings.aiTargetChanged),
-                const SizedBox(height: 20),
+              ]),
+              const SizedBox(height: 12),
+              _group([
                 Row(
                   children: [
                     Expanded(
@@ -923,7 +1103,9 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                     ),
                     FilledButton.tonalIcon(
                       key: const ValueKey('ai-fetch-models'),
-                      onPressed: _testing || _fetching ? null : _fetchModels,
+                      onPressed: _testing || _fetching || widget.saving
+                          ? null
+                          : _fetchModels,
                       icon: const Icon(Icons.refresh),
                       label: Text(strings.aiFetchModels),
                     ),
@@ -948,6 +1130,7 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                 if (_models.isNotEmpty) ...[
                   TextField(
                     key: const ValueKey('ai-search-models'),
+                    enabled: !_testing && !widget.saving,
                     decoration: InputDecoration(
                       hintText: strings.aiSearchModels,
                       prefixIcon: const Icon(Icons.search),
@@ -956,6 +1139,7 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                         setState(() => _modelSearch = value.toLowerCase()),
                   ),
                   SizedBox(
+                    key: const ValueKey('ai-model-options'),
                     height: 160,
                     child: ListView(
                       children: [
@@ -974,7 +1158,7 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                               subtitle: model.name == model.id
                                   ? null
                                   : Text(model.name),
-                              onTap: _testing
+                              onTap: _testing || widget.saving
                                   ? null
                                   : () {
                                       _model.text = model.id;
@@ -989,7 +1173,7 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                 TextFormField(
                   key: const ValueKey('ai-connection-model'),
                   controller: _model,
-                  enabled: !_testing,
+                  enabled: !_testing && !widget.saving,
                   maxLength: 200,
                   decoration: InputDecoration(
                     labelText: strings.aiManualModel,
@@ -1003,59 +1187,13 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                   strings.aiModelFetchHint,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
-                const SizedBox(height: 8),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(strings.aiUseProxy),
-                  value: _useProxy,
-                  onChanged: _testing
-                      ? null
-                      : (value) => setState(() {
-                          _invalidateModels();
-                          _useProxy = value;
-                          _testPassed = null;
-                          _testMessage = null;
-                        }),
-                ),
-                ExpansionTile(
-                  tilePadding: EdgeInsets.zero,
-                  title: Text(strings.aiAdvanced),
-                  children: [
-                    TextFormField(
-                      controller: _timeout,
-                      enabled: !_testing,
-                      decoration: InputDecoration(labelText: strings.aiTimeout),
-                      keyboardType: TextInputType.number,
-                      validator: (value) {
-                        final number = int.tryParse(value ?? '');
-                        return number == null || number < 5 || number > 300
-                            ? strings.aiInvalidConnection
-                            : null;
-                      },
-                      onChanged: (_) => _invalidateTest(),
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _tokens,
-                      enabled: !_testing,
-                      decoration: InputDecoration(
-                        labelText: strings.aiMaxTokens,
-                      ),
-                      keyboardType: TextInputType.number,
-                      validator: (value) {
-                        final number = int.tryParse(value ?? '');
-                        return number == null || number < 64 || number > 32768
-                            ? strings.aiInvalidConnection
-                            : null;
-                      },
-                      onChanged: (_) => _invalidateTest(),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                ),
-                const SizedBox(height: 8),
+              ]),
+              const SizedBox(height: 12),
+              _group([
                 OutlinedButton.icon(
-                  onPressed: _testing || _fetching ? null : _test,
+                  onPressed: _testing || _fetching || widget.saving
+                      ? null
+                      : _test,
                   icon: const Icon(Icons.fact_check_outlined),
                   label: Text(strings.aiTestConnection),
                 ),
@@ -1080,35 +1218,139 @@ class _AiConnectionEditorState extends ConsumerState<AiConnectionEditor> {
                       ),
                     ),
                   ),
-              ],
-            ),
+              ]),
+              const SizedBox(height: 12),
+              _group([
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(strings.aiUseProxy),
+                  value: _useProxy,
+                  onChanged: _testing || widget.saving
+                      ? null
+                      : (value) => setState(() {
+                          _invalidateModels();
+                          _useProxy = value;
+                          _testPassed = null;
+                          _testMessage = null;
+                        }),
+                ),
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  title: Text(strings.aiAdvanced),
+                  children: [
+                    TextFormField(
+                      controller: _timeout,
+                      enabled: !_testing && !widget.saving,
+                      decoration: InputDecoration(labelText: strings.aiTimeout),
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        final number = int.tryParse(value ?? '');
+                        return number == null || number < 5 || number > 300
+                            ? strings.aiInvalidConnection
+                            : null;
+                      },
+                      onChanged: (_) => _invalidateTest(),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _tokens,
+                      enabled: !_testing && !widget.saving,
+                      decoration: InputDecoration(
+                        labelText: strings.aiMaxTokens,
+                      ),
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        final number = int.tryParse(value ?? '');
+                        return number == null || number < 64 || number > 32768
+                            ? strings.aiInvalidConnection
+                            : null;
+                      },
+                      onChanged: (_) => _invalidateTest(),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ]),
+            ],
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(strings.cancel),
-        ),
-        FilledButton(
-          onPressed: _testing || _fetching
-              ? null
-              : () {
-                  final connection = _connection();
-                  if (connection != null) {
-                    Navigator.of(context).pop(
-                      AiConnectionDraft(
-                        connection: connection,
-                        secret: _secret.text.trim().isEmpty
-                            ? null
-                            : _secret.text.trim(),
-                      ),
+    );
+    final actions = <Widget>[
+      TextButton(
+        onPressed: widget.saving
+            ? null
+            : () async {
+                if (widget.embedded) {
+                  widget.onCancel?.call();
+                  return;
+                }
+                if (await confirmDiscard() && context.mounted) {
+                  Navigator.of(context).pop();
+                }
+              },
+        child: Text(strings.cancel),
+      ),
+      FilledButton(
+        onPressed: _testing || _fetching || widget.saving
+            ? null
+            : () {
+                final connection = _connection();
+                if (connection != null) {
+                  final draft = AiConnectionDraft(
+                    connection: connection,
+                    secret: _secret.text.trim().isEmpty
+                        ? null
+                        : _secret.text.trim(),
+                  );
+                  if (widget.embedded) {
+                    unawaited(
+                      widget.onSave?.call(draft) ?? Future<void>.value(),
                     );
+                  } else {
+                    Navigator.of(context).pop(draft);
                   }
-                },
-          child: Text(strings.aiSaveAndUse),
+                }
+              },
+        child: Text(strings.aiSaveAndUse),
+      ),
+    ];
+    if (widget.embedded) {
+      return Card(
+        margin: EdgeInsets.zero,
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                widget.existing == null
+                    ? strings.aiAddConnection
+                    : strings.aiEditConnection,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 16),
+              Expanded(child: content),
+              const SizedBox(height: 12),
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 12,
+                children: actions,
+              ),
+            ],
+          ),
         ),
-      ],
+      );
+    }
+    return AlertDialog(
+      title: Text(
+        widget.existing == null
+            ? strings.aiAddConnection
+            : strings.aiEditConnection,
+      ),
+      content: content,
+      actions: actions,
     );
   }
 }

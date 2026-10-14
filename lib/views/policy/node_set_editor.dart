@@ -5,6 +5,7 @@ import 'package:fl_clash/policy/models.dart';
 import 'package:flutter/material.dart';
 
 import 'widgets.dart';
+import 'editor_section.dart';
 
 final class PolicyNodeSetEdit {
   final PolicyNodeSet nodeSet;
@@ -416,7 +417,77 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
         ),
         const SizedBox(height: 12),
         _field('url', strings.policyProbeUrl),
-        if (_advanced) ...[
+        if (!_advanced) Text(strings.policyCheckMeasurementHint),
+      ],
+    );
+  }
+
+  Widget _checkStatus() {
+    final strings = context.appLocalizations;
+    final unchanged = _fingerprint == _initial;
+    final live = unchanged ? _details : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (!unchanged)
+          Text(strings.policyDraftStatusHint)
+        else ...[
+          if (_statusLoading) const LinearProgressIndicator(),
+          Text(
+            '${strings.policyChecksWaiting}: ${live?['checksWaiting'] ?? widget.snapshot['checksWaiting'] ?? '—'} · ${strings.policyChecksInFlight}: ${live?['checksInFlight'] ?? widget.snapshot['checksInFlight'] ?? '—'}',
+          ),
+          if (live?['sampleAt'] is int)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Text(
+                '${strings.policyPageSampleAt}: ${policyBeijingTime(live!['sampleAt'] as int)}',
+              ),
+            ),
+          if (widget.onCheck != null && widget.existing != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: OutlinedButton.icon(
+                onPressed: _busy
+                    ? null
+                    : () async {
+                        setState(() => _busy = true);
+                        try {
+                          await widget.onCheck!(widget.existing!.id);
+                        } catch (_) {
+                          if (mounted) {
+                            setState(
+                              () => _error = strings.policyOperationFailed,
+                            );
+                          }
+                        } finally {
+                          if (mounted) setState(() => _busy = false);
+                        }
+                      },
+                icon: const Icon(Icons.network_check),
+                label: Text(strings.policyCheckNow),
+              ),
+            ),
+        ],
+        const SizedBox(height: 12),
+        Text(
+          strings.policyCheckMeasurementHint,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+
+  Widget _advancedContent() {
+    final strings = context.appLocalizations;
+    final method = PolicyEditorSection(
+      key: const ValueKey('node-set-check-method'),
+      title: strings.policyCheckMethodSection,
+      icon: Icons.track_changes,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _checks(),
+          const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             key: ValueKey(_method),
             initialValue: _method,
@@ -434,6 +505,22 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
           const SizedBox(height: 12),
           _field('status', strings.policyExpectedStatus),
           _field('timeout', strings.policyProbeTimeout),
+        ],
+      ),
+    );
+    final frequency = PolicyEditorSection(
+      key: const ValueKey('node-set-check-frequency'),
+      title: strings.policyCheckFrequencySection,
+      icon: Icons.schedule,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(strings.policyAutoCheck),
+            value: _automatic,
+            onChanged: _busy ? null : (v) => setState(() => _automatic = v),
+          ),
           _field('interval', strings.policyProbeInterval),
           _field('retry', strings.policyRetrySeconds),
           _field('failures', strings.policyFailures),
@@ -447,6 +534,19 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
                 strings.policyCheckCapacityHint(_recommendedValidity),
               ),
             ),
+          Text(
+            strings.policyCheckFrequencyHint,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+    final selection = PolicyEditorSection(
+      key: const ValueKey('node-set-selection-recovery'),
+      title: strings.policySelectionRecoverySection,
+      icon: Icons.shuffle,
+      child: Column(
+        children: [
           _field('recovery', strings.policyRecoverySeconds),
           _field('cooldown', strings.policyCooldownSeconds),
           _field('improvement', strings.policyImprovementPercent),
@@ -469,13 +569,67 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
             onChanged: _busy ? null : (v) => setState(() => _unknownRegion = v),
           ),
         ],
-        Text(strings.policyCheckMeasurementHint),
-      ],
+      ),
+    );
+    final status = PolicyEditorSection(
+      key: const ValueKey('node-set-check-status'),
+      title: strings.policyCheckStatusSection,
+      icon: Icons.monitor_heart_outlined,
+      child: _checkStatus(),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 760) {
+          return Column(children: [method, frequency, selection, status]);
+        }
+        return Column(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: method),
+                const SizedBox(width: 16),
+                Expanded(child: frequency),
+              ],
+            ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: selection),
+                const SizedBox(width: 16),
+                Expanded(child: status),
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 
   Widget _formContent() {
     final strings = context.appLocalizations;
+    if (_advanced) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SegmentedButton<bool>(
+            segments: [
+              ButtonSegment(value: false, label: Text(strings.general)),
+              ButtonSegment(value: true, label: Text(strings.advancedConfig)),
+            ],
+            selected: {_advanced},
+            onSelectionChanged: (values) =>
+                setState(() => _advanced = values.single),
+          ),
+          const SizedBox(height: 16),
+          _advancedContent(),
+          if (widget.referencedRules.isNotEmpty)
+            Text(
+              '${strings.policySharedSetImpact}: ${widget.referencedRules.join(' · ')}',
+            ),
+        ],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -726,33 +880,6 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
               ),
             ],
           ),
-        const SizedBox(height: 12),
-        Text(
-          '${strings.policyChecksWaiting}: ${live?['checksWaiting'] ?? widget.snapshot['checksWaiting'] ?? '—'} · ${strings.policyChecksInFlight}: ${live?['checksInFlight'] ?? widget.snapshot['checksInFlight'] ?? '—'}',
-        ),
-        if (live?['sampleAt'] is int)
-          Text(
-            '${strings.policyPageSampleAt}: ${policyBeijingTime(live!['sampleAt'] as int)}',
-          ),
-        if (widget.onCheck != null && widget.existing != null)
-          OutlinedButton.icon(
-            onPressed: _busy || _fingerprint != _initial
-                ? null
-                : () async {
-                    setState(() => _busy = true);
-                    try {
-                      await widget.onCheck!(widget.existing!.id);
-                    } catch (_) {
-                      if (mounted) {
-                        setState(() => _error = strings.policyOperationFailed);
-                      }
-                    } finally {
-                      if (mounted) setState(() => _busy = false);
-                    }
-                  },
-            icon: const Icon(Icons.network_check),
-            label: Text(strings.policyCheckNow),
-          ),
       ],
     );
   }
@@ -839,6 +966,7 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
         if (!didPop) _leave();
       },
       child: AlertDialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         title: Text(widget.existing?.label ?? strings.policyNodeSet),
         content: SizedBox(
           width: 1000,
@@ -853,7 +981,11 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (_busy) const LinearProgressIndicator(),
-                      if (constraints.maxWidth >= 760)
+                      if (_advanced) ...[
+                        form,
+                        const SizedBox(height: 12),
+                        members,
+                      ] else if (constraints.maxWidth >= 760)
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -867,6 +999,7 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
                         const SizedBox(height: 24),
                         members,
                       ],
+                      if (!_advanced) _checkStatus(),
                       if (_error != null)
                         Text(
                           _error!,

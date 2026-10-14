@@ -75,25 +75,28 @@ class MessageLookup extends MessageLookupByLibrary {
   static String m22(target) =>
       "Read the existing rules, nodes and subscription sources for target ${target}, then create a reviewable proposal to add rules using those resources. Preserve the existing order; do not reorder existing rules or add another remaining-traffic rule. Create a draft and wait for my confirmation before applying it.";
 
-  static String m23(sampleAt) => "Last valid reading: ${sampleAt}";
+  static String m23(target) =>
+      "Read the existing rules, nodes and subscription sources for target ${target}, and propose reviewable rule improvements. Keep the current order and existing remaining-traffic rule. Only prepare proposals; wait for my confirmation before applying changes.";
 
-  static String m24(startAt) => "Period started: ${startAt}";
+  static String m24(sampleAt) => "Last valid reading: ${sampleAt}";
 
-  static String m25(seconds) =>
+  static String m25(startAt) => "Period started: ${startAt}";
+
+  static String m26(seconds) =>
       "Capacity estimate: at least ${seconds} seconds of validity is recommended; actual completion can take longer.";
 
-  static String m26(option) =>
+  static String m27(option) =>
       "This source uses an unsupported option: ${option}. Local controls were not applied; remove this option first.";
 
-  static String m27(label) => "${label} must be between 1024 and 49151";
+  static String m28(label) => "${label} must be between 1024 and 49151";
 
-  static String m28(count) => "${count} seconds";
+  static String m29(count) => "${count} seconds";
 
-  static String m29(count) => "${count} items have been selected";
+  static String m30(count) => "${count} items have been selected";
 
-  static String m30(label) => "${label} must be a url";
+  static String m31(label) => "${label} must be a url";
 
-  static String m31(count) =>
+  static String m32(count) =>
       "${Intl.plural(count, one: '1 year ago', other: '${count} years ago')}";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
@@ -157,15 +160,24 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiApproveScriptExecution": MessageLookupByLibrary.simpleMessage(
       "Authorize preview execution",
     ),
+    "aiApproved": MessageLookupByLibrary.simpleMessage("Approved"),
     "aiAssistant": MessageLookupByLibrary.simpleMessage("AI"),
     "aiAssistantRole": MessageLookupByLibrary.simpleMessage("Assistant"),
     "aiAssistantTitle": MessageLookupByLibrary.simpleMessage("AI assistant"),
     "aiAuthFailed": MessageLookupByLibrary.simpleMessage(
       "Authentication failed. Check the key for this endpoint",
     ),
+    "aiAwaitingApproval": MessageLookupByLibrary.simpleMessage(
+      "Awaiting approval; changes have not been applied",
+    ),
     "aiBaseUrl": MessageLookupByLibrary.simpleMessage("Base URL"),
     "aiBefore": MessageLookupByLibrary.simpleMessage("Before"),
+    "aiCanHelp": MessageLookupByLibrary.simpleMessage("Can help with"),
     "aiCancelled": MessageLookupByLibrary.simpleMessage("Stopped"),
+    "aiCapabilityHint": MessageLookupByLibrary.simpleMessage(
+      "Request an action in natural language using the current capability catalog",
+    ),
+    "aiCheckResult": MessageLookupByLibrary.simpleMessage("Check result"),
     "aiChinaApi": MessageLookupByLibrary.simpleMessage("China API"),
     "aiChinaCoding": MessageLookupByLibrary.simpleMessage("China coding plan"),
     "aiClearConversation": MessageLookupByLibrary.simpleMessage(
@@ -195,6 +207,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiDisabled": MessageLookupByLibrary.simpleMessage(
       "AI assistant is disabled",
     ),
+    "aiDiscardChanges": MessageLookupByLibrary.simpleMessage("Discard changes"),
     "aiEditConnection": MessageLookupByLibrary.simpleMessage("Edit connection"),
     "aiEmptyConversation": MessageLookupByLibrary.simpleMessage(
       "Inspect the current configuration, then preview changes",
@@ -287,6 +300,8 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiResourceUpdateAccepted": MessageLookupByLibrary.simpleMessage(
       "The update request was accepted. Completion will be confirmed by the local Core.",
     ),
+    "aiResultCompleted": MessageLookupByLibrary.simpleMessage("Completed"),
+    "aiReviewPlan": MessageLookupByLibrary.simpleMessage("Review plan"),
     "aiSaveAndUse": MessageLookupByLibrary.simpleMessage("Save and use"),
     "aiSaveFailed": MessageLookupByLibrary.simpleMessage(
       "Save failed. Connection and key recovery was attempted; check before retrying",
@@ -307,6 +322,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "aiSelected": MessageLookupByLibrary.simpleMessage("Selected"),
     "aiSend": MessageLookupByLibrary.simpleMessage("Send"),
+    "aiServiceCredentials": MessageLookupByLibrary.simpleMessage(
+      "Service and credentials",
+    ),
     "aiSettingsTitle": MessageLookupByLibrary.simpleMessage("AI connections"),
     "aiStop": MessageLookupByLibrary.simpleMessage("Stop"),
     "aiTargetChanged": MessageLookupByLibrary.simpleMessage(
@@ -334,6 +352,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "aiToolWorking": MessageLookupByLibrary.simpleMessage(
       "Running app command…",
+    ),
+    "aiUnsavedChanges": MessageLookupByLibrary.simpleMessage(
+      "Unsaved connection changes",
     ),
     "aiUsageClearIrreversible": MessageLookupByLibrary.simpleMessage(
       "Clearing usage history cannot be undone. Source budget accounting will be retained.",
@@ -979,6 +1000,10 @@ class MessageLookup extends MessageLookupByLibrary {
       "Generate a plan with AI",
     ),
     "policyAiGenerationRequest": m22,
+    "policyAiOptimizationRequest": m23,
+    "policyAiOptimizeRule": MessageLookupByLibrary.simpleMessage(
+      "Optimize rules with AI",
+    ),
     "policyAiOrigin": MessageLookupByLibrary.simpleMessage("AI generated"),
     "policyApplication": MessageLookupByLibrary.simpleMessage("Application"),
     "policyAppliedStatus": MessageLookupByLibrary.simpleMessage("Applied"),
@@ -998,8 +1023,8 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyBudgetHint": MessageLookupByLibrary.simpleMessage(
       "Counts this device’s FlClash traffic only; not account-wide usage or a byte-exact cap",
     ),
-    "policyBudgetLastSample": m23,
-    "policyBudgetPeriod": m24,
+    "policyBudgetLastSample": m24,
+    "policyBudgetPeriod": m25,
     "policyBudgetReached": MessageLookupByLibrary.simpleMessage(
       "Local budget reached; new source connections restricted",
     ),
@@ -1013,9 +1038,18 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyCandidates": MessageLookupByLibrary.simpleMessage(
       "Exact candidate order",
     ),
-    "policyCheckCapacityHint": m25,
+    "policyCheckCapacityHint": m26,
+    "policyCheckFrequencyHint": MessageLookupByLibrary.simpleMessage(
+      "Intervals are scheduling targets; many nodes may queue",
+    ),
+    "policyCheckFrequencySection": MessageLookupByLibrary.simpleMessage(
+      "Check frequency",
+    ),
     "policyCheckMeasurementHint": MessageLookupByLibrary.simpleMessage(
       "Measures connectivity and request latency, not download speed",
+    ),
+    "policyCheckMethodSection": MessageLookupByLibrary.simpleMessage(
+      "Check method",
     ),
     "policyCheckNow": MessageLookupByLibrary.simpleMessage("Check now"),
     "policyCheckPending": MessageLookupByLibrary.simpleMessage(
@@ -1025,11 +1059,17 @@ class MessageLookup extends MessageLookupByLibrary {
       "Check endpoint preset",
     ),
     "policyCheckSave": MessageLookupByLibrary.simpleMessage("Check and save"),
+    "policyCheckStatusSection": MessageLookupByLibrary.simpleMessage(
+      "Check status",
+    ),
     "policyChecksInFlight": MessageLookupByLibrary.simpleMessage(
       "Checks in progress",
     ),
     "policyChecksWaiting": MessageLookupByLibrary.simpleMessage(
       "Queued checks",
+    ),
+    "policyChoiceSection": MessageLookupByLibrary.simpleMessage(
+      "Preferred and backups",
     ),
     "policyCollectionPending": MessageLookupByLibrary.simpleMessage(
       "Not configured",
@@ -1045,6 +1085,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyCoreStopped": MessageLookupByLibrary.simpleMessage(
       "Core stopped; policies are not running",
+    ),
+    "policyCurrentEffect": MessageLookupByLibrary.simpleMessage(
+      "Current effect",
     ),
     "policyCustomCheck": MessageLookupByLibrary.simpleMessage("Custom"),
     "policyDeclaredAttribute": MessageLookupByLibrary.simpleMessage(
@@ -1063,6 +1106,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyDomainSuffix": MessageLookupByLibrary.simpleMessage("Domain suffix"),
     "policyDraftStatus": MessageLookupByLibrary.simpleMessage(
       "Pending approval",
+    ),
+    "policyDraftStatusHint": MessageLookupByLibrary.simpleMessage(
+      "Draft changed; save to view check results",
     ),
     "policyEditIntegration": MessageLookupByLibrary.simpleMessage(
       "Edit integration",
@@ -1313,6 +1359,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySelectedOffline": MessageLookupByLibrary.simpleMessage(
       "Selected; used when connected",
     ),
+    "policySelectionRecoverySection": MessageLookupByLibrary.simpleMessage(
+      "Selection and recovery",
+    ),
     "policySharedSetImpact": MessageLookupByLibrary.simpleMessage(
       "Changes to a shared set affect rules referencing it",
     ),
@@ -1380,6 +1429,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyTerminateHint": MessageLookupByLibrary.simpleMessage(
       "This interrupts existing connections and requires approval",
     ),
+    "policyTrafficSection": MessageLookupByLibrary.simpleMessage(
+      "Which traffic",
+    ),
     "policyUndo": MessageLookupByLibrary.simpleMessage("Undo change"),
     "policyUnknownAttribute": MessageLookupByLibrary.simpleMessage("Unknown"),
     "policyUnknownHealth": MessageLookupByLibrary.simpleMessage(
@@ -1403,7 +1455,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyUnsavedTitle": MessageLookupByLibrary.simpleMessage(
       "Unsaved changes",
     ),
-    "policyUnsupportedSourceOption": m26,
+    "policyUnsupportedSourceOption": m27,
     "policyUpdateProxyUnavailable": MessageLookupByLibrary.simpleMessage(
       "The proxy is unavailable. Start it or explicitly choose direct subscription updates.",
     ),
@@ -1438,7 +1490,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "portConflictTip": MessageLookupByLibrary.simpleMessage(
       "Please enter a different port",
     ),
-    "portTip": m27,
+    "portTip": m28,
     "preferH3Desc": MessageLookupByLibrary.simpleMessage(
       "Prioritize the use of DOH\'s http/3",
     ),
@@ -1703,7 +1755,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "search": MessageLookupByLibrary.simpleMessage("Search"),
     "seconds": MessageLookupByLibrary.simpleMessage("Seconds"),
-    "secondsCount": m28,
+    "secondsCount": m29,
     "selectAll": MessageLookupByLibrary.simpleMessage("Select all"),
     "selectProxies": MessageLookupByLibrary.simpleMessage("Select proxies"),
     "selectProxyProviders": MessageLookupByLibrary.simpleMessage(
@@ -1719,7 +1771,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Please select sub rule",
     ),
     "selected": MessageLookupByLibrary.simpleMessage("Selected"),
-    "selectedCountTitle": m29,
+    "selectedCountTitle": m30,
     "settings": MessageLookupByLibrary.simpleMessage("Settings"),
     "show": MessageLookupByLibrary.simpleMessage("Show"),
     "shrink": MessageLookupByLibrary.simpleMessage("Shrink"),
@@ -1839,7 +1891,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "urlDesc": MessageLookupByLibrary.simpleMessage(
       "Obtain profile through URL",
     ),
-    "urlTip": m30,
+    "urlTip": m31,
     "usage": MessageLookupByLibrary.simpleMessage("Usage"),
     "usageApplications": MessageLookupByLibrary.simpleMessage("Apps"),
     "usageConnections": MessageLookupByLibrary.simpleMessage("Connections"),
@@ -1896,7 +1948,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "WebDAV configuration",
     ),
     "whitelistMode": MessageLookupByLibrary.simpleMessage("Whitelist mode"),
-    "yearsAgo": m31,
+    "yearsAgo": m32,
     "zh_CN": MessageLookupByLibrary.simpleMessage("Simplified Chinese"),
   };
 }

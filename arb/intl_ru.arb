@@ -942,5 +942,33 @@
         "type": "int"
       }
     }
+  },
+  "policyTrafficSection": "Какой трафик",
+  "policyChoiceSection": "Основной и резервные",
+  "policyCurrentEffect": "Текущее поведение",
+  "policyCheckMethodSection": "Способ проверки",
+  "policyCheckFrequencySection": "Частота проверки",
+  "policySelectionRecoverySection": "Выбор и восстановление",
+  "policyCheckStatusSection": "Статус проверки",
+  "policyDraftStatusHint": "Черновик изменён; сохраните для просмотра результатов",
+  "policyCheckFrequencyHint": "Интервалы задают цель планирования; большое число узлов может создать очередь",
+  "aiCanHelp": "Чем могу помочь",
+  "aiCapabilityHint": "Запросите действие обычным языком из текущего каталога возможностей",
+  "aiServiceCredentials": "Сервис и учётные данные",
+  "aiCheckResult": "Результат проверки",
+  "aiReviewPlan": "Просмотреть план",
+  "aiAwaitingApproval": "Ожидает подтверждения; изменения не применены",
+  "aiUnsavedChanges": "Изменения подключения не сохранены",
+  "aiDiscardChanges": "Отменить изменения",
+  "aiResultCompleted": "Выполнено",
+  "aiApproved": "Одобрено",
+  "policyAiOptimizeRule": "Оптимизировать правила с ИИ",
+  "policyAiOptimizationRequest": "Изучите существующие правила, узлы и источники подписок для цели {target} и предложите проверяемые улучшения правил. Сохраните текущий порядок и существующее правило для остального трафика. Только подготовьте предложения и дождитесь моего подтверждения перед применением изменений.",
+  "@policyAiOptimizationRequest": {
+    "placeholders": {
+      "target": {
+        "type": "String"
+      }
+    }
   }
 }

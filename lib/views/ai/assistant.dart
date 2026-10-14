@@ -5,6 +5,8 @@ import 'package:fl_clash/ai/runtime.dart';
 import 'package:fl_clash/ai/settings.dart';
 import 'package:fl_clash/ai/tools.dart';
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/capabilities/service.dart';
+import 'package:fl_clash/configuration/changes.dart';
 import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/providers/workbench.dart';
 import 'package:fl_clash/widgets/widgets.dart';
@@ -12,8 +14,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'approval.dart';
+import 'composer_context.dart';
 import 'errors.dart';
 import 'settings.dart';
+import 'presentation.dart';
 
 class AiAssistantView extends ConsumerStatefulWidget {
   const AiAssistantView({super.key, this.initialPrompt});
@@ -27,6 +31,10 @@ class _ConversationMessage {
   _ConversationMessage(this.role, this.text);
   final String role;
   String text;
+  Map<String, Object?>? result;
+  ConfigurationProposal? proposal;
+  bool failed = false;
+  Completer<bool>? approval;
 }
 
 class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
@@ -37,6 +45,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
   AgentRuntime? _runtime;
   StreamSubscription<AgentRuntimeEvent>? _subscription;
   bool _busy = false;
+  bool _contextScheduled = false;
   String? _error;
   String? _status;
   int _assistantIndex = -1;
@@ -48,17 +57,80 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     super.initState();
     _controller = ref.read(workbenchControllerProvider);
     _input.text = widget.initialPrompt ?? '';
+    ref.listenManual(aiComposerContextProvider, (_, next) {
+      if (next != null) _scheduleComposerContext();
+    }, fireImmediately: true);
+  }
+
+  void _scheduleComposerContext() {
+    if (!mounted ||
+        _busy ||
+        _contextScheduled ||
+        ref.read(aiComposerContextProvider) == null) {
+      return;
+    }
+    _contextScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _contextScheduled = false;
+      if (!mounted || _busy) return;
+      final prompt = ref.read(aiComposerContextProvider.notifier).consume();
+      if (prompt == null) return;
+      setState(() {
+        final text = _input.text.isEmpty ? prompt : '${_input.text}\n\n$prompt';
+        _input.value = TextEditingValue(
+          text: text,
+          selection: TextSelection.collapsed(offset: text.length),
+        );
+      });
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   @override
   void dispose() {
     _epoch++;
+    _cancelApprovals();
     _runtime?.cancel();
     unawaited(_subscription?.cancel() ?? Future<void>.value());
     unawaited(_controller.closeAgent());
     _input.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  void _cancelApprovals() {
+    for (final message in _messages) {
+      if (message.approval != null && !message.approval!.isCompleted) {
+        message.result = const {'status': 'cancelled'};
+        message.approval!.complete(false);
+      }
+    }
+  }
+
+  void _appendToolMessage(_ConversationMessage message) {
+    _messages.add(message);
+    while (_messages.where((entry) => entry.role == 'tool').length > 32) {
+      final index = _messages.indexWhere(
+        (entry) =>
+            entry.role == 'tool' &&
+            (entry.approval == null || entry.approval!.isCompleted),
+      );
+      if (index < 0) break;
+      _messages.removeAt(index);
+      if (_assistantIndex > index) _assistantIndex--;
+    }
+  }
+
+  Future<bool> _approve(ConfigurationProposal proposal, int epoch) async {
+    if (!mounted || epoch != _epoch) return false;
+    final message = _ConversationMessage('tool', '')
+      ..proposal = proposal
+      ..approval = Completer<bool>();
+    setState(() => _appendToolMessage(message));
+    _followOutput();
+    final approved = await message.approval!.future;
+    if (mounted) setState(() {});
+    return approved && mounted && epoch == _epoch;
   }
 
   void _followOutput() {
@@ -102,7 +174,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     final result = <Map<String, Object?>>[];
     var bytes = 0;
     for (final message in _messages.reversed) {
-      if (message.text.isEmpty) continue;
+      if (message.text.isEmpty || message.role == 'tool') continue;
       final size = utf8.encode(message.text).length;
       if (bytes + size > 256 * 1024) break;
       bytes += size;
@@ -147,7 +219,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
         controller: controller,
         approve: (proposal) async {
           if (!mounted || _epoch != epoch) return false;
-          return showAiConfigurationApproval(context, proposal);
+          return _approve(proposal, epoch);
         },
       );
       setState(() {
@@ -171,7 +243,16 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
           setState(() => _status = context.appLocalizations.aiToolWorking);
           final result = await tools.execute(request);
           if (mounted && _epoch == epoch) {
-            setState(() => _status = context.appLocalizations.aiThinking);
+            setState(() {
+              _status = context.appLocalizations.aiThinking;
+              _appendToolMessage(
+                _ConversationMessage('tool', '')
+                  ..result = result.value
+                  ..proposal = aiResultProposal(result.value)
+                  ..failed = result.isError,
+              );
+            });
+            _followOutput();
           }
           return result;
         },
@@ -187,12 +268,14 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
           _assistantIndex = -1;
           if (_status != context.appLocalizations.aiCancelled) _status = null;
         });
+        _scheduleComposerContext();
       }
     }
   }
 
   Future<void> _stop() async {
     final epoch = ++_epoch;
+    _cancelApprovals();
     _runtime?.cancel();
     setState(() => _status = context.appLocalizations.aiCancelled);
     await _subscription?.cancel();
@@ -204,11 +287,13 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
         _busy = false;
         _assistantIndex = -1;
       });
+      _scheduleComposerContext();
     }
   }
 
   Future<void> _openSettings() async {
     _epoch++;
+    _cancelApprovals();
     _runtime?.cancel();
     await _subscription?.cancel();
     _subscription = null;
@@ -219,6 +304,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       _busy = false;
       _status = null;
     });
+    _scheduleComposerContext();
     await Navigator.of(
       context,
     ).push<void>(MaterialPageRoute(builder: (_) => const AiSettingsView()));
@@ -260,12 +346,16 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     } catch (error) {
       if (mounted) setState(() => _error = aiErrorText(context, error));
     } finally {
-      if (mounted && _epoch == epoch) setState(() => _busy = false);
+      if (mounted && _epoch == epoch) {
+        setState(() => _busy = false);
+        _scheduleComposerContext();
+      }
     }
   }
 
   Future<void> _clear() async {
     final epoch = ++_epoch;
+    _cancelApprovals();
     _runtime?.cancel();
     setState(() {
       _messages.clear();
@@ -278,7 +368,10 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     _subscription = null;
     _runtime = null;
     await _controller.closeAgent();
-    if (mounted && _epoch == epoch) setState(() => _busy = false);
+    if (mounted && _epoch == epoch) {
+      setState(() => _busy = false);
+      _scheduleComposerContext();
+    }
   }
 
   @override
@@ -300,6 +393,22 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       title: strings.aiAssistantTitle,
       actions: [
         IconButton(
+          tooltip: strings.aiCanHelp,
+          icon: const Icon(Icons.help_outline),
+          onPressed: () => showModalBottomSheet<void>(
+            context: context,
+            isScrollControlled: true,
+            builder: (context) => SizedBox(
+              height: MediaQuery.sizeOf(context).height * .75,
+              child: AiCapabilityPanel(
+                catalog: ref
+                    .read(applicationCapabilityServiceProvider)
+                    .manifest,
+              ),
+            ),
+          ),
+        ),
+        IconButton(
           onPressed: _busy ? null : _clear,
           tooltip: strings.aiClearConversation,
           icon: const Icon(Icons.delete_outline),
@@ -313,168 +422,306 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       body: value.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, _) => Center(child: Text(strings.aiRequestFailed)),
-        data: (settings) => Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 860),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.auto_awesome_outlined, size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: settings.connections.isEmpty
-                            ? Text(strings.aiNoConnection)
-                            : DropdownButtonFormField<String>(
-                                key: ValueKey(
-                                  'ai-current-connection-${settings.selectedConnectionId}',
-                                ),
-                                initialValue: settings.selectedConnectionId,
-                                isExpanded: true,
-                                decoration: InputDecoration(
-                                  labelText: strings.aiCurrentConnection,
-                                  border: const OutlineInputBorder(),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                ),
-                                items: [
-                                  for (final connection in settings.connections)
-                                    DropdownMenuItem(
-                                      value: connection.id,
-                                      child: Text(
-                                        '${connection.label} · ${connection.model}',
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
+        data: (settings) => LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 760;
+            final conversation = Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 860),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.auto_awesome_outlined, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: settings.connections.isEmpty
+                                ? Text(strings.aiNoConnection)
+                                : DropdownButtonFormField<String>(
+                                    key: ValueKey(
+                                      'ai-current-connection-${settings.selectedConnectionId}',
                                     ),
-                                ],
-                                onChanged: _busy
-                                    ? null
-                                    : (id) {
-                                        if (id != null) {
-                                          unawaited(
-                                            _selectConnection(settings, id),
-                                          );
-                                        }
-                                      },
-                              ),
+                                    initialValue: settings.selectedConnectionId,
+                                    isExpanded: true,
+                                    decoration: InputDecoration(
+                                      labelText: strings.aiCurrentConnection,
+                                      border: const OutlineInputBorder(),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
+                                    ),
+                                    items: [
+                                      for (final connection
+                                          in settings.connections)
+                                        DropdownMenuItem(
+                                          value: connection.id,
+                                          child: Text(
+                                            '${connection.label} · ${connection.model}',
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                    ],
+                                    onChanged: _busy
+                                        ? null
+                                        : (id) {
+                                            if (id != null) {
+                                              unawaited(
+                                                _selectConnection(settings, id),
+                                              );
+                                            }
+                                          },
+                                  ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: _messages.isEmpty
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Text(
-                              !settings.enabled
-                                  ? strings.aiDisabled
-                                  : strings.aiEmptyConversation,
-                              textAlign: TextAlign.center,
+                    ),
+                    Expanded(
+                      child: _messages.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Text(
+                                  !settings.enabled
+                                      ? strings.aiDisabled
+                                      : strings.aiEmptyConversation,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              key: const ValueKey('ai-conversation-list'),
+                              controller: _scroll,
+                              padding: const EdgeInsets.all(16),
+                              itemCount: _messages.length,
+                              itemBuilder: (context, index) =>
+                                  _message(_messages[index]),
+                            ),
+                    ),
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Text(
+                          _error!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    if (_status != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
+                        child: Row(
+                          children: [
+                            if (_busy)
+                              const SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _status!,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              key: const ValueKey('ai-prompt'),
+                              controller: _input,
+                              enabled:
+                                  settings.enabled &&
+                                  settings.selected != null &&
+                                  !_busy,
+                              onChanged: (_) => setState(() {}),
+                              minLines: 1,
+                              maxLines: 4,
+                              maxLength: 16384,
+                              decoration: InputDecoration(
+                                hintText: strings.aiPromptHint,
+                                counterText: '',
+                                border: const OutlineInputBorder(),
+                              ),
                             ),
                           ),
-                        )
-                      : ListView.builder(
-                          controller: _scroll,
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _messages.length,
-                          itemBuilder: (context, index) =>
-                              _MessageCard(message: _messages[index]),
-                        ),
-                ),
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: Text(
-                      _error!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
+                          const SizedBox(width: 8),
+                          if (_busy)
+                            IconButton.filledTonal(
+                              onPressed: _stop,
+                              tooltip: strings.aiStop,
+                              icon: const Icon(Icons.stop),
+                            )
+                          else
+                            IconButton.filled(
+                              key: const ValueKey('ai-send'),
+                              onPressed:
+                                  settings.enabled &&
+                                      settings.selected != null &&
+                                      _input.text.trim().isNotEmpty
+                                  ? () => _send(settings)
+                                  : null,
+                              tooltip: strings.aiSend,
+                              icon: const Icon(Icons.arrow_upward),
+                            ),
+                        ],
                       ),
                     ),
+                  ],
+                ),
+              ),
+            );
+            final catalog = ref
+                .read(applicationCapabilityServiceProvider)
+                .manifest;
+            if (!wide) return conversation;
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(0, 8, 16, 16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: conversation),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: constraints.maxWidth < 1000 ? 220 : 280,
+                    child: AiCapabilityPanel(catalog: catalog),
                   ),
-                if (_status != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    child: Row(
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _message(_ConversationMessage message) {
+    if (message.role != 'tool') return _MessageCard(message: message);
+    final pending = message.approval != null && !message.approval!.isCompleted;
+    void resolve(bool approved) {
+      if (!pending) return;
+      if (message.approval!.isCompleted) return;
+      setState(() {
+        message.result = {'status': approved ? 'approved' : 'rejected'};
+        message.approval!.complete(approved);
+      });
+    }
+
+    return AiToolResultCard(
+      result: message.result,
+      proposal: message.proposal,
+      failed: message.failed,
+      awaitingApproval: pending,
+      onReview: message.proposal == null
+          ? null
+          : () => showDialog<void>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: Text(context.appLocalizations.aiReviewPlan),
+                content: SizedBox(
+                  width: 560,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (_busy)
-                          const SizedBox(
-                            width: 12,
-                            height: 12,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _status!,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
+                        AiToolResultCard(
+                          proposal: message.proposal,
+                          expanded: true,
+                          result: message.result,
+                          awaitingApproval: pending,
                         ),
+                        if (message.proposal!.highRisk)
+                          Text(context.appLocalizations.aiHighRisk),
+                        if (message
+                                .proposal!
+                                .validation['requiresScriptExecutionApproval'] ==
+                            true)
+                          Text(context.appLocalizations.aiScriptExecutionOnly),
+                        if (message
+                                .proposal!
+                                .validation['finalConfigDifferences'] !=
+                            null) ...[
+                          Text(
+                            context.appLocalizations.aiFinalConfigDifferences,
+                          ),
+                          if (message
+                                  .proposal!
+                                  .validation['finalConfigDifferences']
+                              is List)
+                            for (final difference
+                                in message
+                                        .proposal!
+                                        .validation['finalConfigDifferences']
+                                    as List)
+                              if (difference is Map &&
+                                  difference['path'] is String)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text('${difference['path']}'),
+                                      Text(context.appLocalizations.aiBefore),
+                                      SelectableText(
+                                        aiDisplayValue({
+                                          '${difference['path']}':
+                                              difference['before'],
+                                        }),
+                                      ),
+                                      Text(context.appLocalizations.aiAfter),
+                                      SelectableText(
+                                        aiDisplayValue({
+                                          '${difference['path']}':
+                                              difference['after'],
+                                        }),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                        ],
                       ],
                     ),
                   ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          key: const ValueKey('ai-prompt'),
-                          controller: _input,
-                          enabled:
-                              settings.enabled &&
-                              settings.selected != null &&
-                              !_busy,
-                          onChanged: (_) => setState(() {}),
-                          minLines: 1,
-                          maxLines: 4,
-                          maxLength: 16384,
-                          decoration: InputDecoration(
-                            hintText: strings.aiPromptHint,
-                            counterText: '',
-                            border: const OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      if (_busy)
-                        IconButton.filledTonal(
-                          onPressed: _stop,
-                          tooltip: strings.aiStop,
-                          icon: const Icon(Icons.stop),
-                        )
-                      else
-                        IconButton.filled(
-                          key: const ValueKey('ai-send'),
-                          onPressed:
-                              settings.enabled &&
-                                  settings.selected != null &&
-                                  _input.text.trim().isNotEmpty
-                              ? () => _send(settings)
-                              : null,
-                          tooltip: strings.aiSend,
-                          icon: const Icon(Icons.arrow_upward),
-                        ),
-                    ],
-                  ),
                 ),
-              ],
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(context.appLocalizations.cancel),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
-      ),
+      onApprove: pending
+          ? () async {
+              final approved = await showAiConfigurationApproval(
+                context,
+                message.proposal!,
+              );
+              if (mounted && !message.approval!.isCompleted) resolve(approved);
+            }
+          : null,
+      onCancel: pending ? () => resolve(false) : null,
     );
   }
 }

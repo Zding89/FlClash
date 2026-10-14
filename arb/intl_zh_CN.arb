@@ -942,5 +942,33 @@
         "type": "int"
       }
     }
+  },
+  "policyTrafficSection": "什么流量",
+  "policyChoiceSection": "首选与备用",
+  "policyCurrentEffect": "当前效果",
+  "policyCheckMethodSection": "检查方式",
+  "policyCheckFrequencySection": "检查频率",
+  "policySelectionRecoverySection": "选择与恢复",
+  "policyCheckStatusSection": "检查状态",
+  "policyDraftStatusHint": "草稿已修改；保存后再查看检查结果",
+  "policyCheckFrequencyHint": "间隔是调度目标，大量节点可能需要排队",
+  "aiCanHelp": "可帮你做",
+  "aiCapabilityHint": "根据当前能力目录，用自然语言发起操作",
+  "aiServiceCredentials": "服务与凭据",
+  "aiCheckResult": "检查结果",
+  "aiReviewPlan": "查看方案",
+  "aiAwaitingApproval": "等待确认，尚未执行修改",
+  "aiUnsavedChanges": "有未保存的连接更改",
+  "aiDiscardChanges": "放弃更改",
+  "aiResultCompleted": "已完成",
+  "aiApproved": "已批准",
+  "policyAiOptimizeRule": "AI优化规则",
+  "policyAiOptimizationRequest": "请读取目标 {target} 的已有规则、节点和订阅来源，提出可审查的规则优化方案。保留当前顺序和已有其余流量规则。只建立提案，待我确认后再应用修改。",
+  "@policyAiOptimizationRequest": {
+    "placeholders": {
+      "target": {
+        "type": "String"
+      }
+    }
   }
 }

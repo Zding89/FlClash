@@ -74,26 +74,29 @@ class MessageLookup extends MessageLookupByLibrary {
   static String m22(target) =>
       "Прочитайте существующие правила, узлы и источники подписок для цели ${target}, затем создайте проверяемое предложение новых правил на их основе. Сохраните порядок, не переставляйте существующие правила и не добавляйте второе правило для остального трафика. Создайте черновик и дождитесь моего подтверждения перед применением.";
 
-  static String m23(sampleAt) =>
+  static String m23(target) =>
+      "Изучите существующие правила, узлы и источники подписок для цели ${target} и предложите проверяемые улучшения правил. Сохраните текущий порядок и существующее правило для остального трафика. Только подготовьте предложения и дождитесь моего подтверждения перед применением изменений.";
+
+  static String m24(sampleAt) =>
       "Последнее действительное показание: ${sampleAt}";
 
-  static String m24(startAt) => "Начало периода: ${startAt}";
+  static String m25(startAt) => "Начало периода: ${startAt}";
 
-  static String m25(seconds) =>
+  static String m26(seconds) =>
       "По оценке текущей пропускной способности рекомендуется срок действия не менее ${seconds} секунд. Это оценка очереди; фактическое завершение может занять больше времени.";
 
-  static String m26(option) =>
+  static String m27(option) =>
       "Источник использует неподдерживаемый параметр: ${option}. Локальные ограничения не применены; сначала удалите этот параметр.";
 
-  static String m27(label) => "${label} должен быть числом от 1024 до 49151";
+  static String m28(label) => "${label} должен быть числом от 1024 до 49151";
 
-  static String m28(count) => "${count} секунд";
+  static String m29(count) => "${count} секунд";
 
-  static String m29(count) => "Выбрано ${count} элементов";
+  static String m30(count) => "Выбрано ${count} элементов";
 
-  static String m30(label) => "${label} должен быть URL";
+  static String m31(label) => "${label} должен быть URL";
 
-  static String m31(count) =>
+  static String m32(count) =>
       "${Intl.plural(count, one: '${count} год назад', few: '${count} года назад', many: '${count} лет назад', other: '${count} года назад')}";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
@@ -161,15 +164,24 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiApproveScriptExecution": MessageLookupByLibrary.simpleMessage(
       "Разрешить выполнение для предпросмотра",
     ),
+    "aiApproved": MessageLookupByLibrary.simpleMessage("Одобрено"),
     "aiAssistant": MessageLookupByLibrary.simpleMessage("AI"),
     "aiAssistantRole": MessageLookupByLibrary.simpleMessage("Помощник"),
     "aiAssistantTitle": MessageLookupByLibrary.simpleMessage("ИИ-помощник"),
     "aiAuthFailed": MessageLookupByLibrary.simpleMessage(
       "Ошибка авторизации. Проверьте ключ для этого адреса",
     ),
+    "aiAwaitingApproval": MessageLookupByLibrary.simpleMessage(
+      "Ожидает подтверждения; изменения не применены",
+    ),
     "aiBaseUrl": MessageLookupByLibrary.simpleMessage("Адрес сервиса"),
     "aiBefore": MessageLookupByLibrary.simpleMessage("До"),
+    "aiCanHelp": MessageLookupByLibrary.simpleMessage("Чем могу помочь"),
     "aiCancelled": MessageLookupByLibrary.simpleMessage("Остановлено"),
+    "aiCapabilityHint": MessageLookupByLibrary.simpleMessage(
+      "Запросите действие обычным языком из текущего каталога возможностей",
+    ),
+    "aiCheckResult": MessageLookupByLibrary.simpleMessage("Результат проверки"),
     "aiChinaApi": MessageLookupByLibrary.simpleMessage("API Китая"),
     "aiChinaCoding": MessageLookupByLibrary.simpleMessage("Coding-тариф Китая"),
     "aiClearConversation": MessageLookupByLibrary.simpleMessage(
@@ -197,6 +209,9 @@ class MessageLookup extends MessageLookupByLibrary {
       "Удаление ключа отменит задачу ИИ; локальные политики продолжат работу",
     ),
     "aiDisabled": MessageLookupByLibrary.simpleMessage("ИИ-помощник выключен"),
+    "aiDiscardChanges": MessageLookupByLibrary.simpleMessage(
+      "Отменить изменения",
+    ),
     "aiEditConnection": MessageLookupByLibrary.simpleMessage(
       "Изменить подключение",
     ),
@@ -291,6 +306,8 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiResourceUpdateAccepted": MessageLookupByLibrary.simpleMessage(
       "Запрос обновления принят. Локальное ядро подтвердит завершение.",
     ),
+    "aiResultCompleted": MessageLookupByLibrary.simpleMessage("Выполнено"),
+    "aiReviewPlan": MessageLookupByLibrary.simpleMessage("Просмотреть план"),
     "aiSaveAndUse": MessageLookupByLibrary.simpleMessage(
       "Сохранить и использовать",
     ),
@@ -313,6 +330,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "aiSelected": MessageLookupByLibrary.simpleMessage("Выбрано"),
     "aiSend": MessageLookupByLibrary.simpleMessage("Отправить"),
+    "aiServiceCredentials": MessageLookupByLibrary.simpleMessage(
+      "Сервис и учётные данные",
+    ),
     "aiSettingsTitle": MessageLookupByLibrary.simpleMessage("Подключения ИИ"),
     "aiStop": MessageLookupByLibrary.simpleMessage("Остановить"),
     "aiTargetChanged": MessageLookupByLibrary.simpleMessage(
@@ -338,6 +358,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiTimeout": MessageLookupByLibrary.simpleMessage("Тайм-аут (секунды)"),
     "aiToolWorking": MessageLookupByLibrary.simpleMessage(
       "Выполнение команды приложения…",
+    ),
+    "aiUnsavedChanges": MessageLookupByLibrary.simpleMessage(
+      "Изменения подключения не сохранены",
     ),
     "aiUsageClearIrreversible": MessageLookupByLibrary.simpleMessage(
       "Удаление истории использования нельзя отменить. Счетчики лимитов источников сохранятся.",
@@ -1019,6 +1042,10 @@ class MessageLookup extends MessageLookupByLibrary {
       "Создать план с ИИ",
     ),
     "policyAiGenerationRequest": m22,
+    "policyAiOptimizationRequest": m23,
+    "policyAiOptimizeRule": MessageLookupByLibrary.simpleMessage(
+      "Оптимизировать правила с ИИ",
+    ),
     "policyAiOrigin": MessageLookupByLibrary.simpleMessage("Создано ИИ"),
     "policyApplication": MessageLookupByLibrary.simpleMessage("Приложение"),
     "policyAppliedStatus": MessageLookupByLibrary.simpleMessage("Применено"),
@@ -1040,8 +1067,8 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyBudgetHint": MessageLookupByLibrary.simpleMessage(
       "Учитывается только трафик FlClash этого устройства, не весь аккаунт и не точный побайтовый лимит",
     ),
-    "policyBudgetLastSample": m23,
-    "policyBudgetPeriod": m24,
+    "policyBudgetLastSample": m24,
+    "policyBudgetPeriod": m25,
     "policyBudgetReached": MessageLookupByLibrary.simpleMessage(
       "Локальный лимит достигнут; новые подключения через источник ограничены",
     ),
@@ -1055,9 +1082,18 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyCandidates": MessageLookupByLibrary.simpleMessage(
       "Точный порядок узлов",
     ),
-    "policyCheckCapacityHint": m25,
+    "policyCheckCapacityHint": m26,
+    "policyCheckFrequencyHint": MessageLookupByLibrary.simpleMessage(
+      "Интервалы задают цель планирования; большое число узлов может создать очередь",
+    ),
+    "policyCheckFrequencySection": MessageLookupByLibrary.simpleMessage(
+      "Частота проверки",
+    ),
     "policyCheckMeasurementHint": MessageLookupByLibrary.simpleMessage(
       "Измеряется доступность и задержка запроса, а не скорость загрузки",
+    ),
+    "policyCheckMethodSection": MessageLookupByLibrary.simpleMessage(
+      "Способ проверки",
     ),
     "policyCheckNow": MessageLookupByLibrary.simpleMessage("Проверить сейчас"),
     "policyCheckPending": MessageLookupByLibrary.simpleMessage(
@@ -1069,11 +1105,17 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyCheckSave": MessageLookupByLibrary.simpleMessage(
       "Проверить и сохранить",
     ),
+    "policyCheckStatusSection": MessageLookupByLibrary.simpleMessage(
+      "Статус проверки",
+    ),
     "policyChecksInFlight": MessageLookupByLibrary.simpleMessage(
       "Проверки выполняются",
     ),
     "policyChecksWaiting": MessageLookupByLibrary.simpleMessage(
       "Проверки в очереди",
+    ),
+    "policyChoiceSection": MessageLookupByLibrary.simpleMessage(
+      "Основной и резервные",
     ),
     "policyCollectionPending": MessageLookupByLibrary.simpleMessage(
       "Не настроено",
@@ -1089,6 +1131,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyCoreStopped": MessageLookupByLibrary.simpleMessage(
       "Core остановлен; политики не выполняются",
+    ),
+    "policyCurrentEffect": MessageLookupByLibrary.simpleMessage(
+      "Текущее поведение",
     ),
     "policyCustomCheck": MessageLookupByLibrary.simpleMessage("Свой"),
     "policyDeclaredAttribute": MessageLookupByLibrary.simpleMessage(
@@ -1109,6 +1154,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyDraftStatus": MessageLookupByLibrary.simpleMessage(
       "Ожидает подтверждения",
+    ),
+    "policyDraftStatusHint": MessageLookupByLibrary.simpleMessage(
+      "Черновик изменён; сохраните для просмотра результатов",
     ),
     "policyEditIntegration": MessageLookupByLibrary.simpleMessage(
       "Изменить объединение",
@@ -1369,6 +1417,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySelectedOffline": MessageLookupByLibrary.simpleMessage(
       "Выбрано; используется после подключения",
     ),
+    "policySelectionRecoverySection": MessageLookupByLibrary.simpleMessage(
+      "Выбор и восстановление",
+    ),
     "policySharedSetImpact": MessageLookupByLibrary.simpleMessage(
       "Изменения общего набора влияют на связанные правила",
     ),
@@ -1432,6 +1483,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyTerminateHint": MessageLookupByLibrary.simpleMessage(
       "Это прервёт существующие соединения и требует подтверждения",
     ),
+    "policyTrafficSection": MessageLookupByLibrary.simpleMessage(
+      "Какой трафик",
+    ),
     "policyUndo": MessageLookupByLibrary.simpleMessage("Отменить изменение"),
     "policyUnknownAttribute": MessageLookupByLibrary.simpleMessage(
       "Неизвестно",
@@ -1457,7 +1511,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyUnsavedTitle": MessageLookupByLibrary.simpleMessage(
       "Несохранённые изменения",
     ),
-    "policyUnsupportedSourceOption": m26,
+    "policyUnsupportedSourceOption": m27,
     "policyUpdateProxyUnavailable": MessageLookupByLibrary.simpleMessage(
       "Прокси недоступен. Запустите его или явно выберите прямое обновление подписок.",
     ),
@@ -1496,7 +1550,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "portConflictTip": MessageLookupByLibrary.simpleMessage(
       "Введите другой порт",
     ),
-    "portTip": m27,
+    "portTip": m28,
     "preferH3Desc": MessageLookupByLibrary.simpleMessage(
       "Приоритетное использование HTTP/3 для DOH",
     ),
@@ -1773,7 +1827,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "search": MessageLookupByLibrary.simpleMessage("Поиск"),
     "seconds": MessageLookupByLibrary.simpleMessage("Секунд"),
-    "secondsCount": m28,
+    "secondsCount": m29,
     "selectAll": MessageLookupByLibrary.simpleMessage("Выбрать все"),
     "selectProxies": MessageLookupByLibrary.simpleMessage("Выбрать прокси"),
     "selectProxyProviders": MessageLookupByLibrary.simpleMessage(
@@ -1789,7 +1843,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Пожалуйста, выберите подправило",
     ),
     "selected": MessageLookupByLibrary.simpleMessage("Выбрано"),
-    "selectedCountTitle": m29,
+    "selectedCountTitle": m30,
     "settings": MessageLookupByLibrary.simpleMessage("Настройки"),
     "show": MessageLookupByLibrary.simpleMessage("Показать"),
     "shrink": MessageLookupByLibrary.simpleMessage("Сжать"),
@@ -1929,7 +1983,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "urlDesc": MessageLookupByLibrary.simpleMessage(
       "Получить профиль через URL",
     ),
-    "urlTip": m30,
+    "urlTip": m31,
     "usage": MessageLookupByLibrary.simpleMessage("Расход"),
     "usageApplications": MessageLookupByLibrary.simpleMessage("Приложения"),
     "usageConnections": MessageLookupByLibrary.simpleMessage("Соединения"),
@@ -1992,7 +2046,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "whitelistMode": MessageLookupByLibrary.simpleMessage(
       "Режим белого списка",
     ),
-    "yearsAgo": m31,
+    "yearsAgo": m32,
     "zh_CN": MessageLookupByLibrary.simpleMessage("Упрощенный китайский"),
   };
 }

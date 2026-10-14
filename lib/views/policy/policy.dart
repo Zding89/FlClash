@@ -11,7 +11,7 @@ import 'package:fl_clash/providers/workbench.dart';
 import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/views/ai/approval.dart';
-import 'package:fl_clash/views/ai/assistant.dart';
+import 'package:fl_clash/views/ai/composer_context.dart';
 import 'package:fl_clash/views/ai/errors.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:flutter/material.dart';
@@ -940,16 +940,18 @@ class _LocalPolicyWorkbenchViewState
           OutlinedButton.icon(
             onPressed: _busy || selected == null
                 ? null
-                : () => showExtend(
-                    context,
-                    builder: (_) => AiAssistantView(
-                      initialPrompt: strings.policyAiGenerationRequest(
-                        selected,
-                      ),
-                    ),
-                  ),
+                : () {
+                    final navigator = Navigator.of(context);
+                    ref
+                        .read(aiComposerContextProvider.notifier)
+                        .offer(strings.policyAiOptimizationRequest(selected));
+                    ref
+                        .read(currentPageLabelProvider.notifier)
+                        .toPage(PageLabel.aiAssistant);
+                    if (navigator.canPop()) navigator.pop();
+                  },
             icon: const Icon(Icons.auto_awesome_outlined),
-            label: Text(strings.aiAssistantTitle),
+            label: Text(strings.policyAiOptimizeRule),
           ),
           OutlinedButton.icon(
             onPressed: targets.isEmpty
