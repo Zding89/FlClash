@@ -180,11 +180,6 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
-Finder _ruleField(String id) => find.descendant(
-  of: find.byKey(ValueKey('policy-rule-$id')),
-  matching: find.byType(TextFormField),
-);
-
 void main() {
   testWidgets(
     'disabling one rule retains definitions and rejecting approval prevents apply',
@@ -265,8 +260,12 @@ void main() {
       expect(find.byType(LocalPolicyEditor), findsOneWidget);
       expect(find.byType(PolicyIntegrationEditor), findsNothing);
       expect(controller.loadedTargets, ['profile:2']);
-      await tester.enterText(_ruleField('scope'), 'example.com');
-      await _tap(tester, find.text(strings.policyPreferred));
+      await tester.enterText(
+        find.byKey(const ValueKey('root-domainSuffix-values')),
+        'example.com',
+      );
+      await _tap(tester, find.byKey(const ValueKey('policy-processing-null')));
+      await _tap(tester, find.textContaining('Node A').last);
       await tester.ensureVisible(find.text(strings.save));
       await tester.tap(find.text(strings.save));
       await tester.pump();

@@ -13,18 +13,26 @@ type LocalPolicyChoice struct {
 	ID   string `json:"id" yaml:"id"`
 }
 type LocalNodeSet struct {
-	ID                 string           `json:"id" yaml:"id"`
-	Label              string           `json:"label" yaml:"label"`
-	SourceIDs          []string         `json:"sourceIds" yaml:"sourceIds"`
-	Regions            []string         `json:"regions" yaml:"regions"`
-	MaxMultiplier      *float64         `json:"maxMultiplier" yaml:"maxMultiplier"`
-	UnknownMultiplier  string           `json:"unknownMultiplier" yaml:"unknownMultiplier"`
-	AllowUnknownRegion bool             `json:"allowUnknownRegion" yaml:"allowUnknownRegion"`
-	Strategy           string           `json:"strategy" yaml:"strategy"`
-	Probe              LocalPolicyProbe `json:"probe" yaml:"probe"`
-	RecoverySeconds    int              `json:"recoverySeconds" yaml:"recoverySeconds"`
-	CooldownSeconds    int              `json:"cooldownSeconds" yaml:"cooldownSeconds"`
-	ImprovementPercent int              `json:"improvementPercent" yaml:"improvementPercent"`
+	Preferences        []LocalNodePreference `json:"preferences" yaml:"preferences"`
+	SelectionMode      string                `json:"selectionMode" yaml:"selectionMode"`
+	BalanceStrategy    string                `json:"balanceStrategy" yaml:"balanceStrategy"`
+	Schedule           *LocalPolicySchedule  `json:"schedule" yaml:"schedule"`
+	NameIncludes       []string              `json:"nameIncludes" yaml:"nameIncludes"`
+	NameExcludes       []string              `json:"nameExcludes" yaml:"nameExcludes"`
+	ExcludedSourceIDs  []string              `json:"excludedSourceIds" yaml:"excludedSourceIds"`
+	ExcludedRegions    []string              `json:"excludedRegions" yaml:"excludedRegions"`
+	ID                 string                `json:"id" yaml:"id"`
+	Label              string                `json:"label" yaml:"label"`
+	SourceIDs          []string              `json:"sourceIds" yaml:"sourceIds"`
+	Regions            []string              `json:"regions" yaml:"regions"`
+	MaxMultiplier      *float64              `json:"maxMultiplier" yaml:"maxMultiplier"`
+	UnknownMultiplier  string                `json:"unknownMultiplier" yaml:"unknownMultiplier"`
+	AllowUnknownRegion bool                  `json:"allowUnknownRegion" yaml:"allowUnknownRegion"`
+	Strategy           string                `json:"strategy" yaml:"strategy"`
+	Probe              LocalPolicyProbe      `json:"probe" yaml:"probe"`
+	RecoverySeconds    int                   `json:"recoverySeconds" yaml:"recoverySeconds"`
+	CooldownSeconds    int                   `json:"cooldownSeconds" yaml:"cooldownSeconds"`
+	ImprovementPercent int                   `json:"improvementPercent" yaml:"improvementPercent"`
 }
 
 func localProbeMethod(p LocalPolicyProbe) string {
@@ -45,13 +53,38 @@ func (s LocalNodeSet) effectiveMultiplier(n LocalPolicyNode) *float64 {
 	if n.Multiplier != nil {
 		return n.Multiplier
 	}
-	if s.UnknownMultiplier == "assumeOne" {
+	if s.UnknownMultiplier == "" || s.UnknownMultiplier == "assumeOne" {
 		value := 1.0
 		return &value
 	}
 	return nil
 }
 func (s LocalNodeSet) includes(n LocalPolicyNode) bool {
+	if localContains(s.ExcludedSourceIDs, n.SourceID) || n.Region != nil && localContains(s.ExcludedRegions, *n.Region) {
+		return false
+	}
+	name := n.Label
+	if name == "" {
+		name = n.ProxyName
+	}
+	name = strings.ToLower(name)
+	for _, pattern := range s.NameExcludes {
+		if strings.Contains(name, strings.ToLower(pattern)) {
+			return false
+		}
+	}
+	if len(s.NameIncludes) > 0 {
+		included := false
+		for _, pattern := range s.NameIncludes {
+			if strings.Contains(name, strings.ToLower(pattern)) {
+				included = true
+				break
+			}
+		}
+		if !included {
+			return false
+		}
+	}
 	if !localContains(s.SourceIDs, n.SourceID) {
 		return false
 	}
@@ -149,7 +182,7 @@ func validateLocalNodeSets(c *LocalPolicyConfig) error {
 		}
 	}
 	for _, set := range c.NodeSets {
-		if set.ID == "" || len(set.ID) > 128 || sets[set.ID].ID != "" || len(set.SourceIDs) == 0 || len(set.SourceIDs) > 20 || len(set.Regions) > 250 || set.MaxMultiplier != nil && (math.IsNaN(*set.MaxMultiplier) || math.IsInf(*set.MaxMultiplier, 0) || *set.MaxMultiplier <= 0 || *set.MaxMultiplier > 1000) || set.UnknownMultiplier != "exclude" && set.UnknownMultiplier != "allow" && set.UnknownMultiplier != "assumeOne" || set.Strategy != "stable" && set.Strategy != "latency" && set.Strategy != "multiplier" || set.ImprovementPercent < 1 || set.ImprovementPercent > 100 || set.RecoverySeconds < 0 || set.RecoverySeconds > 86400 || set.CooldownSeconds < 0 || set.CooldownSeconds > 3600 {
+		if !validLocalSetPreferences(set, sources) || set.ID == "" || len(set.ID) > 128 || sets[set.ID].ID != "" || len(set.SourceIDs) == 0 || len(set.SourceIDs) > 20 || len(set.Regions) > 250 || set.MaxMultiplier != nil && (math.IsNaN(*set.MaxMultiplier) || math.IsInf(*set.MaxMultiplier, 0) || *set.MaxMultiplier <= 0 || *set.MaxMultiplier > 1000) || set.UnknownMultiplier != "" && set.UnknownMultiplier != "exclude" && set.UnknownMultiplier != "allow" && set.UnknownMultiplier != "assumeOne" || set.Strategy != "" && set.Strategy != "stable" && set.Strategy != "latency" && set.Strategy != "multiplier" || set.ImprovementPercent < 1 || set.ImprovementPercent > 100 || set.RecoverySeconds < 0 || set.RecoverySeconds > 86400 || set.CooldownSeconds < 0 || set.CooldownSeconds > 3600 {
 			return fail()
 		}
 		seen := map[string]bool{}
@@ -175,6 +208,9 @@ func validateLocalNodeSets(c *LocalPolicyConfig) error {
 	}
 	tasks := map[localProbeKey]bool{}
 	for _, p := range c.Policies {
+		if localPolicyAction(p) != "proxy" {
+			continue
+		}
 		if localProbeMethod(p.Probe) != "HEAD" && localProbeMethod(p.Probe) != "GET" || p.Probe.RetrySeconds < 0 || p.Probe.RetrySeconds > 86400 || p.Probe.ValiditySeconds < 0 || p.Probe.ValiditySeconds > 86400 || p.Probe.ValiditySeconds > 0 && p.Probe.ValiditySeconds < p.Probe.IntervalSeconds {
 			return fail()
 		}
@@ -371,6 +407,16 @@ func (e *localPolicyEngine) evaluateSetLocked(r *localPolicyRuntime, now time.Ti
 	e.evaluateSetSelectionLocked(r, r, nil, now)
 }
 func (e *localPolicyEngine) evaluateSetSelectionLocked(r, measured, owner *localPolicyRuntime, now time.Time) {
+	r.selectionMode = e.setDefinitions[r.setID].SelectionMode
+	if r.selectionMode == "" {
+		r.selectionMode = "priority"
+	}
+	r.balanceStrategy = e.setDefinitions[r.setID].BalanceStrategy
+	r.activeNodeIDs = nil
+	if !localPolicyScheduleActive(e.setDefinitions[r.setID].Schedule, now) {
+		e.recordSelectionLocked(r, "", "schedule_inactive", now)
+		return
+	}
 	eligibleReason := func(id string) string {
 		if !e.setDefinitions[measured.setID].includes(e.nodes[id]) {
 			return "outside_node_set"
@@ -384,6 +430,9 @@ func (e *localPolicyEngine) evaluateSetSelectionLocked(r, measured, owner *local
 	}
 	set := e.setDefinitions[r.setID]
 	less := func(a, b string) bool {
+		if len(set.Preferences) > 0 {
+			return e.preferenceLess(set, r, a, b, now)
+		}
 		if set.Strategy == "multiplier" {
 			am, bm := set.effectiveMultiplier(e.nodes[a]), set.effectiveMultiplier(e.nodes[b])
 			if am == nil && bm != nil {
@@ -409,7 +458,17 @@ func (e *localPolicyEngine) evaluateSetSelectionLocked(r, measured, owner *local
 		return a < b
 	}
 	desired := ""
-	if set.Strategy == "stable" && r.selected != "" && eligibleReason(r.selected) == "" {
+	if r.selectionMode == "loadBalance" {
+		for _, id := range r.definition.CandidateNodeIDs {
+			if eligibleReason(id) == "" {
+				r.activeNodeIDs = append(r.activeNodeIDs, id)
+			}
+		}
+		sort.Slice(r.activeNodeIDs, func(i, j int) bool { return less(r.activeNodeIDs[i], r.activeNodeIDs[j]) })
+		if len(r.activeNodeIDs) > 0 {
+			desired = r.activeNodeIDs[0]
+		}
+	} else if len(set.Preferences) == 0 && (set.Strategy == "stable" || set.Strategy == "") && r.selected != "" && eligibleReason(r.selected) == "" {
 		desired = r.selected
 	} else {
 		for _, id := range r.definition.CandidateNodeIDs {
@@ -420,7 +479,7 @@ func (e *localPolicyEngine) evaluateSetSelectionLocked(r, measured, owner *local
 	}
 	old := r.selected
 	valid := old != "" && eligibleReason(old) == ""
-	if valid && desired != old {
+	if valid && desired != old && r.selectionMode != "loadBalance" && len(set.Preferences) == 0 {
 		improve := true
 		if set.Strategy == "stable" {
 			improve = false
@@ -444,6 +503,9 @@ func (e *localPolicyEngine) evaluateSetSelectionLocked(r, measured, owner *local
 	reason := "node_set"
 	if desired == "" {
 		reason = "no_eligible_members"
+	}
+	if r.selectionMode != "loadBalance" && desired != "" {
+		r.activeNodeIDs = []string{desired}
 	}
 	e.recordSelectionLocked(r, desired, reason, now)
 }
@@ -476,6 +538,8 @@ func (e *localPolicyEngine) policyNodeReasonLocked(r *localPolicyRuntime, id str
 	return "outside_or_ineligible_choice"
 }
 func (e *localPolicyEngine) evaluateChoicesLocked(r *localPolicyRuntime, now time.Time) {
+	r.activeNodeIDs = nil
+	r.selectionMode = "priority"
 	if !localPolicyScheduleActive(r.definition.Schedule, now) {
 		r.recoveryNode = ""
 		r.recoverySince = time.Time{}
@@ -547,6 +611,16 @@ func (e *localPolicyEngine) evaluateChoicesLocked(r *localPolicyRuntime, now tim
 		r.recoverySince = time.Time{}
 	}
 	r.selectedChoice = index
+	if index >= 0 {
+		choice := r.definition.Choices[index]
+		if choice.Type == "nodeSet" {
+			selection := r.choiceSelections[index]
+			r.activeNodeIDs = append([]string(nil), selection.activeNodeIDs...)
+			r.selectionMode, r.balanceStrategy = selection.selectionMode, selection.balanceStrategy
+		} else if desired != "" {
+			r.activeNodeIDs = []string{desired}
+		}
+	}
 	e.recordSelectionLocked(r, desired, reason, now)
 }
 func (e *localPolicyEngine) recordSelectionLocked(r *localPolicyRuntime, id, reason string, now time.Time) {
@@ -575,6 +649,10 @@ func (e *localPolicyEngine) addSetSnapshotsLocked(result *LocalPolicySnapshot, n
 		}
 		e.evaluateSetLocked(r, now)
 		status := LocalPolicyStatus{PolicyID: set.ID, SelectedNodeID: r.selected, State: "active", Reason: r.reason, UpdatedAt: r.updated.UnixMilli(), History: localBoundedHistory(r.history), Nodes: []LocalPolicyNodeStatus{}}
+		localSelectionStatus(&status, r)
+		if r.selected == "" {
+			status.State = "skipped"
+		}
 		for _, id := range r.definition.CandidateNodeIDs {
 			localCountStatus(&status.LocalPolicyCounts, e.nodeStatusLocked(r, id, now))
 		}

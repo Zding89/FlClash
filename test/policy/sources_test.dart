@@ -114,6 +114,51 @@ void main() {
   );
 
   test(
+    'legacy saved totals are visible and explicit unlimited clears an old date',
+    () async {
+      final stamp = DateTime.fromMillisecondsSinceEpoch(200000);
+      final legacy = profile.copyWith(
+        lastUpdateDate: stamp,
+        subscriptionInfo: const SubscriptionInfo(total: 1234, download: 75),
+      );
+      final value = await loader.metadataSource(legacy);
+      expect(value.remainingBytes, 1159);
+      expect(value.expiresAt, isNull);
+      expect(value.observedAt, 200000);
+      await loader.metadataSource(
+        profile.copyWith(
+          subscriptionInfo: SubscriptionInfo(
+            expire: 100,
+            knownFields: const {'expire'},
+            observedAt: stamp,
+          ),
+        ),
+      );
+      final unlimited = await loader.metadataSource(
+        profile.copyWith(
+          subscriptionInfo: SubscriptionInfo(
+            expire: 0,
+            knownFields: const {'expire'},
+            observedAt: DateTime.fromMillisecondsSinceEpoch(300000),
+          ),
+        ),
+      );
+      expect(unlimited.expiresAt, 0);
+      expect(unlimited.unlimited, isTrue);
+      final stale = await loader.metadataSource(
+        profile.copyWith(
+          subscriptionInfo: SubscriptionInfo(
+            expire: 100,
+            knownFields: const {'expire'},
+            observedAt: stamp,
+          ),
+        ),
+      );
+      expect(stale.expiresAt, 0);
+    },
+  );
+
+  test(
     'known exhausted and expired facts survive missing metadata and restart',
     () async {
       final stamp = DateTime.fromMillisecondsSinceEpoch(200000);

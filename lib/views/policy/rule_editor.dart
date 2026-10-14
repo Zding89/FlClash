@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'widgets.dart';
 import 'editor_section.dart';
 import 'match_editor.dart';
+import 'schedule_editor.dart';
 import 'node_set_editor.dart';
 
 class LocalPolicyEditor extends StatefulWidget {
@@ -53,15 +54,14 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
   late Map<String, NodeAttributes> _attributes;
   bool _saving = false;
   String _initial = '';
-  late PolicyFallback _fallback;
+  late PolicyAction _action;
+  late PolicySchedule _time;
   late bool _enabled;
   late bool _recover;
   late bool _unknown;
   late bool _terminate;
-  late bool _schedule;
   List<LocalNode> _nodes = [];
   bool _loading = false;
-  bool _scheduleAdvanced = false;
   String? _error;
   int _nodeEpoch = 0;
 
@@ -79,17 +79,14 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
           ];
     _nodeSets = [...widget.nodeSets];
     _attributes = {...widget.attributes};
-    _fallback = policy?.fallback ?? PolicyFallback.reject;
+    _action = policy?.action ?? PolicyAction.proxy;
+    _time = policy?.schedule ?? const PolicySchedule();
     _enabled = policy?.enabled ?? true;
     _recover = policy?.autoRecover ?? true;
     _unknown =
         policy != null &&
         policy.guard.unknownBehavior != PolicyUnknownBehavior.allow;
     _terminate = policy?.terminateConnectionsOnExclusion ?? false;
-    _schedule = policy?.schedule.windows.isNotEmpty ?? false;
-    _scheduleAdvanced =
-        (policy?.schedule.windows.length ?? 0) > 1 ||
-        policy?.schedule.timeZone == 'UTC';
     final probe =
         policy?.probe ??
         const PolicyProbe(
@@ -116,8 +113,8 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
       'recovery': '${policy?.recoverySeconds ?? 300}',
       'cooldown': '${policy?.cooldownSeconds ?? 60}',
       'weekdays': window.weekdays.join(','),
-      'start': _clock(window.startMinute),
-      'end': _clock(window.endMinute),
+      'start': '${window.startMinute}',
+      'end': '${window.endMinute}',
       'scheduleJson': jsonEncode(
         (policy?.schedule ?? const PolicySchedule()).toJson(),
       ),
@@ -132,19 +129,6 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
 
   void _draftChanged() {
     if (mounted) setState(() {});
-  }
-
-  String _clock(int minutes) =>
-      '${(minutes ~/ 60).toString().padLeft(2, '0')}:${(minutes % 60).toString().padLeft(2, '0')}';
-  int _minute(String value) {
-    final match = RegExp(r'^(\d{2}):(\d{2})$').firstMatch(value);
-    if (match == null) throw const FormatException();
-    final hour = int.parse(match.group(1)!);
-    final minute = int.parse(match.group(2)!);
-    if (minute > 59 || hour > 24 || hour == 24 && minute != 0) {
-      throw const FormatException();
-    }
-    return hour * 60 + minute;
   }
 
   Future<void> _load() async {
@@ -194,87 +178,32 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
   LocalPolicy? _value() {
     if (!_form.currentState!.validate()) return null;
     try {
-      final logical = [
-        PolicyMatchType.all,
-        PolicyMatchType.any,
-        PolicyMatchType.not,
-      ].contains(_scope);
-      final scope = logical
-          ? PolicyMatch.fromJson(
-              policyObject(jsonDecode(_text('scopeJson')), 'scope'),
-            )
-          : PolicyMatch(
-              type: _scope,
-              values: _scope == PolicyMatchType.global
-                  ? []
-                  : _text('scope')
-                        .split('\n')
-                        .map((entry) => entry.trim())
-                        .where((entry) => entry.isNotEmpty)
-                        .toList(),
-            );
-      if (scope.type != _scope) throw const FormatException('scopeType');
-      scope.validate();
-      PolicySchedule schedule;
-      if (!_schedule) {
-        schedule = const PolicySchedule();
-      } else if (_scheduleAdvanced) {
-        schedule = PolicySchedule.fromJson(
-          policyObject(jsonDecode(_text('scheduleJson')), 'schedule'),
-        );
-      } else {
-        final days = _text(
-          'weekdays',
-        ).split(',').map((v) => int.parse(v.trim())).toList();
-        final start = _minute(_text('start'));
-        final end = _minute(_text('end'));
-        if (start == end || start >= 1440) {
-          throw const FormatException('invalid time window');
-        }
-        schedule = PolicySchedule(
-          windows: start < end
-              ? [
-                  PolicyWindow(
-                    weekdays: days,
-                    startMinute: start,
-                    endMinute: end,
-                  ),
-                ]
-              : [
-                  PolicyWindow(
-                    weekdays: days,
-                    startMinute: start,
-                    endMinute: 1440,
-                  ),
-                  if (end > 0)
-                    PolicyWindow(
-                      weekdays: days.map((d) => d % 7 + 1).toList(),
-                      startMinute: 0,
-                      endMinute: end,
-                    ),
-                ],
-        );
-      }
+      final scope = PolicyMatch.fromJson(
+        policyObject(jsonDecode(_text('scopeJson')), 'scope'),
+      );
+      final schedule = PolicySchedule.fromJson(_time.toJson());
+      final description = policyMatchDescription(context, scope);
       final policy = LocalPolicy(
         id: widget.existing?.id ?? policyNewId(),
         label: _text('name').isEmpty
-            ? _scope == PolicyMatchType.global
-                  ? context.appLocalizations.policyRemainingTraffic
-                  : logical
-                  ? _scopeLabel(_scope)
-                  : _text('scope').split('\n').first
+            ? description.substring(0, description.length.clamp(0, 200))
             : _text('name'),
         targetId: _target,
+        action: _action,
         candidateNodeIds:
-            widget.existing?.choices.isEmpty == true &&
-                _choices.every((c) => c.type == PolicyChoiceType.node)
-            ? _choices.map((c) => c.id).toList()
+            _action == PolicyAction.proxy &&
+                widget.existing?.choices.isEmpty == true &&
+                _choices.every((choice) => choice.type == PolicyChoiceType.node)
+            ? _choices.map((choice) => choice.id).toList()
             : const [],
         choices:
-            widget.existing?.choices.isEmpty == true &&
-                _choices.every((c) => c.type == PolicyChoiceType.node)
-            ? const []
-            : _choices,
+            _action == PolicyAction.proxy &&
+                !(widget.existing?.choices.isEmpty == true &&
+                    _choices.every(
+                      (choice) => choice.type == PolicyChoiceType.node,
+                    ))
+            ? _choices
+            : const [],
         origin: widget.existing?.origin ?? PolicyOrigin.manual,
         userModified: widget.existing != null,
         enabled: _enabled,
@@ -304,7 +233,6 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
         recoverySeconds: _integer('recovery'),
         cooldownSeconds: _integer('cooldown'),
         autoRecover: _recover,
-        fallback: _fallback,
         terminateConnectionsOnExclusion: _terminate,
       );
       return LocalPolicy.fromJson(policy.toJson());
@@ -324,38 +252,14 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
       PolicyMatchType.domainKeyword => strings.policyDomainKeyword,
       PolicyMatchType.processName => strings.policyProcessName,
       PolicyMatchType.processPath => strings.policyProcessPath,
+      PolicyMatchType.processPathRegex => strings.policyInstalledApps,
+      PolicyMatchType.destinationRegion => strings.policyDestinationRegion,
+      PolicyMatchType.ipCidr ||
+      PolicyMatchType.ipCidr6 => strings.policyIpNetworks,
       PolicyMatchType.all => strings.policyMatchAll,
       PolicyMatchType.any => strings.policyMatchAny,
       PolicyMatchType.not => strings.policyMatchNot,
     };
-  }
-
-  PolicyMatchType _scopeCategory(PolicyMatchType type) => switch (type) {
-    PolicyMatchType.domain ||
-    PolicyMatchType.domainSuffix ||
-    PolicyMatchType.domainKeyword => PolicyMatchType.domainSuffix,
-    PolicyMatchType.processName ||
-    PolicyMatchType.processPath => PolicyMatchType.processName,
-    PolicyMatchType.all ||
-    PolicyMatchType.any ||
-    PolicyMatchType.not => PolicyMatchType.all,
-    _ => type,
-  };
-
-  void _setScope(PolicyMatchType value) {
-    if (_scope == value) return;
-    setState(() {
-      _scope = value;
-      if ({
-        PolicyMatchType.all,
-        PolicyMatchType.any,
-        PolicyMatchType.not,
-      }.contains(value)) {
-        _fields['scopeJson']!.text = jsonEncode(
-          PolicyMatchEditor.empty(value).toJson(),
-        );
-      }
-    });
   }
 
   PolicyMatch _matchForEditor() {
@@ -382,12 +286,12 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
     'fields': _fields.map((k, v) => MapEntry(k, v.text)),
     'choices': _choices.map((c) => c.toJson()).toList(),
     'sets': _nodeSets.map((s) => s.toJson()).toList(),
-    'fallback': _fallback.name,
+    'action': _action.name,
+    'scheduleValue': _time.toJson(),
     'enabled': _enabled,
     'recover': _recover,
     'unknown': _unknown,
     'terminate': _terminate,
-    'schedule': _schedule,
   });
 
   Future<void> _leave() async {
@@ -475,145 +379,94 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
   Widget _choiceEditor() {
     final strings = context.appLocalizations;
     final choices = <String, String>{
+      for (final set in _nodeSets.where((s) => s.targetId == _target))
+        'nodeSet:${set.id}': '${strings.policyNodeSet} · ${set.label}',
       for (final node in _nodes)
         'node:${node.id}':
             '${strings.policyFixedNode} · ${node.sourceLabel} · ${node.label}',
-      for (final set in _nodeSets.where((s) => s.targetId == _target))
-        'nodeSet:${set.id}': '${strings.policyNodeSet} · ${set.label}',
     };
-    final selectedLabels = <String, String>{
-      for (final node in _nodes) 'node:${node.id}': node.label,
-      for (final set in _nodeSets.where((s) => s.targetId == _target))
-        'nodeSet:${set.id}': set.label,
-    };
+    final selected = _choices.firstOrNull;
+    final selectedKey = selected == null
+        ? null
+        : '${selected.type.name}:${selected.id}';
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (var index = 0; index < _choices.length; index++)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: Row(
-              children: [
-                Text(
-                  index == 0
-                      ? strings.policyPreferred
-                      : '${strings.policyAddBackup} $index',
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    key: ValueKey(
-                      'choice-$index-${_choices[index].type.name}:${_choices[index].id}',
-                    ),
-                    initialValue:
-                        '${_choices[index].type.name}:${_choices[index].id}',
-                    isExpanded: true,
-                    selectedItemBuilder: (context) => [
-                      for (final key in {
-                        ...choices,
-                        '${_choices[index].type.name}:${_choices[index].id}':
-                            '',
-                      }.keys)
-                        Align(
-                          alignment: AlignmentDirectional.centerStart,
-                          child: Text(
-                            selectedLabels[key] ?? strings.policySourceMissing,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
-                    items: [
-                      for (final entry in {
-                        ...choices,
-                        '${_choices[index].type.name}:${_choices[index].id}':
-                            choices['${_choices[index].type.name}:${_choices[index].id}'] ??
-                            '${strings.policySourceMissing} · ${_choices[index].id}',
-                      }.entries)
-                        DropdownMenuItem(
-                          value: entry.key,
-                          child: Text(
-                            entry.value,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
-                    onChanged: _saving
-                        ? null
-                        : (value) {
-                            if (value == null) return;
-                            final colon = value.indexOf(':');
-                            setState(
-                              () => _choices[index] = PolicyChoice(
-                                type: PolicyChoiceType.values.byName(
-                                  value.substring(0, colon),
-                                ),
-                                id: value.substring(colon + 1),
-                              ),
-                            );
-                          },
-                  ),
-                ),
-                IconButton(
-                  onPressed: _saving || index == 0
-                      ? null
-                      : () {
-                          setState(() {
-                            final choice = _choices.removeAt(index);
-                            _choices.insert(index - 1, choice);
-                          });
-                        },
-                  icon: const Icon(Icons.arrow_upward),
-                ),
-                IconButton(
-                  onPressed: _saving
-                      ? null
-                      : () => setState(() => _choices.removeAt(index)),
-                  icon: const Icon(Icons.remove_circle_outline),
-                ),
-              ],
+        SegmentedButton<PolicyAction>(
+          segments: [
+            ButtonSegment(
+              value: PolicyAction.proxy,
+              label: Text(strings.policyActionProxy),
             ),
-          ),
-        Wrap(
-          spacing: 12,
-          children: [
-            OutlinedButton.icon(
-              onPressed: _saving || _choices.length >= 10 || choices.isEmpty
-                  ? null
-                  : () => setState(() {
-                      final available = choices.keys
-                          .where(
-                            (key) => !_choices.any(
-                              (c) => '${c.type.name}:${c.id}' == key,
-                            ),
-                          )
-                          .firstOrNull;
-                      if (available == null) return;
-                      final colon = available.indexOf(':');
-                      _choices.add(
-                        PolicyChoice(
-                          type: PolicyChoiceType.values.byName(
-                            available.substring(0, colon),
-                          ),
-                          id: available.substring(colon + 1),
-                        ),
-                      );
-                    }),
-              icon: const Icon(Icons.add),
-              label: Text(
-                _choices.isEmpty
-                    ? strings.policyPreferred
-                    : strings.policyAddBackup,
-              ),
+            ButtonSegment(
+              value: PolicyAction.direct,
+              label: Text(strings.policyActionDirect),
             ),
-            TextButton.icon(
-              onPressed: _saving || _choices.length >= 10 || _nodes.isEmpty
-                  ? null
-                  : _newSet,
-              icon: const Icon(Icons.filter_alt_outlined),
-              label: Text(strings.policyNodeSet),
+            ButtonSegment(
+              value: PolicyAction.reject,
+              label: Text(strings.policyActionReject),
             ),
           ],
+          selected: {_action},
+          onSelectionChanged: (value) => setState(() => _action = value.single),
         ),
+        if (_action == PolicyAction.proxy) ...[
+          const SizedBox(height: 12),
+          if (_choices.length > 1) Text(strings.policyLegacySelections),
+          if (_choices.length > 1)
+            Text(
+              _choices
+                  .map(
+                    (choice) =>
+                        choices['${choice.type.name}:${choice.id}'] ??
+                        strings.policySourceMissing,
+                  )
+                  .join(' · '),
+            ),
+          DropdownButtonFormField<String>(
+            key: ValueKey('policy-processing-$selectedKey'),
+            initialValue: selectedKey,
+            isExpanded: true,
+            decoration: InputDecoration(labelText: strings.policyNodeSet),
+            items: [
+              for (final entry in {
+                ...choices,
+                if (selectedKey != null && !choices.containsKey(selectedKey))
+                  selectedKey: strings.policySourceMissing,
+              }.entries)
+                DropdownMenuItem(
+                  value: entry.key,
+                  child: Text(entry.value, overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged: (value) {
+              if (value == null) return;
+              final colon = value.indexOf(':');
+              setState(
+                () => _choices = [
+                  PolicyChoice(
+                    type: PolicyChoiceType.values.byName(
+                      value.substring(0, colon),
+                    ),
+                    id: value.substring(colon + 1),
+                  ),
+                ],
+              );
+            },
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _saving || _nodes.isEmpty ? null : _newSet,
+              icon: const Icon(Icons.add),
+              label: Text(strings.policyNodeSet),
+            ),
+          ),
+          Text(
+            strings.policyNoNodeContinue,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
       ],
     );
   }
@@ -672,14 +525,8 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
     );
   }
 
-  String _matchDescription(PolicyMatch match) =>
-      '${_scopeLabel(match.type)}: ${match.children.isEmpty ? match.values.join(' · ') : match.children.map(_matchDescription).join(' / ')}';
-
   Widget _effect() {
     final strings = context.appLocalizations;
-    final values = _text(
-      'scope',
-    ).split('\n').where((v) => v.isNotEmpty).toList();
     final nodeNames = {for (final node in _nodes) node.id: node.label};
     final setNames = {for (final set in _nodeSets) set.id: set.label};
     return PolicyEditorSection(
@@ -695,43 +542,32 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
           ),
           const SizedBox(height: 8),
           Text(
-            [
-                  PolicyMatchType.all,
-                  PolicyMatchType.any,
-                  PolicyMatchType.not,
-                ].contains(_scope)
-                ? _matchDescription(_matchForEditor())
-                : _scope == PolicyMatchType.global
-                ? strings.policyRemainingTraffic
-                : values.isEmpty
+            policyMatchDescription(context, _matchForEditor()).isEmpty
                 ? strings.policyScopeValues
-                : values.join(' · '),
+                : policyMatchDescription(context, _matchForEditor()),
             key: const ValueKey('policy-effect-match'),
           ),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 12),
             child: Icon(Icons.arrow_downward, size: 20),
           ),
-          for (final (index, choice) in _choices.indexed)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(
-                '${index + 1}. ${choice.type == PolicyChoiceType.nodeSet ? setNames[choice.id] ?? strings.policySourceMissing : nodeNames[choice.id] ?? strings.policySourceMissing} · ${choice.type == PolicyChoiceType.nodeSet ? strings.policyNodeSet : strings.policyFixedNode}',
-                key: ValueKey('policy-effect-choice-$index'),
+          Text(switch (_action) {
+            PolicyAction.direct => strings.policyActionDirect,
+            PolicyAction.reject => strings.policyActionReject,
+            PolicyAction.proxy => strings.policyActionProxy,
+          }, style: Theme.of(context).textTheme.titleSmall),
+          if (_action == PolicyAction.proxy) ...[
+            for (final choice in _choices)
+              Text(
+                choice.type == PolicyChoiceType.nodeSet
+                    ? setNames[choice.id] ?? strings.policySourceMissing
+                    : nodeNames[choice.id] ?? strings.policySourceMissing,
+                key: ValueKey(
+                  'policy-effect-choice-${_choices.indexOf(choice)}',
+                ),
               ),
-            ),
-          if (_choices.isEmpty) Text(strings.policyNoMembers),
-          const Icon(Icons.arrow_downward, size: 20),
-          const SizedBox(height: 12),
-          Text(
-            strings.policyFallback,
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          Text(
-            _fallback == PolicyFallback.reject
-                ? strings.policyFallbackReject
-                : strings.policyFallbackDirect,
-          ),
+            Text(strings.policyNoNodeContinue),
+          ],
           const SizedBox(height: 16),
           FilledButton.tonalIcon(
             onPressed: _saving || widget.onPreview == null ? null : _preview,
@@ -756,11 +592,6 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
       if (_target.isNotEmpty && !widget.targets.containsKey(_target))
         _target: _target,
     };
-    final logical = [
-      PolicyMatchType.all,
-      PolicyMatchType.any,
-      PolicyMatchType.not,
-    ].contains(_scope);
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -821,71 +652,18 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
                               ),
                               const SizedBox(height: 4),
 
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  for (final entry in <PolicyMatchType, String>{
-                                    PolicyMatchType.domainSuffix:
-                                        strings.policyWebsite,
-                                    PolicyMatchType.processName:
-                                        strings.policyApplication,
-                                    PolicyMatchType.global:
-                                        strings.policyRemainingTraffic,
-                                    PolicyMatchType.all:
-                                        strings.policyCombinedConditions,
-                                  }.entries)
-                                    ChoiceChip(
-                                      label: Text(entry.value),
-                                      selected:
-                                          _scopeCategory(_scope) == entry.key,
-                                      onSelected: (_) => _setScope(entry.key),
-                                    ),
-                                  if (_scope == PolicyMatchType.domain ||
-                                      _scope == PolicyMatchType.domainSuffix)
-                                    FilterChip(
-                                      label: Text(
-                                        strings.policyIncludeSubdomains,
-                                      ),
-                                      selected:
-                                          _scope ==
-                                          PolicyMatchType.domainSuffix,
-                                      onSelected: (value) => _setScope(
-                                        value
-                                            ? PolicyMatchType.domainSuffix
-                                            : PolicyMatchType.domain,
-                                      ),
-                                    ),
-                                ],
+                              PolicyMatchEditor(
+                                value: _matchForEditor(),
+                                onChanged: (value) => setState(() {
+                                  _scope = value.type;
+                                  _fields['scopeJson']!.text = jsonEncode(
+                                    value.toJson(),
+                                  );
+                                  _fields['scope']!.text = value.values.join(
+                                    '\n',
+                                  );
+                                }),
                               ),
-                              if (_scope == PolicyMatchType.processName ||
-                                  _scope == PolicyMatchType.processPath)
-                                Text(strings.policyProcessHint),
-                              const SizedBox(height: 4),
-                              if (logical) ...[
-                                PolicyMatchEditor(
-                                  value: _matchForEditor(),
-                                  onChanged: (value) => setState(
-                                    () => _fields['scopeJson']!.text =
-                                        jsonEncode(value.toJson()),
-                                  ),
-                                ),
-                                ExpansionTile(
-                                  title: Text(strings.policyAdvancedJson),
-                                  children: [
-                                    _field(
-                                      'scopeJson',
-                                      strings.policyAdvancedJson,
-                                      lines: 3,
-                                    ),
-                                  ],
-                                ),
-                              ] else if (_scope != PolicyMatchType.global)
-                                _field(
-                                  'scope',
-                                  strings.policyScopeValues,
-                                  lines: 2,
-                                ),
                             ],
                           ),
                         ),
@@ -896,17 +674,12 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
                           child: _choiceEditor(),
                         ),
                         PolicyEditorSection(
-                          key: const ValueKey('policy-fallback-section'),
+                          key: const ValueKey('policy-schedule-section'),
                           step: 3,
-                          title: strings.policyFallback,
-                          child: Column(
-                            children: [
-                              PolicyFallbackField(
-                                value: _fallback,
-                                onChanged: (value) =>
-                                    setState(() => _fallback = value),
-                              ),
-                            ],
+                          title: strings.policySchedule,
+                          child: PolicyScheduleEditor(
+                            value: _time,
+                            onChanged: (value) => setState(() => _time = value),
                           ),
                         ),
                         Card.filled(
@@ -927,38 +700,6 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
                                     setState(() => _enabled = value),
                               ),
 
-                              DropdownButtonFormField<PolicyMatchType>(
-                                key: ValueKey('scope-${_scope.name}'),
-                                initialValue: _scope,
-                                isExpanded: true,
-                                decoration: InputDecoration(
-                                  labelText: strings.policyScope,
-                                ),
-                                items: [
-                                  for (final type
-                                      in PolicyMatchType.values.where(
-                                        (type) =>
-                                            type != PolicyMatchType.group ||
-                                            widget.existing?.scope.type ==
-                                                PolicyMatchType.group,
-                                      ))
-                                    DropdownMenuItem(
-                                      value: type,
-                                      child: Text(
-                                        _scopeLabel(type),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                ],
-                                onChanged: (value) {
-                                  if (value != null) _setScope(value);
-                                },
-                              ),
-                              _field(
-                                'priority',
-                                strings.policyPriority,
-                                numeric: true,
-                              ),
                               ExpansionTile(
                                 tilePadding: EdgeInsets.zero,
                                 title: Text(strings.policyProbe),
@@ -1016,54 +757,6 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
                                     onChanged: (value) =>
                                         setState(() => _unknown = value),
                                   ),
-                                ],
-                              ),
-                              ExpansionTile(
-                                tilePadding: EdgeInsets.zero,
-                                title: Text(strings.policyRecovery),
-                                children: [
-                                  SwitchListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    title: Text(strings.policyAutoRecover),
-                                    value: _recover,
-                                    onChanged: (value) =>
-                                        setState(() => _recover = value),
-                                  ),
-                                  _field(
-                                    'recovery',
-                                    strings.policyRecoverySeconds,
-                                    numeric: true,
-                                  ),
-                                  _field(
-                                    'cooldown',
-                                    strings.policyCooldownSeconds,
-                                    numeric: true,
-                                  ),
-                                ],
-                              ),
-                              ExpansionTile(
-                                tilePadding: EdgeInsets.zero,
-                                title: Text(strings.policySchedule),
-                                children: [
-                                  Text(strings.policyScheduleHint),
-                                  SwitchListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    title: Text(strings.policyScheduleEnabled),
-                                    value: _schedule,
-                                    onChanged: (value) =>
-                                        setState(() => _schedule = value),
-                                  ),
-                                  if (_schedule && _scheduleAdvanced)
-                                    _field(
-                                      'scheduleJson',
-                                      strings.policyAdvancedJson,
-                                      lines: 5,
-                                    ),
-                                  if (_schedule && !_scheduleAdvanced) ...[
-                                    _field('weekdays', strings.policyWeekdays),
-                                    _field('start', strings.policyStartTime),
-                                    _field('end', strings.policyEndTime),
-                                  ],
                                 ],
                               ),
                               SwitchListTile(

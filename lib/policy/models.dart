@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:collection/collection.dart';
 import 'package:crypto/crypto.dart';
@@ -14,6 +15,10 @@ enum PolicyMatchType {
   domainKeyword,
   processName,
   processPath,
+  processPathRegex,
+  destinationRegion,
+  ipCidr,
+  ipCidr6,
   all,
   any,
   not,
@@ -22,6 +27,40 @@ enum PolicyMatchType {
 enum PolicyUnknownBehavior { allow, exclude }
 
 enum PolicyFallback { reject, direct }
+
+enum PolicyAction { proxy, direct, reject }
+
+bool _applicationPattern(String value) {
+  const suffix = r'/Contents/.*$';
+  if (!value.startsWith('^/') || !value.endsWith(suffix)) return false;
+  final path = value.substring(1, value.length - suffix.length);
+  if (!path.endsWith(r'\.app')) return false;
+  const escaped = r'\^$.*+?()[]{}|';
+  for (var index = 0; index < path.length; index++) {
+    final character = path[index];
+    if (character == r'\') {
+      if (index + 1 >= path.length) return false;
+      if (index + 3 < path.length &&
+          {
+            'x28',
+            'x29',
+            'x2c',
+          }.contains(path.substring(index + 1, index + 4))) {
+        index += 3;
+      } else if (escaped.contains(path[++index]) &&
+          !'()'.contains(path[index])) {
+        continue;
+      } else {
+        return false;
+      }
+    } else if (escaped.contains(character) ||
+        ',()'.contains(character) ||
+        character.codeUnitAt(0) < 32) {
+      return false;
+    }
+  }
+  return true;
+}
 
 Map<String, Object?> policyObject(Object? value, String name) {
   if (value is! Map || value.keys.any((key) => key is! String)) {
@@ -173,7 +212,10 @@ final class PolicyMatch {
     return match;
   }
 
-  void validate() {
+  void validate({int depth = 0}) {
+    if (depth > 6 || values.length > 50 || children.length > 20) {
+      throw const FormatException('Match condition limit exceeded');
+    }
     switch (type) {
       case PolicyMatchType.global:
         if (values.isNotEmpty || children.isNotEmpty) {
@@ -201,6 +243,41 @@ final class PolicyMatch {
           throw const FormatException('Match scope requires values');
         }
         for (final value in values) {
+          if (value.length > 1024) {
+            throw const FormatException('Match value is too long');
+          }
+          if (type == PolicyMatchType.processPathRegex) {
+            if (!_applicationPattern(value)) {
+              throw const FormatException('Choose an installed application');
+            }
+            try {
+              RegExp(value);
+            } on FormatException {
+              throw const FormatException('Invalid application path');
+            }
+            continue;
+          }
+          if (type == PolicyMatchType.destinationRegion &&
+              !RegExp(r'^!?[A-Z]{2}$').hasMatch(value)) {
+            throw const FormatException('Choose a destination region');
+          }
+          if (type == PolicyMatchType.ipCidr ||
+              type == PolicyMatchType.ipCidr6) {
+            final parts = value.split('/');
+            final address = InternetAddress.tryParse(parts.first);
+            final maximum = type == PolicyMatchType.ipCidr ? 32 : 128;
+            final prefix = parts.length == 1
+                ? maximum
+                : int.tryParse(parts.last);
+            if (parts.length > 2 ||
+                address == null ||
+                (address.type == InternetAddressType.IPv4) != (maximum == 32) ||
+                prefix == null ||
+                prefix < 0 ||
+                prefix > maximum) {
+              throw const FormatException('Invalid IP address or network');
+            }
+          }
           if ({
                 PolicyMatchType.domain,
                 PolicyMatchType.domainSuffix,
@@ -225,7 +302,7 @@ final class PolicyMatch {
       }.contains(child.type)) {
         throw const FormatException('Global/group scopes cannot be nested');
       }
-      child.validate();
+      child.validate(depth: depth + 1);
     }
   }
 
@@ -443,11 +520,11 @@ final class PolicyWindow {
       json,
       'endMinute',
       fallback: 1440,
-      minimum: 1,
+      minimum: 0,
       maximum: 1440,
     );
-    if (start >= end) {
-      throw const FormatException('Split overnight windows into two windows');
+    if (start == end) {
+      throw const FormatException('A time window needs distinct start and end');
     }
     return PolicyWindow(
       weekdays: List<int>.unmodifiable(days.cast<int>()),
@@ -497,6 +574,7 @@ final class LocalPolicy {
   final bool enabled;
   final int priority;
   final PolicyMatch scope;
+  final PolicyAction action;
   final List<String> candidateNodeIds;
   final List<PolicyChoice> choices;
   final PolicyOrigin origin;
@@ -521,6 +599,7 @@ final class LocalPolicy {
     this.enabled = true,
     this.priority = 100,
     this.scope = const PolicyMatch(),
+    this.action = PolicyAction.proxy,
     this.probe = const PolicyProbe(),
     this.guard = const PolicyGuard(),
     this.schedule = const PolicySchedule(),
@@ -543,6 +622,7 @@ final class LocalPolicy {
       'enabled',
       'priority',
       'scope',
+      'action',
       'candidateNodeIds',
       'choices',
       'origin',
@@ -565,13 +645,20 @@ final class LocalPolicy {
       throw const FormatException('Invalid policy identity or target');
     }
     final candidates = policyStrings(json, 'candidateNodeIds', maximum: 10);
+    final action = PolicyAction.values.byName(
+      policyString(json, 'action', fallback: 'proxy'),
+    );
     final choices = policyItems(
       json,
       'choices',
       PolicyChoice.fromJson,
       maximum: 10,
     );
-    if ((candidates.isEmpty && choices.isEmpty) ||
+    if ((action == PolicyAction.proxy &&
+            candidates.isEmpty &&
+            choices.isEmpty) ||
+        (action != PolicyAction.proxy &&
+            (candidates.isNotEmpty || choices.isNotEmpty)) ||
         (candidates.isNotEmpty && choices.isNotEmpty) ||
         candidates.toSet().length != candidates.length ||
         choices.map((c) => '${c.type.name}:${c.id}').toSet().length !=
@@ -589,6 +676,7 @@ final class LocalPolicy {
       scope: PolicyMatch.fromJson(
         policyObject(json['scope'] ?? <String, Object?>{}, 'scope'),
       ),
+      action: action,
       candidateNodeIds: candidates,
       choices: choices,
       origin: PolicyOrigin.values.byName(
@@ -634,6 +722,7 @@ final class LocalPolicy {
     'enabled': enabled,
     'priority': priority,
     'scope': scope.toJson(),
+    'action': action.name,
     'candidateNodeIds': candidateNodeIds,
     'choices': choices.map((c) => c.toJson()).toList(),
     'origin': origin.name,
@@ -653,6 +742,8 @@ final class LocalPolicy {
     ..remove('targetId')
     ..remove('origin')
     ..remove('userModified')
+    ..remove('fallback')
+    ..['skipUnavailable'] = true
     ..['groupName'] = groupName;
 }
 
@@ -910,7 +1001,7 @@ final class LocalPolicyDocument {
   final Map<String, NodeAttributes> nodeAttributes;
 
   const LocalPolicyDocument({
-    this.schemaVersion = 2,
+    this.schemaVersion = 3,
     this.revision = 0,
     this.policiesEnabled = false,
     this.integrationEnabled = false,
@@ -928,6 +1019,67 @@ final class LocalPolicyDocument {
 
   SubscriptionIntegration? get activeIntegration => integrations
       .firstWhereOrNull((integration) => integration.id == activeIntegrationId);
+
+  Set<int> sourceProfileIdsForTarget(
+    String targetId, {
+    bool enabledOnly = true,
+  }) {
+    if (targetId.startsWith('integration:')) {
+      return integrations
+              .firstWhereOrNull((entry) => entry.targetId == targetId)
+              ?.sourceProfileIds
+              .toSet() ??
+          {};
+    }
+    final profileId = int.tryParse(targetId.split(':').last);
+    final rules = policies.where(
+      (rule) => rule.targetId == targetId && (!enabledOnly || rule.enabled),
+    );
+    final referencedSets = rules
+        .expand((rule) => rule.choices)
+        .where((choice) => choice.type == PolicyChoiceType.nodeSet)
+        .map((choice) => choice.id)
+        .toSet();
+    return {
+      ?profileId,
+      for (final set in nodeSets.where(
+        (set) => referencedSets.contains(set.id),
+      )) ...[
+        ...set.sourceIds.map(int.parse),
+        ...set.excludedSourceIds.map(int.parse),
+      ],
+      for (final id in rules.expand(
+        (rule) => [
+          ...rule.candidateNodeIds,
+          ...rule.choices
+              .where((choice) => choice.type == PolicyChoiceType.node)
+              .map((choice) => choice.id),
+        ],
+      ))
+        ?int.tryParse(id.split(':').first),
+    };
+  }
+
+  bool referencesProfile(int id) =>
+      integrations.any((entry) => entry.sourceProfileIds.contains(id)) ||
+      nodeSets.any(
+        (set) =>
+            set.targetId == 'profile:$id' ||
+            set.sourceIds.contains('$id') ||
+            set.excludedSourceIds.contains('$id'),
+      ) ||
+      policies.any(
+        (rule) =>
+            rule.targetId == 'profile:$id' ||
+            [
+              ...rule.candidateNodeIds,
+              ...rule.choices
+                  .where((choice) => choice.type == PolicyChoiceType.node)
+                  .map((choice) => choice.id),
+            ].any((nodeId) => nodeId.startsWith('$id:')),
+      ) ||
+      budgets.any((budget) => budget.sourceId == '$id') ||
+      overrides.any((entry) => entry.nodeId.startsWith('$id:'));
 
   factory LocalPolicyDocument.fromJson(Map<String, Object?> json) {
     policyKeys(json, {
@@ -947,7 +1099,7 @@ final class LocalPolicyDocument {
       'nodeAttributes',
     });
     final version = policyInt(json, 'schemaVersion', fallback: 1, minimum: 1);
-    if (version != 1 && version != 2) {
+    if (version != 1 && version != 2 && version != 3) {
       throw const FormatException('Unsupported local policy schema version');
     }
     final activeId = json['activeIntegrationId'];
@@ -955,7 +1107,7 @@ final class LocalPolicyDocument {
       throw const FormatException('Invalid active integration');
     }
     final document = LocalPolicyDocument(
-      schemaVersion: 2,
+      schemaVersion: 3,
       moduleEnabled: policyBool(
         json,
         'moduleEnabled',
@@ -1013,6 +1165,7 @@ final class LocalPolicyDocument {
       throw const FormatException('Invalid node set capacity or identity');
     }
     for (final set in nodeSets) {
+      PolicyNodeSet.fromJson(set.toJson());
       if (set.targetId.startsWith('integration:') &&
           !integrations.any((i) => i.targetId == set.targetId)) {
         throw const FormatException('Node set target is missing');
@@ -1020,6 +1173,7 @@ final class LocalPolicyDocument {
     }
     final scopes = <String>{};
     for (final policy in policies) {
+      LocalPolicy.fromJson(policy.toJson());
       if (policy.targetId.startsWith('integration:') &&
           !integrations.any((entry) => entry.targetId == policy.targetId)) {
         throw const FormatException('Policy refers to a missing integration');

@@ -253,7 +253,7 @@ void main() {
   ]) => tools.execute(request(name, args));
 
   test(
-    'AI proposals retain origins, dynamic references and the terminal rule order',
+    'AI proposals retain origins, dynamic references and user rule positions',
     () async {
       controller.currentDocument = LocalPolicyDocument.fromJson({
         'policies': [
@@ -298,15 +298,18 @@ void main() {
       });
       expect(result.isError, false, reason: '${result.value}');
       final proposed = controller.proposedDocument!;
-      expect(proposed.schemaVersion, 2);
+      expect(proposed.schemaVersion, 3);
       expect(
         proposed.nodeSets.single.unknownMultiplier,
         UnknownMultiplier.assumeOne,
       );
-      expect(proposed.policies.last.id, 'terminal');
-      expect(proposed.policies.last.origin, PolicyOrigin.manual);
-      expect(proposed.policies.first.origin, PolicyOrigin.ai);
-      expect(proposed.policies.first.choices.single.id, 'japan');
+      expect(orderedPolicies(proposed.policies).map((rule) => rule.id), [
+        'terminal',
+        'new-ai',
+      ]);
+      expect(proposed.policies.first.origin, PolicyOrigin.manual);
+      expect(proposed.policies.last.origin, PolicyOrigin.ai);
+      expect(proposed.policies.last.choices.single.id, 'japan');
       expect(approvals, 0);
     },
   );

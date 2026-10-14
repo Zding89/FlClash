@@ -187,7 +187,7 @@ void main() {
           findsOneWidget,
         );
         expect(
-          find.byKey(const ValueKey('policy-fallback-section')),
+          find.byKey(const ValueKey('policy-schedule-section')),
           findsOneWidget,
         );
         final traffic = tester.getTopLeft(
@@ -197,7 +197,10 @@ void main() {
           find.byKey(const ValueKey('policy-current-effect')),
         );
         expect(desktop ? effect.dx > traffic.dx : effect.dy > traffic.dy, true);
-        await tester.enterText(_field('scope'), 'video.example');
+        await tester.enterText(
+          find.byKey(const ValueKey('root-domainSuffix-values')),
+          'video.example',
+        );
         await tester.pumpAndSettle();
         expect(
           tester
@@ -207,22 +210,26 @@ void main() {
         );
         await _capture(tester, 'v1-rule-$device');
         await tester.ensureVisible(
-          find.byKey(const ValueKey('policy-fallback-section')),
+          find.byKey(const ValueKey('policy-schedule-section')),
         );
-        await _capture(tester, 'v1-rule-$device-fallback');
+        await _capture(tester, 'v1-rule-$device-schedule');
         await _tap(tester, find.byKey(const ValueKey('policy-more-settings')));
-        await _tap(tester, find.text(strings.policyRecovery));
-        await tester.ensureVisible(_field('recovery'));
-        await tester.enterText(_field('recovery'), '420');
+        await _tap(tester, find.text(strings.policyProbe));
+        await tester.ensureVisible(_field('timeout'));
+        await tester.enterText(_field('timeout'), '8');
         await _tap(tester, find.text(strings.save));
         expect(attempted!.scope.values, ['video.example']);
-        expect(attempted!.recoverySeconds, 420);
+        expect(attempted!.probe.timeoutSeconds, 8);
         expect(attempted!.choices.map((choice) => choice.id).toList(), [
           'japan',
           '1:hk',
         ]);
         expect(
-          tester.widget<TextFormField>(_field('scope')).controller!.text,
+          tester
+              .widget<TextFormField>(
+                find.byKey(const ValueKey('root-domainSuffix-values')),
+              )
+              .initialValue,
           'video.example',
         );
         expect(find.byType(LocalPolicyEditor), findsOneWidget);
@@ -277,6 +284,7 @@ void main() {
           size,
         );
         final strings = AppLocalizations.current;
+        await _capture(tester, 'v3-node-group-$device-ordinary');
         await _tap(tester, find.text(strings.advancedConfig));
         for (final id in [
           'node-set-check-method',

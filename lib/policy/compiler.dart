@@ -21,6 +21,9 @@ final class PolicySource {
     this.warning,
   });
 
+  bool get expiryKnown => expiresAt != null;
+  bool get unlimited => expiresAt == 0;
+
   Map<String, Object?> get summary => {
     'id': id,
     'label': label,
@@ -102,8 +105,41 @@ final class LocalPolicyCompiler {
         ? document.activeIntegration
         : null;
     final targetId = integration?.targetId ?? 'profile:$profileId';
+    final policies = document.moduleEnabled && document.policiesEnabled
+        ? orderedPolicies(
+            document.policies.where(
+              (policy) => policy.enabled && policy.targetId == targetId,
+            ),
+          )
+        : <LocalPolicy>[];
+    final referencedSets = policies
+        .expand((policy) => policy.choices)
+        .where((choice) => choice.type == PolicyChoiceType.nodeSet)
+        .map((choice) => choice.id)
+        .toSet();
+    final sets = document.nodeSets
+        .where((set) => referencedSets.contains(set.id))
+        .toList();
+    final sourceIds = integration == null
+        ? {
+            '$profileId',
+            ...sets.expand(
+              (set) => [...set.sourceIds, ...set.excludedSourceIds],
+            ),
+            ...policies
+                .expand(
+                  (policy) => [
+                    ...policy.candidateNodeIds,
+                    ...policy.choices
+                        .where((choice) => choice.type == PolicyChoiceType.node)
+                        .map((choice) => choice.id),
+                  ],
+                )
+                .map((id) => id.split(':').first),
+          }
+        : integration.sourceProfileIds.map((id) => '$id').toSet();
     final selectedSources = integration == null
-        ? sources.where((source) => source.id == '$profileId').toList()
+        ? sources.where((source) => sourceIds.contains(source.id)).toList()
         : sources
               .where(
                 (source) => integration.sourceProfileIds
@@ -114,6 +150,9 @@ final class LocalPolicyCompiler {
     if (integration != null &&
         selectedSources.length != integration.sourceProfileIds.length) {
       throw const FormatException('An integration source is missing');
+    }
+    if (policies.isNotEmpty && selectedSources.length != sourceIds.length) {
+      throw const FormatException('A rule source profile is missing');
     }
     final nodes = selectedSources
         .expand(extractNodes)
@@ -140,32 +179,19 @@ final class LocalPolicyCompiler {
     if (nodes.length > 5000) {
       throw const FormatException('At most 5000 nodes are supported');
     }
-    final policies = document.moduleEnabled && document.policiesEnabled
-        ? document.policies
-              .where((policy) => policy.enabled && policy.targetId == targetId)
-              .toList()
-        : <LocalPolicy>[];
-    policies.sort((a, b) => a.priority.compareTo(b.priority));
     final usedSourceIds = selectedSources.map((source) => source.id).toSet();
     final budgets = document.moduleEnabled && document.budgetsEnabled
         ? document.budgets
               .where((budget) => usedSourceIds.contains(budget.sourceId))
               .toList()
         : <SourceBudget>[];
-    final referencedSets = policies
-        .expand((p) => p.choices)
-        .where((c) => c.type == PolicyChoiceType.nodeSet)
-        .map((c) => c.id)
-        .toSet();
-    final sets = document.nodeSets
-        .where((s) => referencedSets.contains(s.id))
-        .toList();
     for (final set in sets) {
       if (!usedSourceIds.containsAll(set.sourceIds)) {
         throw const FormatException('Node set sources are outside the target');
       }
     }
-    final managed = policies.isNotEmpty || budgets.isNotEmpty || integration != null;
+    final managed =
+        policies.isNotEmpty || budgets.isNotEmpty || integration != null;
     if ((policies.isNotEmpty || integration != null) &&
         baseConfig['mode'] != null &&
         baseConfig['mode'] != 'rule') {
@@ -252,9 +278,14 @@ final class LocalPolicyCompiler {
     final aliasNodes = nodes;
     final originalAliases = <String, String>{};
     if (integration == null) {
-      final source = selectedSources.single;
+      final source = selectedSources.firstWhere(
+        (source) => source.id == '$profileId',
+      );
       final aliasesById = {
-        for (final node in aliasNodes) node.id: node.proxyName,
+        for (final node in aliasNodes.where(
+          (node) => node.sourceId == source.id,
+        ))
+          node.id: node.proxyName,
       };
       void addAlias(Map<String, Object?> proxy) {
         final label = proxy['name'];
@@ -320,8 +351,7 @@ final class LocalPolicyCompiler {
             ..sort();
       existingProxies.clear();
       final members = policyObject(
-        selectedSources.single.raw['flclash-provider-members'] ??
-            <String, Object?>{},
+        source.raw['flclash-provider-members'] ?? <String, Object?>{},
         'providerMembers',
       );
       for (final group in existingGroups) {
@@ -436,24 +466,27 @@ final class LocalPolicyCompiler {
     }
     final originalRules = List<String>.from(raw['rules'] as List? ?? []);
     final generatedRules = <String>[];
-    var hasGlobal = false;
     for (final policy in policies) {
-      if (hasGlobal && policy.scope.type != PolicyMatchType.group) {
-        throw const FormatException(
-          'Global policy must be last in the explicit priority order',
-        );
-      }
-      if (policy.scope.type == PolicyMatchType.global) hasGlobal = true;
       generatedRules.addAll(_rules(policy.scope, policy.groupName));
+    }
+    bool matchesApplication(PolicyMatch match) =>
+        {
+          PolicyMatchType.processName,
+          PolicyMatchType.processPath,
+          PolicyMatchType.processPathRegex,
+        }.contains(match.type) ||
+        match.children.any(matchesApplication);
+    if (policies.any((policy) => matchesApplication(policy.scope))) {
+      raw['find-process-mode'] = 'strict';
     }
     raw['proxies'] = existingProxies;
     raw['proxy-groups'] = existingGroups;
     raw['rules'] = [...generatedRules, ...originalRules];
     if (managed) {
-      final usedSources = aliasNodes.map((node) => node.sourceId).toSet();
+      final usedSources = selectedSources.map((source) => source.id).toSet();
       final relevantIds = policies.map((policy) => policy.id).toSet();
       raw['flclash-local-policy'] = {
-        'schemaVersion': 2,
+        'schemaVersion': 3,
         'targetId': targetId,
         'nodeSets': sets.map((s) => s.toCoreJson()).toList(),
         'revision': document.revision,
@@ -468,6 +501,7 @@ final class LocalPolicyCompiler {
                 'id': node.id,
                 'sourceId': node.sourceId,
                 'proxyName': node.proxyName,
+                'label': node.label,
                 ...node.attributes.toJson(),
               },
             )
@@ -506,16 +540,7 @@ final class LocalPolicyCompiler {
   List<String> _rules(PolicyMatch scope, String group) {
     if (scope.type == PolicyMatchType.group) return [];
     if (scope.type == PolicyMatchType.global) return ['MATCH,$group'];
-    if ({
-      PolicyMatchType.all,
-      PolicyMatchType.any,
-      PolicyMatchType.not,
-    }.contains(scope.type)) {
-      return ['${_expression(scope)},$group'];
-    }
-    return scope.values
-        .map((value) => '${_keyword(scope.type)},$value,$group')
-        .toList();
+    return ['${_expression(scope)},$group'];
   }
 
   String _expression(PolicyMatch match) {
@@ -531,9 +556,22 @@ final class LocalPolicyCompiler {
       };
       return '$operation,(${match.children.map((child) => '(${_expression(child)})').join(',')})';
     }
-    final keyword = _keyword(match.type);
-    if (match.values.length == 1) return '$keyword,${match.values.single}';
-    return 'OR,(${match.values.map((value) => '($keyword,$value)').join(',')})';
+    String condition(String value) {
+      if (match.type == PolicyMatchType.destinationRegion) {
+        return value.startsWith('!')
+            ? 'NOT,((GEOIP,${value.substring(1)}))'
+            : 'GEOIP,$value';
+      }
+      if ((match.type == PolicyMatchType.ipCidr ||
+              match.type == PolicyMatchType.ipCidr6) &&
+          !value.contains('/')) {
+        value = '$value/${match.type == PolicyMatchType.ipCidr ? 32 : 128}';
+      }
+      return '${_keyword(match.type)},$value';
+    }
+
+    if (match.values.length == 1) return condition(match.values.single);
+    return 'OR,(${match.values.map((value) => '(${condition(value)})').join(',')})';
   }
 
   String _keyword(PolicyMatchType type) => switch (type) {
@@ -542,6 +580,9 @@ final class LocalPolicyCompiler {
     PolicyMatchType.domainKeyword => 'DOMAIN-KEYWORD',
     PolicyMatchType.processName => 'PROCESS-NAME',
     PolicyMatchType.processPath => 'PROCESS-PATH',
+    PolicyMatchType.processPathRegex => 'PROCESS-PATH-REGEX',
+    PolicyMatchType.ipCidr => 'IP-CIDR',
+    PolicyMatchType.ipCidr6 => 'IP-CIDR6',
     _ => throw const FormatException('Unsupported rule match type'),
   };
 }

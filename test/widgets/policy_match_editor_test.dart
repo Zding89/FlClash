@@ -15,7 +15,7 @@ const _nested = PolicyMatch(
       type: PolicyMatchType.any,
       children: [
         PolicyMatch(type: PolicyMatchType.domain, values: ['office.example']),
-        PolicyMatch(type: PolicyMatchType.processName, values: ['Browser']),
+        PolicyMatch(type: PolicyMatchType.domainKeyword, values: ['browser']),
       ],
     ),
     PolicyMatch(
@@ -120,7 +120,7 @@ void main() {
         ),
       );
       await tester.enterText(
-        find.byKey(const ValueKey('root-0-1-processName-values')),
+        find.byKey(const ValueKey('root-0-1-domainKeyword-values')),
         ' Browser One \n Browser Two ',
       );
       await tester.pump();
@@ -164,7 +164,9 @@ void main() {
           ),
         ),
       );
-      await tester.tap(find.byKey(const ValueKey('root-0-1-processName-type')));
+      await tester.tap(
+        find.byKey(const ValueKey('root-0-1-domainKeyword-type')),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text(AppLocalizations.current.policyMatchNot).last);
       await tester.pumpAndSettle();
@@ -206,10 +208,7 @@ void main() {
     await tester.ensureVisible(input);
     await tester.enterText(input, 'https://invalid.example/path');
     await tester.tap(
-      find.widgetWithText(
-        FilledButton,
-        AppLocalizations.current.save,
-      ),
+      find.widgetWithText(FilledButton, AppLocalizations.current.save),
     );
     await tester.pumpAndSettle();
     expect(writes, 0);
@@ -224,10 +223,7 @@ void main() {
     );
     await tester.enterText(input, 'fixed.example');
     await tester.tap(
-      find.widgetWithText(
-        FilledButton,
-        AppLocalizations.current.save,
-      ),
+      find.widgetWithText(FilledButton, AppLocalizations.current.save),
     );
     await tester.pumpAndSettle();
     expect(writes, 1);
@@ -254,10 +250,7 @@ void main() {
       await tester.enterText(input, 'edited.example');
       final callback = tester
           .widget<FilledButton>(
-            find.widgetWithText(
-              FilledButton,
-              AppLocalizations.current.save,
-            ),
+            find.widgetWithText(FilledButton, AppLocalizations.current.save),
           )
           .onPressed!;
       callback();
@@ -279,10 +272,7 @@ void main() {
       );
       expect(find.byKey(const ValueKey('policy-rule-scopeJson')), findsNothing);
       await tester.tap(
-        find.widgetWithText(
-          FilledButton,
-          AppLocalizations.current.save,
-        ),
+        find.widgetWithText(FilledButton, AppLocalizations.current.save),
       );
       await tester.pumpAndSettle();
       expect(attempts, 2);

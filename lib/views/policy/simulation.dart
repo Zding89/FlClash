@@ -159,7 +159,7 @@ class _PolicySimulationDialogState
                   .whereType<Map>()
                   .map((decision) {
                     final id = decision['selectedNodeId'];
-                    return '${decision['policyId']}: ${_labels[id] ?? (decision['state'] == 'direct' ? context.appLocalizations.policyFallbackDirect : context.appLocalizations.policyFallbackReject)}';
+                    return '${decision['policyId']}: ${decision['state'] == 'skipped' ? context.appLocalizations.policyContinueNextRule : _labels[id] ?? (decision['state'] == 'direct' ? context.appLocalizations.policyFallbackDirect : context.appLocalizations.policyFallbackReject)}';
                   })
                   .join('\n')
             : '',

@@ -73,7 +73,7 @@ void main() {
         },
       ],
     });
-    expect(document.schemaVersion, 2);
+    expect(document.schemaVersion, 3);
     expect(document.moduleEnabled, isTrue);
     expect(document.integrationEnabled, isFalse);
     expect(document.policies.single.origin, PolicyOrigin.unknown);
@@ -122,7 +122,7 @@ void main() {
         sources: [source],
       );
       final core = compiled.config['flclash-local-policy'] as Map;
-      expect(core['schemaVersion'], 2);
+      expect(core['schemaVersion'], 3);
       expect(
         (core['policies'] as List).single['choices'],
         document.policies.single.toJson()['choices'],

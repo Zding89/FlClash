@@ -45,18 +45,7 @@ class RecoverySourceBackend
       }
     }
     final referred =
-        documents.any(
-          (d) =>
-              d.integrations.any(
-                (i) => i.sourceProfileIds.contains(scope.id),
-              ) ||
-              d.policies.any(
-                (p) =>
-                    p.targetId == 'profile:${scope.id}' ||
-                    p.candidateNodeIds.any((n) => n.startsWith('${scope.id}:')),
-              ) ||
-              d.budgets.any((b) => b.sourceId == '${scope.id}'),
-        ) ||
+        documents.any((d) => d.referencesProfile(scope.id)) ||
         row.category == 'resource:profile:${scope.id}';
     if (!referred) {
       throw const ConfigurationChangeException(

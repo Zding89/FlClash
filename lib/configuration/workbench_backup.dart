@@ -202,11 +202,11 @@ void _validateProfileReferences(
     throw const FormatException('Missing active integration');
   }
   for (final set in document.nodeSets) {
-    for (final id in set.sourceIds) {
+    for (final id in [...set.sourceIds, ...set.excludedSourceIds]) {
       _requireProfile(id, profileIds);
     }
     final allowed = set.targetId.startsWith('profile:')
-        ? {policyIdentifier(set.targetId.substring('profile:'.length))}
+        ? profileIds
         : document.integrations
               .firstWhere((i) => i.targetId == set.targetId)
               .sourceProfileIds

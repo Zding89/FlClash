@@ -65,6 +65,16 @@ Finder field(String label) => find.byWidgetPredicate(
   (widget) => widget is TextField && widget.decoration?.labelText == label,
 );
 
+Future<void> selectSource(WidgetTester tester) async {
+  final label = find.text(AppLocalizations.current.policyIncludeSources);
+  await tester.ensureVisible(label);
+  await tester.tap(label);
+  await tester.pumpAndSettle();
+  await tester.tap(find.widgetWithText(CheckboxListTile, 'Source'));
+  await tester.tap(find.text(AppLocalizations.current.confirm));
+  await tester.pumpAndSettle();
+}
+
 Future<PolicyOverride?> openOverride(
   WidgetTester tester,
   LocalPolicy rule, {
@@ -297,7 +307,7 @@ void main() {
       );
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(FilterChip, 'Source'));
+      await selectSource(tester);
       await tester.tap(find.text(AppLocalizations.current.policyCheckSave));
       await tester.pumpAndSettle();
       expect(saved, isNotNull);
@@ -364,7 +374,7 @@ void main() {
         field(AppLocalizations.current.policyMultiplierLimit),
         cap,
       );
-      await tester.tap(find.widgetWithText(FilterChip, 'Source'));
+      await selectSource(tester);
       await tester.tap(find.text(AppLocalizations.current.policyCheckSave));
       await tester.pumpAndSettle();
       expect(saved, isNull);

@@ -10,6 +10,34 @@ enum NodeSetStrategy { stable, latency, multiplier }
 
 enum UnknownMultiplier { exclude, assumeOne, allow }
 
+enum NodePreferenceType { expiry, remaining, latency, multiplier, source }
+
+enum SortDirection { ascending, descending }
+
+enum NodeSelectionMode { priority, loadBalance }
+
+enum NodeBalanceStrategy { roundRobin, consistentHashing, stickySessions }
+
+final class NodePreference {
+  final NodePreferenceType type;
+  final SortDirection direction;
+
+  const NodePreference({required this.type, required this.direction});
+
+  factory NodePreference.fromJson(Map<String, Object?> json) {
+    policyKeys(json, {'type', 'direction'});
+    return NodePreference(
+      type: NodePreferenceType.values.byName(policyString(json, 'type')),
+      direction: SortDirection.values.byName(policyString(json, 'direction')),
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'type': type.name,
+    'direction': direction.name,
+  };
+}
+
 final class PolicyChoice {
   final PolicyChoiceType type;
   final String id;
@@ -95,6 +123,20 @@ final class NodeAttributes {
         'KR': r'韩国|韓國|Korea|\bKR\b|🇰🇷',
         'DE': r'德国|德國|Germany|\bDE\b|🇩🇪',
         'GB': r'英国|英國|United\s*Kingdom|\bUK\b|\bGB\b|🇬🇧',
+        'CN': r'中国|中國|大陆|大陸|China|\bCN\b|🇨🇳',
+        'MO': r'澳门|澳門|Macao|Macau|\bMO\b|🇲🇴',
+        'FR': r'法国|法國|France|\bFR\b|🇫🇷',
+        'CA': r'加拿大|Canada|\bCA\b|🇨🇦',
+        'AU': r'澳大利亚|澳大利亞|澳洲|Australia|\bAU\b|🇦🇺',
+        'NL': r'荷兰|荷蘭|Netherlands|\bNL\b|🇳🇱',
+        'RU': r'俄罗斯|俄羅斯|Russia|\bRU\b|🇷🇺',
+        'IN': r'印度|India\b|🇮🇳',
+        'TH': r'泰国|泰國|Thailand|\bTH\b|🇹🇭',
+        'VN': r'越南|Viet\s*Nam|\bVN\b|🇻🇳',
+        'MY': r'马来西亚|馬來西亞|Malaysia|\bMY\b|🇲🇾',
+        'TR': r'土耳其|Türkiye|Turkey|\bTR\b|🇹🇷',
+        'PH': r'菲律宾|菲律賓|Philippines|\bPH\b|🇵🇭',
+        'ID': r'印度尼西亚|印尼|印尼|Indonesia|🇮🇩',
       }.entries) {
         if (RegExp(entry.value, caseSensitive: false).hasMatch(label)) {
           region = entry.key;
@@ -141,6 +183,14 @@ final class PolicyNodeSet {
   final String targetId;
   final List<String> sourceIds;
   final List<String> regions;
+  final List<String> excludedSourceIds;
+  final List<String> excludedRegions;
+  final List<String> nameIncludes;
+  final List<String> nameExcludes;
+  final List<NodePreference> preferences;
+  final NodeSelectionMode selectionMode;
+  final NodeBalanceStrategy balanceStrategy;
+  final PolicySchedule schedule;
   final double? maxMultiplier;
   final UnknownMultiplier unknownMultiplier;
   final bool allowUnknownRegion;
@@ -156,8 +206,16 @@ final class PolicyNodeSet {
     required this.targetId,
     required this.sourceIds,
     this.regions = const [],
+    this.excludedSourceIds = const [],
+    this.excludedRegions = const [],
+    this.nameIncludes = const [],
+    this.nameExcludes = const [],
+    this.preferences = const [],
+    this.selectionMode = NodeSelectionMode.priority,
+    this.balanceStrategy = NodeBalanceStrategy.roundRobin,
+    this.schedule = const PolicySchedule(),
     this.maxMultiplier,
-    this.unknownMultiplier = UnknownMultiplier.exclude,
+    this.unknownMultiplier = UnknownMultiplier.assumeOne,
     this.allowUnknownRegion = false,
     this.strategy = NodeSetStrategy.stable,
     this.hideUnavailable = true,
@@ -177,6 +235,14 @@ final class PolicyNodeSet {
       'targetId',
       'sourceIds',
       'regions',
+      'excludedSourceIds',
+      'excludedRegions',
+      'nameIncludes',
+      'nameExcludes',
+      'preferences',
+      'selectionMode',
+      'balanceStrategy',
+      'schedule',
       'maxMultiplier',
       'unknownMultiplier',
       'allowUnknownRegion',
@@ -191,6 +257,24 @@ final class PolicyNodeSet {
     final target = policyString(json, 'targetId', maximum: 128);
     final sources = policyStrings(json, 'sourceIds', maximum: 20);
     final regions = policyStrings(json, 'regions', maximum: 250);
+    final excludedSources = policyStrings(
+      json,
+      'excludedSourceIds',
+      maximum: 20,
+    );
+    final excludedRegions = policyStrings(
+      json,
+      'excludedRegions',
+      maximum: 250,
+    );
+    final includes = policyStrings(json, 'nameIncludes', maximum: 20);
+    final excludes = policyStrings(json, 'nameExcludes', maximum: 20);
+    final preferences = policyItems(
+      json,
+      'preferences',
+      NodePreference.fromJson,
+      maximum: 5,
+    );
     final cap = json['maxMultiplier'];
     final label = policyString(json, 'label', maximum: 200);
     if (!RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(id) ||
@@ -201,7 +285,22 @@ final class PolicyNodeSet {
         sources.toSet().length != sources.length ||
         regions.any((s) => !RegExp(r'^[A-Z]{2}$').hasMatch(s)) ||
         regions.toSet().length != regions.length ||
-        cap != null && (cap is! num || !cap.isFinite || cap <= 0 || cap > 1000)) {
+        excludedSources.any((s) => !RegExp(r'^[1-9][0-9]*$').hasMatch(s)) ||
+        excludedSources.toSet().length != excludedSources.length ||
+        excludedRegions.any((s) => !RegExp(r'^[A-Z]{2}$').hasMatch(s)) ||
+        excludedRegions.toSet().length != excludedRegions.length ||
+        [...includes, ...excludes].any(
+          (s) =>
+              s.trim().isEmpty ||
+              s != s.trim() ||
+              s.length > 200 ||
+              s.contains(RegExp(r'[\r\n]')),
+        ) ||
+        includes.toSet().length != includes.length ||
+        excludes.toSet().length != excludes.length ||
+        preferences.map((p) => p.type).toSet().length != preferences.length ||
+        cap != null &&
+            (cap is! num || !cap.isFinite || cap <= 0 || cap > 1000)) {
       throw const FormatException('Invalid node set identity or filters');
     }
     return PolicyNodeSet(
@@ -210,9 +309,23 @@ final class PolicyNodeSet {
       targetId: target,
       sourceIds: sources,
       regions: regions,
+      excludedSourceIds: excludedSources,
+      excludedRegions: excludedRegions,
+      nameIncludes: includes,
+      nameExcludes: excludes,
+      preferences: preferences,
+      selectionMode: NodeSelectionMode.values.byName(
+        policyString(json, 'selectionMode', fallback: 'priority'),
+      ),
+      balanceStrategy: NodeBalanceStrategy.values.byName(
+        policyString(json, 'balanceStrategy', fallback: 'roundRobin'),
+      ),
+      schedule: PolicySchedule.fromJson(
+        policyObject(json['schedule'] ?? {}, 'schedule'),
+      ),
       maxMultiplier: (cap as num?)?.toDouble(),
       unknownMultiplier: UnknownMultiplier.values.byName(
-        policyString(json, 'unknownMultiplier', fallback: 'exclude'),
+        policyString(json, 'unknownMultiplier', fallback: 'assumeOne'),
       ),
       allowUnknownRegion: policyBool(json, 'allowUnknownRegion'),
       strategy: NodeSetStrategy.values.byName(
@@ -256,7 +369,17 @@ final class PolicyNodeSet {
       (unknownMultiplier == UnknownMultiplier.assumeOne ? 1 : null);
   String? exclusion(LocalNode node) {
     if (!sourceIds.contains(node.sourceId)) return 'outside_source';
+    if (excludedSourceIds.contains(node.sourceId)) return 'excluded_source';
     final attributes = node.attributes;
+    if (excludedRegions.contains(attributes.region)) return 'excluded_region';
+    final name = node.label.toLowerCase();
+    if (nameExcludes.any((value) => name.contains(value.toLowerCase()))) {
+      return 'excluded_name';
+    }
+    if (nameIncludes.isNotEmpty &&
+        !nameIncludes.any((value) => name.contains(value.toLowerCase()))) {
+      return 'outside_name';
+    }
     if (regions.isNotEmpty &&
         (attributes.region == null
             ? !allowUnknownRegion
@@ -280,6 +403,14 @@ final class PolicyNodeSet {
     'targetId': targetId,
     'sourceIds': sourceIds,
     'regions': regions,
+    'excludedSourceIds': excludedSourceIds,
+    'excludedRegions': excludedRegions,
+    'nameIncludes': nameIncludes,
+    'nameExcludes': nameExcludes,
+    'preferences': preferences.map((value) => value.toJson()).toList(),
+    'selectionMode': selectionMode.name,
+    'balanceStrategy': balanceStrategy.name,
+    'schedule': schedule.toJson(),
     'maxMultiplier': maxMultiplier,
     'unknownMultiplier': unknownMultiplier.name,
     'allowUnknownRegion': allowUnknownRegion,
@@ -307,7 +438,10 @@ List<LocalPolicy> insertPolicy(
   bool generated = false,
 }) {
   if (value.scope.type == PolicyMatchType.group) {
-    return [for(final rule in entries) rule.id == value.id ? value : rule, if(!entries.any((r)=>r.id==value.id))value];
+    return [
+      for (final rule in entries) rule.id == value.id ? value : rule,
+      if (!entries.any((r) => r.id == value.id)) value,
+    ];
   }
   final target = orderedPolicies(
     entries.where(
@@ -317,22 +451,10 @@ List<LocalPolicy> insertPolicy(
   );
   final existing = target.indexWhere((r) => r.id == value.id);
   if (existing >= 0) {
-    if(value.scope.type==PolicyMatchType.global && target.any((r)=>r.id!=value.id&&r.scope.type==PolicyMatchType.global))throw const FormatException('Remaining traffic rule already exists');
     target[existing] = value;
-    if(value.scope.type==PolicyMatchType.global){target.removeAt(existing);target.add(value);}
-  } else if (value.scope.type == PolicyMatchType.global) {
-    final global = target.indexWhere(
-      (r) => r.scope.type == PolicyMatchType.global,
-    );
-    if (global >= 0) {
-      throw const FormatException('Remaining traffic rule already exists');
-    }
-    target.add(value);
   } else {
     final index = target.indexWhere(
-      (r) =>
-          r.scope.type == PolicyMatchType.global ||
-          !generated && r.origin == PolicyOrigin.ai,
+      (r) => !generated && r.origin == PolicyOrigin.ai,
     );
     target.insert(index < 0 ? target.length : index, value);
   }

@@ -42,6 +42,7 @@ const _nodeSet = PolicyNodeSet(
   sourceIds: ['1', '2'],
   regions: ['JP'],
   maxMultiplier: 1.5,
+  unknownMultiplier: UnknownMultiplier.exclude,
 );
 const _manual = LocalPolicy(
   id: 'fixture-manual',
@@ -357,6 +358,8 @@ Future<void> _capture(WidgetTester tester, String name) async {
 
 Finder _field(String label) => find.widgetWithText(TextFormField, label);
 Finder _switch(String title) => find.widgetWithText(SwitchListTile, title);
+Finder _unknownOne(String title) =>
+    find.widgetWithText(CheckboxListTile, title);
 Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
   FocusManager.instance.primaryFocus?.unfocus();
   await tester.pumpAndSettle();
@@ -646,7 +649,7 @@ void main() {
       expect(find.text('大阪 B · 倍率未知'), findsNothing);
       await _capture(tester, '04-node-set-ordinary-desktop');
       await tester.enterText(_field(strings.policyMultiplierLimit), '1.2');
-      await _tapVisible(tester, _switch(strings.policyUnknownOne));
+      await _tapVisible(tester, _unknownOne(strings.policyUnknownOne));
       expect(find.text('大阪 B · 倍率未知'), findsOneWidget);
       expect(find.text('香港 D · 1×'), findsNothing);
       expect(find.text('东京 C · 3×'), findsNothing);
@@ -655,7 +658,7 @@ void main() {
         tester,
         _switch(strings.policyUnknownMultiplierAllowed),
       );
-      expect(_switch(strings.policyUnknownOne), findsNothing);
+      expect(_unknownOne(strings.policyUnknownOne), findsNothing);
       expect(
         tester
             .widget<SwitchListTile>(
@@ -683,7 +686,7 @@ void main() {
             .text,
         '1.2',
       );
-      await _tapVisible(tester, _switch(strings.policyUnknownOne));
+      await _tapVisible(tester, _unknownOne(strings.policyUnknownOne));
       await _tapVisible(tester, find.text(strings.advancedConfig));
       expect(
         tester
@@ -756,7 +759,7 @@ void main() {
     },
   );
   testWidgets(
-    'rules render order schedule skip right edit and fixed last rule',
+    'rules render order schedule skip right edit and freely movable all traffic',
     (tester) async {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -784,7 +787,7 @@ void main() {
           of: find.byKey(const ValueKey('fixture-remaining')),
           matching: find.byType(ReorderableDragStartListener),
         ),
-        findsNothing,
+        findsOneWidget,
       );
       await _capture(tester, '02-rules-desktop');
       final source = find.descendant(
@@ -810,26 +813,27 @@ void main() {
         'fixture-manual',
         'fixture-remaining',
       ]);
-      final firstHandle = find.descendant(
-        of: find.byKey(const ValueKey('fixture-manual')),
+      final allTrafficHandle = find.descendant(
+        of: find.byKey(const ValueKey('fixture-remaining')),
         matching: find.byType(ReorderableDragStartListener),
       );
-      await tester.ensureVisible(firstHandle);
-      final start = tester.getCenter(firstHandle);
-      final downward = await tester.startGesture(start);
+      await tester.ensureVisible(allTrafficHandle);
+      final start = tester.getCenter(allTrafficHandle);
+      final upward = await tester.startGesture(start);
       await tester.pump();
-      await downward.moveBy(const Offset(0, 20));
+      await upward.moveBy(const Offset(0, -20));
       await tester.pump(const Duration(milliseconds: 50));
-      await downward.moveTo(
-        Offset(start.dx, tester.view.physicalSize.height - 45),
+      await upward.moveTo(
+        Offset(
+          start.dx,
+          tester.getCenter(find.byKey(const ValueKey('fixture-manual'))).dy -
+              20,
+        ),
       );
       await tester.pump(const Duration(milliseconds: 400));
-      await downward.up();
+      await upward.up();
       await tester.pumpAndSettle();
-      expect(
-        controller.proposed!.policies.last.scope.type,
-        PolicyMatchType.global,
-      );
+      expect(controller.proposed!.policies.first.id, 'fixture-remaining');
       controller.fail = true;
       await _tapVisible(
         tester,

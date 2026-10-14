@@ -1068,6 +1068,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "pleaseUploadValidQrcode": MessageLookupByLibrary.simpleMessage(
       "Пожалуйста, загрузите действительный QR-код",
     ),
+    "policyActionDirect": MessageLookupByLibrary.simpleMessage("Напрямую"),
+    "policyActionProxy": MessageLookupByLibrary.simpleMessage("Группа узлов"),
+    "policyActionReject": MessageLookupByLibrary.simpleMessage("Блокировать"),
     "policyActiveIntegration": MessageLookupByLibrary.simpleMessage(
       "Объединённый профиль для использования",
     ),
@@ -1097,6 +1100,19 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyAiOrigin": MessageLookupByLibrary.simpleMessage("Создано ИИ"),
     "policyApplication": MessageLookupByLibrary.simpleMessage("Приложение"),
     "policyAppliedStatus": MessageLookupByLibrary.simpleMessage("Применено"),
+    "policyAppsFailed": MessageLookupByLibrary.simpleMessage(
+      "Не удалось загрузить приложения. Обновите список.",
+    ),
+    "policyAppsHint": MessageLookupByLibrary.simpleMessage(
+      "Включает сетевые вспомогательные процессы приложения. Определение зависит от прав и типа подключения.",
+    ),
+    "policyAppsLoading": MessageLookupByLibrary.simpleMessage(
+      "Чтение установленных приложений…",
+    ),
+    "policyAppsUnsupported": MessageLookupByLibrary.simpleMessage(
+      "Выбор приложений недоступен на этой платформе.",
+    ),
+    "policyAscending": MessageLookupByLibrary.simpleMessage("По возрастанию"),
     "policyAssumeHealthy": MessageLookupByLibrary.simpleMessage(
       "Считать все узлы доступными",
     ),
@@ -1108,6 +1124,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyAvailableMembers": MessageLookupByLibrary.simpleMessage(
       "Доступные участники",
+    ),
+    "policyBalanceMode": MessageLookupByLibrary.simpleMessage(
+      "Балансировка нагрузки",
     ),
     "policyBudgetGiB": MessageLookupByLibrary.simpleMessage(
       "Месячный лимит устройства (ГиБ)",
@@ -1121,7 +1140,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Лимит устройства достигнут; новые соединения этой подписки ограничены",
     ),
     "policyBudgetReachedHint": MessageLookupByLibrary.simpleMessage(
-      "При выборе узла по локальным правилам будут проверены другие доступные варианты. Если их нет, применяется резервное действие правила.",
+      "Когда источник достигает бюджета, локальные правила пробуют другие доступные узлы. Если узлов нет, проверяется следующее правило.",
     ),
     "policyBudgetTab": MessageLookupByLibrary.simpleMessage("Лимиты трафика"),
     "policyCandidateHint": MessageLookupByLibrary.simpleMessage(
@@ -1162,17 +1181,21 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyChecksWaiting": MessageLookupByLibrary.simpleMessage(
       "Проверки в очереди",
     ),
-    "policyChoiceSection": MessageLookupByLibrary.simpleMessage(
-      "Основной и резервные",
-    ),
+    "policyChoiceSection": MessageLookupByLibrary.simpleMessage("Действие"),
     "policyCollectionPending": MessageLookupByLibrary.simpleMessage(
       "Не настроено",
     ),
     "policyCombinedConditions": MessageLookupByLibrary.simpleMessage(
       "Составные условия",
     ),
+    "policyConsistentHashing": MessageLookupByLibrary.simpleMessage(
+      "Согласованное хеширование",
+    ),
     "policyContinueEditing": MessageLookupByLibrary.simpleMessage(
       "Продолжить редактирование",
+    ),
+    "policyContinueNextRule": MessageLookupByLibrary.simpleMessage(
+      "Перейти к следующему правилу",
     ),
     "policyCooldownSeconds": MessageLookupByLibrary.simpleMessage(
       "Пауза между переключениями (секунды)",
@@ -1190,6 +1213,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyDeleteLinked": MessageLookupByLibrary.simpleMessage(
       "Объединение используется правилами. Сначала измените их",
     ),
+    "policyDescending": MessageLookupByLibrary.simpleMessage("По убыванию"),
+    "policyDestinationRegion": MessageLookupByLibrary.simpleMessage(
+      "Регион назначения",
+    ),
     "policyDiscardChanges": MessageLookupByLibrary.simpleMessage(
       "Отменить изменения",
     ),
@@ -1200,6 +1227,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyDomainSuffix": MessageLookupByLibrary.simpleMessage(
       "Суффикс домена",
     ),
+    "policyDomestic": MessageLookupByLibrary.simpleMessage("Внутри Китая"),
     "policyDraftStatus": MessageLookupByLibrary.simpleMessage(
       "Ожидает подтверждения",
     ),
@@ -1233,15 +1261,28 @@ class MessageLookup extends MessageLookupByLibrary {
       "Включить правила маршрутизации",
     ),
     "policyEndTime": MessageLookupByLibrary.simpleMessage("Окончание (HH:mm)"),
+    "policyEveryday": MessageLookupByLibrary.simpleMessage("Каждый день"),
+    "policyExcludeRegions": MessageLookupByLibrary.simpleMessage(
+      "Исключить регионы",
+    ),
+    "policyExcludeSources": MessageLookupByLibrary.simpleMessage(
+      "Исключить провайдеров",
+    ),
     "policyExcluded": MessageLookupByLibrary.simpleMessage("Исключён сейчас"),
     "policyExcludedNodes": MessageLookupByLibrary.simpleMessage(
       "Исключённые узлы",
+    ),
+    "policyExistingApps": MessageLookupByLibrary.simpleMessage(
+      "Ранее выбранные приложения",
     ),
     "policyExpectedStatus": MessageLookupByLibrary.simpleMessage(
       "Ожидаемый статус HTTP",
     ),
     "policyExpiryMargin": MessageLookupByLibrary.simpleMessage(
       "Исключать до истечения (часы)",
+    ),
+    "policyExpiryUnknown": MessageLookupByLibrary.simpleMessage(
+      "Срок действия не указан",
     ),
     "policyFailures": MessageLookupByLibrary.simpleMessage("Ошибок подряд"),
     "policyFallback": MessageLookupByLibrary.simpleMessage(
@@ -1254,6 +1295,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Блокировать соединения",
     ),
     "policyFixedNode": MessageLookupByLibrary.simpleMessage("Конкретный узел"),
+    "policyForeign": MessageLookupByLibrary.simpleMessage("За пределами Китая"),
     "policyGlobalScope": MessageLookupByLibrary.simpleMessage("Весь трафик"),
     "policyGroupScope": MessageLookupByLibrary.simpleMessage(
       "Существующая группа",
@@ -1265,8 +1307,17 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyImprovementPercent": MessageLookupByLibrary.simpleMessage(
       "Порог улучшения задержки (%)",
     ),
+    "policyIncludeRegions": MessageLookupByLibrary.simpleMessage(
+      "Включить регионы",
+    ),
+    "policyIncludeSources": MessageLookupByLibrary.simpleMessage(
+      "Включить провайдеров",
+    ),
     "policyIncludeSubdomains": MessageLookupByLibrary.simpleMessage(
       "Включая поддомены",
+    ),
+    "policyInstalledApps": MessageLookupByLibrary.simpleMessage(
+      "Установленные приложения",
     ),
     "policyIntegrationHint": MessageLookupByLibrary.simpleMessage(
       "Узлы выбранных подписок объединяются в отдельный профиль, исходные подписки сохраняются. Остаток трафика показывается только при наличии данных провайдера",
@@ -1277,6 +1328,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyInvalidData": MessageLookupByLibrary.simpleMessage(
       "Неверные поля, порядок или ссылки. Проверьте их",
     ),
+    "policyIpNetworks": MessageLookupByLibrary.simpleMessage("IP / подсеть"),
     "policyJsonHint": MessageLookupByLibrary.simpleMessage(
       "Принимается только текущая схема; неверные поля и ссылки не применяются",
     ),
@@ -1285,6 +1337,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyLedgerUntrusted": MessageLookupByLibrary.simpleMessage(
       "Учёт недостоверен; источник ограничен",
+    ),
+    "policyLegacySelections": MessageLookupByLibrary.simpleMessage(
+      "Прежние варианты сохраняются, пока вы не выберете новую группу или узел.",
     ),
     "policyLoadNodes": MessageLookupByLibrary.simpleMessage(
       "Загрузить доступные узлы",
@@ -1303,6 +1358,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyMatchAny": MessageLookupByLibrary.simpleMessage(
       "Любое условие (расширенно)",
+    ),
+    "policyMatchConditions": MessageLookupByLibrary.simpleMessage(
+      "Условия трафика",
     ),
     "policyMatchNot": MessageLookupByLibrary.simpleMessage(
       "Отрицание (расширенно)",
@@ -1337,20 +1395,27 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyNameAttribute": MessageLookupByLibrary.simpleMessage(
       "Определено по имени",
     ),
+    "policyNameExcludes": MessageLookupByLibrary.simpleMessage(
+      "Исключить имена узлов (по одному на строку)",
+    ),
     "policyNameFilter": MessageLookupByLibrary.simpleMessage(
       "Имя узла содержит (необязательно)",
     ),
+    "policyNameIncludes": MessageLookupByLibrary.simpleMessage(
+      "Имя узла содержит (по одному на строку)",
+    ),
     "policyNoMembers": MessageLookupByLibrary.simpleMessage(
-      "Нет подходящих участников; будет использован резерв или конечное действие",
+      "Нет доступных узлов; перейти к следующему правилу.",
+    ),
+    "policyNoNodeContinue": MessageLookupByLibrary.simpleMessage(
+      "Если доступных узлов нет, перейти к следующему правилу.",
     ),
     "policyNoProfilesHint": MessageLookupByLibrary.simpleMessage(
-      "Перед созданием правил и групп кандидатов добавьте подписку или локальный профиль в разделе «Профили»",
+      "Перед созданием правил и групп узлов добавьте подписку или локальный профиль в разделе «Профили»",
     ),
-    "policyNodeSet": MessageLookupByLibrary.simpleMessage(
-      "Группа узлов-кандидатов",
-    ),
+    "policyNodeSet": MessageLookupByLibrary.simpleMessage("Группа узлов"),
     "policyNodeSetHint": MessageLookupByLibrary.simpleMessage(
-      "Отбор по региону, источнику и множителю трафика, затем выбор одного подходящего узла; равномерного распределения нет",
+      "Фильтруйте по провайдеру, региону, имени и множителю, затем выбирайте по приоритету или распределяйте подключения.",
     ),
     "policyNodeSetStrategy": MessageLookupByLibrary.simpleMessage("Выбор узла"),
     "policyNodeSetStrategyHint": MessageLookupByLibrary.simpleMessage(
@@ -1359,9 +1424,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyNodeSetTarget": MessageLookupByLibrary.simpleMessage(
       "Профиль с этими узлами",
     ),
-    "policyNodeSets": MessageLookupByLibrary.simpleMessage(
-      "Группы узлов-кандидатов",
-    ),
+    "policyNodeSets": MessageLookupByLibrary.simpleMessage("Группы узлов"),
     "policyNodes": MessageLookupByLibrary.simpleMessage("Узлы"),
     "policyNotCollected": MessageLookupByLibrary.simpleMessage(
       "Данные не собраны",
@@ -1381,6 +1444,25 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyPendingMembers": MessageLookupByLibrary.simpleMessage(
       "Ожидают проверки",
     ),
+    "policyPreferenceExpiry": MessageLookupByLibrary.simpleMessage(
+      "Срок подписки",
+    ),
+    "policyPreferenceLatency": MessageLookupByLibrary.simpleMessage("Задержка"),
+    "policyPreferenceMultiplier": MessageLookupByLibrary.simpleMessage(
+      "Тарифный множитель",
+    ),
+    "policyPreferenceRemaining": MessageLookupByLibrary.simpleMessage(
+      "Остаток трафика",
+    ),
+    "policyPreferenceSource": MessageLookupByLibrary.simpleMessage(
+      "Порядок провайдеров",
+    ),
+    "policyPreferences": MessageLookupByLibrary.simpleMessage(
+      "Приоритеты выбора",
+    ),
+    "policyPreferencesHint": MessageLookupByLibrary.simpleMessage(
+      "Перетащите для изменения порядка. Верхние критерии важнее; недоступные узлы исключаются.",
+    ),
     "policyPreferred": MessageLookupByLibrary.simpleMessage("Основной"),
     "policyPreparingStatus": MessageLookupByLibrary.simpleMessage("Обработка"),
     "policyPreviewHint": MessageLookupByLibrary.simpleMessage(
@@ -1389,6 +1471,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyPriority": MessageLookupByLibrary.simpleMessage(
       "Приоритет (меньший первым)",
     ),
+    "policyPriorityMode": MessageLookupByLibrary.simpleMessage("По приоритету"),
     "policyProbe": MessageLookupByLibrary.simpleMessage("Проверка доступности"),
     "policyProbeInterval": MessageLookupByLibrary.simpleMessage(
       "Интервал (секунды)",
@@ -1402,6 +1485,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyProcessName": MessageLookupByLibrary.simpleMessage("Имя процесса"),
     "policyProcessPath": MessageLookupByLibrary.simpleMessage("Путь процесса"),
+    "policyProcessing": MessageLookupByLibrary.simpleMessage("Действие"),
     "policyRecovery": MessageLookupByLibrary.simpleMessage(
       "Восстановление и пауза",
     ),
@@ -1417,13 +1501,35 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyRecoveryStatus": MessageLookupByLibrary.simpleMessage(
       "Требуется восстановление",
     ),
+    "policyRegionAU": MessageLookupByLibrary.simpleMessage("Австралия"),
+    "policyRegionCA": MessageLookupByLibrary.simpleMessage("Канада"),
+    "policyRegionCN": MessageLookupByLibrary.simpleMessage("Китай"),
+    "policyRegionDE": MessageLookupByLibrary.simpleMessage("Германия"),
+    "policyRegionFR": MessageLookupByLibrary.simpleMessage("Франция"),
+    "policyRegionGB": MessageLookupByLibrary.simpleMessage("Великобритания"),
+    "policyRegionHK": MessageLookupByLibrary.simpleMessage("Гонконг"),
+    "policyRegionID": MessageLookupByLibrary.simpleMessage("Индонезия"),
+    "policyRegionIN": MessageLookupByLibrary.simpleMessage("Индия"),
+    "policyRegionJP": MessageLookupByLibrary.simpleMessage("Япония"),
+    "policyRegionKR": MessageLookupByLibrary.simpleMessage("Южная Корея"),
+    "policyRegionMO": MessageLookupByLibrary.simpleMessage("Макао"),
+    "policyRegionMY": MessageLookupByLibrary.simpleMessage("Малайзия"),
+    "policyRegionNL": MessageLookupByLibrary.simpleMessage("Нидерланды"),
+    "policyRegionPH": MessageLookupByLibrary.simpleMessage("Филиппины"),
+    "policyRegionRU": MessageLookupByLibrary.simpleMessage("Россия"),
+    "policyRegionSG": MessageLookupByLibrary.simpleMessage("Сингапур"),
+    "policyRegionTH": MessageLookupByLibrary.simpleMessage("Таиланд"),
+    "policyRegionTR": MessageLookupByLibrary.simpleMessage("Турция"),
+    "policyRegionTW": MessageLookupByLibrary.simpleMessage("Тайвань"),
+    "policyRegionUS": MessageLookupByLibrary.simpleMessage("США"),
+    "policyRegionVN": MessageLookupByLibrary.simpleMessage("Вьетнам"),
     "policyRegions": MessageLookupByLibrary.simpleMessage("Регионы"),
     "policyRejectedStatus": MessageLookupByLibrary.simpleMessage("Отклонено"),
     "policyRemainingGiB": MessageLookupByLibrary.simpleMessage(
       "Минимальный остаток (GiB)",
     ),
     "policyRemainingTraffic": MessageLookupByLibrary.simpleMessage(
-      "Остальной трафик",
+      "Весь трафик",
     ),
     "policyRemoveCandidate": MessageLookupByLibrary.simpleMessage(
       "Убрать узел",
@@ -1443,12 +1549,13 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyRetrySeconds": MessageLookupByLibrary.simpleMessage(
       "Повторная проверка недоступных узлов (сек.)",
     ),
+    "policyRoundRobin": MessageLookupByLibrary.simpleMessage("По очереди"),
     "policyRuleOrderHint": MessageLookupByLibrary.simpleMessage(
-      "Проверка сверху вниз; используется первое совпадение",
+      "Сопоставлять сверху вниз; если доступных узлов нет, перейти к следующему правилу.",
     ),
     "policyRuleType": MessageLookupByLibrary.simpleMessage("Тип правила"),
     "policyRulesHint": MessageLookupByLibrary.simpleMessage(
-      "Задайте основные и резервные узлы для сайтов или приложений; правила действуют при использовании выбранного профиля в режиме правил",
+      "Задайте условия трафика, время действия и способ обработки для выбранного профиля; применяется, когда он активен в режиме правил",
     ),
     "policyRulesTab": MessageLookupByLibrary.simpleMessage("Правила"),
     "policyRuntimeState": MessageLookupByLibrary.simpleMessage("Состояние"),
@@ -1457,6 +1564,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Сохранено; сейчас не работает",
     ),
     "policySchedule": MessageLookupByLibrary.simpleMessage("Расписание"),
+    "policyScheduleAllDay": MessageLookupByLibrary.simpleMessage("Весь день"),
     "policyScheduleEnabled": MessageLookupByLibrary.simpleMessage(
       "Ограничить часы работы",
     ),
@@ -1465,6 +1573,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyScheduleSkip": MessageLookupByLibrary.simpleMessage(
       "Вне расписания перейти к следующим правилам",
+    ),
+    "policyScheduleTimezone": MessageLookupByLibrary.simpleMessage(
+      "Часовой пояс",
     ),
     "policyScope": MessageLookupByLibrary.simpleMessage("Область действия"),
     "policyScopeValues": MessageLookupByLibrary.simpleMessage(
@@ -1476,11 +1587,15 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySelectCollection": MessageLookupByLibrary.simpleMessage(
       "Выбрать и использовать",
     ),
+    "policySelectValues": MessageLookupByLibrary.simpleMessage("Выбрать…"),
     "policySelectedNode": MessageLookupByLibrary.simpleMessage(
       "Выбранный узел",
     ),
     "policySelectedOffline": MessageLookupByLibrary.simpleMessage(
       "Выбрано; используется после подключения",
+    ),
+    "policySelectionMode": MessageLookupByLibrary.simpleMessage(
+      "Способ распределения",
     ),
     "policySelectionRecoverySection": MessageLookupByLibrary.simpleMessage(
       "Выбор и восстановление",
@@ -1513,6 +1628,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySourceMissing": MessageLookupByLibrary.simpleMessage(
       "Источник или узел отсутствует; выберите снова",
     ),
+    "policySourceOrderHint": MessageLookupByLibrary.simpleMessage(
+      "Перетащите провайдеров в порядке предпочтения.",
+    ),
     "policySourceQuota": MessageLookupByLibrary.simpleMessage(
       "Остаток трафика по данным провайдера",
     ),
@@ -1523,10 +1641,16 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySourcesCollection": MessageLookupByLibrary.simpleMessage(
       "Источники узлов",
     ),
+    "policySpecificRegions": MessageLookupByLibrary.simpleMessage(
+      "Выбранные регионы",
+    ),
     "policyStableFirst": MessageLookupByLibrary.simpleMessage(
       "Приоритет стабильности",
     ),
     "policyStartTime": MessageLookupByLibrary.simpleMessage("Начало (HH:mm)"),
+    "policyStickySessions": MessageLookupByLibrary.simpleMessage(
+      "Закрепление сеансов",
+    ),
     "policySubscriptionExhausted": MessageLookupByLibrary.simpleMessage(
       "Трафик подписки исчерпан",
     ),
@@ -1556,6 +1680,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyTrafficSection": MessageLookupByLibrary.simpleMessage(
       "Какой трафик",
+    ),
+    "policyTrafficUnknown": MessageLookupByLibrary.simpleMessage(
+      "Данные о трафике не указаны",
     ),
     "policyUndo": MessageLookupByLibrary.simpleMessage("Отменить изменение"),
     "policyUnknownAttribute": MessageLookupByLibrary.simpleMessage(
@@ -1611,6 +1738,13 @@ class MessageLookup extends MessageLookupByLibrary {
       "Просмотреть изменения",
     ),
     "policyWebsite": MessageLookupByLibrary.simpleMessage("Сайт"),
+    "policyWeekdayFri": MessageLookupByLibrary.simpleMessage("Пт"),
+    "policyWeekdayMon": MessageLookupByLibrary.simpleMessage("Пн"),
+    "policyWeekdaySat": MessageLookupByLibrary.simpleMessage("Сб"),
+    "policyWeekdaySun": MessageLookupByLibrary.simpleMessage("Вс"),
+    "policyWeekdayThu": MessageLookupByLibrary.simpleMessage("Чт"),
+    "policyWeekdayTue": MessageLookupByLibrary.simpleMessage("Вт"),
+    "policyWeekdayWed": MessageLookupByLibrary.simpleMessage("Ср"),
     "policyWeekdays": MessageLookupByLibrary.simpleMessage(
       "Дни (1=понедельник, 7=воскресенье)",
     ),

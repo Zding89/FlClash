@@ -5764,10 +5764,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Choose primary and backup nodes for websites or apps in the selected profile; applies when that profile is active in rule mode`
+  /// `Set traffic conditions, active times and actions for the selected profile; applies while that profile is active in rule mode`
   String get policyRulesHint {
     return Intl.message(
-      'Choose primary and backup nodes for websites or apps in the selected profile; applies when that profile is active in rule mode',
+      'Set traffic conditions, active times and actions for the selected profile; applies while that profile is active in rule mode',
       name: 'policyRulesHint',
       desc: '',
       args: [],
@@ -6429,10 +6429,10 @@ class AppLocalizations {
     );
   }
 
-  /// `When selecting through local rules, other available candidates are tried. If none are available, the rule's fallback applies.`
+  /// `When a source reaches its budget, local rules try other available nodes. If none are available, matching continues with the next rule.`
   String get policyBudgetReachedHint {
     return Intl.message(
-      'When selecting through local rules, other available candidates are tried. If none are available, the rule\'s fallback applies.',
+      'When a source reaches its budget, local rules try other available nodes. If none are available, matching continues with the next rule.',
       name: 'policyBudgetReachedHint',
       desc: '',
       args: [],
@@ -7164,20 +7164,20 @@ class AppLocalizations {
     );
   }
 
-  /// `Checked top to bottom; the first match is used`
+  /// `Match from top to bottom; if no node is available, continue with the next rule.`
   String get policyRuleOrderHint {
     return Intl.message(
-      'Checked top to bottom; the first match is used',
+      'Match from top to bottom; if no node is available, continue with the next rule.',
       name: 'policyRuleOrderHint',
       desc: '',
       args: [],
     );
   }
 
-  /// `Candidate node groups`
+  /// `Node groups`
   String get policyNodeSets {
     return Intl.message(
-      'Candidate node groups',
+      'Node groups',
       name: 'policyNodeSets',
       desc: '',
       args: [],
@@ -7224,10 +7224,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Candidate node group`
+  /// `Node group`
   String get policyNodeSet {
     return Intl.message(
-      'Candidate node group',
+      'Node group',
       name: 'policyNodeSet',
       desc: '',
       args: [],
@@ -7244,10 +7244,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Remaining traffic`
+  /// `All traffic`
   String get policyRemainingTraffic {
     return Intl.message(
-      'Remaining traffic',
+      'All traffic',
       name: 'policyRemainingTraffic',
       desc: '',
       args: [],
@@ -7504,10 +7504,10 @@ class AppLocalizations {
     );
   }
 
-  /// `No matching members; fallback or final handling will be used`
+  /// `No available members; continue with the next rule.`
   String get policyNoMembers {
     return Intl.message(
-      'No matching members; fallback or final handling will be used',
+      'No available members; continue with the next rule.',
       name: 'policyNoMembers',
       desc: '',
       args: [],
@@ -7884,10 +7884,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Preferred and backups`
+  /// `Processing`
   String get policyChoiceSection {
     return Intl.message(
-      'Preferred and backups',
+      'Processing',
       name: 'policyChoiceSection',
       desc: '',
       args: [],
@@ -8209,10 +8209,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Add a subscription or local profile in Profiles before creating rules or candidate node groups`
+  /// `Add a subscription or local profile in Profiles before creating rules and node groups`
   String get policyNoProfilesHint {
     return Intl.message(
-      'Add a subscription or local profile in Profiles before creating rules or candidate node groups',
+      'Add a subscription or local profile in Profiles before creating rules and node groups',
       name: 'policyNoProfilesHint',
       desc: '',
       args: [],
@@ -8249,10 +8249,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Filter by region, source and traffic multiplier, then choose one eligible node; traffic is not shared evenly`
+  /// `Filter by provider, region, name and multiplier, then select by priority or distribute connections with load balancing.`
   String get policyNodeSetHint {
     return Intl.message(
-      'Filter by region, source and traffic multiplier, then choose one eligible node; traffic is not shared evenly',
+      'Filter by provider, region, name and multiplier, then select by priority or distribute connections with load balancing.',
       name: 'policyNodeSetHint',
       desc: '',
       args: [],
@@ -8314,6 +8314,666 @@ class AppLocalizations {
     return Intl.message(
       'Complete or re-save your connection keys in AI settings before backing up',
       name: 'aiBackupKeyRequired',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Destination region`
+  String get policyDestinationRegion {
+    return Intl.message(
+      'Destination region',
+      name: 'policyDestinationRegion',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Domestic (China)`
+  String get policyDomestic {
+    return Intl.message(
+      'Domestic (China)',
+      name: 'policyDomestic',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Outside China`
+  String get policyForeign {
+    return Intl.message(
+      'Outside China',
+      name: 'policyForeign',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Selected regions`
+  String get policySpecificRegions {
+    return Intl.message(
+      'Selected regions',
+      name: 'policySpecificRegions',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `IP address or network`
+  String get policyIpNetworks {
+    return Intl.message(
+      'IP address or network',
+      name: 'policyIpNetworks',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Installed applications`
+  String get policyInstalledApps {
+    return Intl.message(
+      'Installed applications',
+      name: 'policyInstalledApps',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Reading installed applications…`
+  String get policyAppsLoading {
+    return Intl.message(
+      'Reading installed applications…',
+      name: 'policyAppsLoading',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Could not read applications. Refresh to retry.`
+  String get policyAppsFailed {
+    return Intl.message(
+      'Could not read applications. Refresh to retry.',
+      name: 'policyAppsFailed',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Application selection is unavailable on this platform.`
+  String get policyAppsUnsupported {
+    return Intl.message(
+      'Application selection is unavailable on this platform.',
+      name: 'policyAppsUnsupported',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Includes network helper processes inside each application. Process identification depends on permissions and connection type.`
+  String get policyAppsHint {
+    return Intl.message(
+      'Includes network helper processes inside each application. Process identification depends on permissions and connection type.',
+      name: 'policyAppsHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Previously selected applications`
+  String get policyExistingApps {
+    return Intl.message(
+      'Previously selected applications',
+      name: 'policyExistingApps',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Processing`
+  String get policyProcessing {
+    return Intl.message(
+      'Processing',
+      name: 'policyProcessing',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Node group`
+  String get policyActionProxy {
+    return Intl.message(
+      'Node group',
+      name: 'policyActionProxy',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Direct connection`
+  String get policyActionDirect {
+    return Intl.message(
+      'Direct connection',
+      name: 'policyActionDirect',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Block`
+  String get policyActionReject {
+    return Intl.message(
+      'Block',
+      name: 'policyActionReject',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `If no node is available, continue with the next rule.`
+  String get policyNoNodeContinue {
+    return Intl.message(
+      'If no node is available, continue with the next rule.',
+      name: 'policyNoNodeContinue',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Include providers`
+  String get policyIncludeSources {
+    return Intl.message(
+      'Include providers',
+      name: 'policyIncludeSources',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Exclude providers`
+  String get policyExcludeSources {
+    return Intl.message(
+      'Exclude providers',
+      name: 'policyExcludeSources',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Include regions`
+  String get policyIncludeRegions {
+    return Intl.message(
+      'Include regions',
+      name: 'policyIncludeRegions',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Exclude regions`
+  String get policyExcludeRegions {
+    return Intl.message(
+      'Exclude regions',
+      name: 'policyExcludeRegions',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Node name contains (one per line)`
+  String get policyNameIncludes {
+    return Intl.message(
+      'Node name contains (one per line)',
+      name: 'policyNameIncludes',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Node name excludes (one per line)`
+  String get policyNameExcludes {
+    return Intl.message(
+      'Node name excludes (one per line)',
+      name: 'policyNameExcludes',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Distribution mode`
+  String get policySelectionMode {
+    return Intl.message(
+      'Distribution mode',
+      name: 'policySelectionMode',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Priority selection`
+  String get policyPriorityMode {
+    return Intl.message(
+      'Priority selection',
+      name: 'policyPriorityMode',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Load balancing`
+  String get policyBalanceMode {
+    return Intl.message(
+      'Load balancing',
+      name: 'policyBalanceMode',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Round robin`
+  String get policyRoundRobin {
+    return Intl.message(
+      'Round robin',
+      name: 'policyRoundRobin',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Consistent hashing`
+  String get policyConsistentHashing {
+    return Intl.message(
+      'Consistent hashing',
+      name: 'policyConsistentHashing',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Sticky sessions`
+  String get policyStickySessions {
+    return Intl.message(
+      'Sticky sessions',
+      name: 'policyStickySessions',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Selection priorities`
+  String get policyPreferences {
+    return Intl.message(
+      'Selection priorities',
+      name: 'policyPreferences',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Drag to reorder. Earlier criteria take precedence; unavailable nodes are excluded.`
+  String get policyPreferencesHint {
+    return Intl.message(
+      'Drag to reorder. Earlier criteria take precedence; unavailable nodes are excluded.',
+      name: 'policyPreferencesHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Subscription expiry`
+  String get policyPreferenceExpiry {
+    return Intl.message(
+      'Subscription expiry',
+      name: 'policyPreferenceExpiry',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Remaining allowance`
+  String get policyPreferenceRemaining {
+    return Intl.message(
+      'Remaining allowance',
+      name: 'policyPreferenceRemaining',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Latency`
+  String get policyPreferenceLatency {
+    return Intl.message(
+      'Latency',
+      name: 'policyPreferenceLatency',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Billing multiplier`
+  String get policyPreferenceMultiplier {
+    return Intl.message(
+      'Billing multiplier',
+      name: 'policyPreferenceMultiplier',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Provider order`
+  String get policyPreferenceSource {
+    return Intl.message(
+      'Provider order',
+      name: 'policyPreferenceSource',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Ascending`
+  String get policyAscending {
+    return Intl.message(
+      'Ascending',
+      name: 'policyAscending',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Descending`
+  String get policyDescending {
+    return Intl.message(
+      'Descending',
+      name: 'policyDescending',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Select…`
+  String get policySelectValues {
+    return Intl.message(
+      'Select…',
+      name: 'policySelectValues',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Every day`
+  String get policyEveryday {
+    return Intl.message(
+      'Every day',
+      name: 'policyEveryday',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Mon`
+  String get policyWeekdayMon {
+    return Intl.message('Mon', name: 'policyWeekdayMon', desc: '', args: []);
+  }
+
+  /// `Tue`
+  String get policyWeekdayTue {
+    return Intl.message('Tue', name: 'policyWeekdayTue', desc: '', args: []);
+  }
+
+  /// `Wed`
+  String get policyWeekdayWed {
+    return Intl.message('Wed', name: 'policyWeekdayWed', desc: '', args: []);
+  }
+
+  /// `Thu`
+  String get policyWeekdayThu {
+    return Intl.message('Thu', name: 'policyWeekdayThu', desc: '', args: []);
+  }
+
+  /// `Fri`
+  String get policyWeekdayFri {
+    return Intl.message('Fri', name: 'policyWeekdayFri', desc: '', args: []);
+  }
+
+  /// `Sat`
+  String get policyWeekdaySat {
+    return Intl.message('Sat', name: 'policyWeekdaySat', desc: '', args: []);
+  }
+
+  /// `Sun`
+  String get policyWeekdaySun {
+    return Intl.message('Sun', name: 'policyWeekdaySun', desc: '', args: []);
+  }
+
+  /// `All day`
+  String get policyScheduleAllDay {
+    return Intl.message(
+      'All day',
+      name: 'policyScheduleAllDay',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Time zone`
+  String get policyScheduleTimezone {
+    return Intl.message(
+      'Time zone',
+      name: 'policyScheduleTimezone',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Traffic conditions`
+  String get policyMatchConditions {
+    return Intl.message(
+      'Traffic conditions',
+      name: 'policyMatchConditions',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `No expiry information provided`
+  String get policyExpiryUnknown {
+    return Intl.message(
+      'No expiry information provided',
+      name: 'policyExpiryUnknown',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `No traffic information provided`
+  String get policyTrafficUnknown {
+    return Intl.message(
+      'No traffic information provided',
+      name: 'policyTrafficUnknown',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `This existing rule keeps all previous selections until you choose a replacement.`
+  String get policyLegacySelections {
+    return Intl.message(
+      'This existing rule keeps all previous selections until you choose a replacement.',
+      name: 'policyLegacySelections',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Drag providers into the order used by the provider preference.`
+  String get policySourceOrderHint {
+    return Intl.message(
+      'Drag providers into the order used by the provider preference.',
+      name: 'policySourceOrderHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `China`
+  String get policyRegionCN {
+    return Intl.message('China', name: 'policyRegionCN', desc: '', args: []);
+  }
+
+  /// `Japan`
+  String get policyRegionJP {
+    return Intl.message('Japan', name: 'policyRegionJP', desc: '', args: []);
+  }
+
+  /// `Hong Kong`
+  String get policyRegionHK {
+    return Intl.message(
+      'Hong Kong',
+      name: 'policyRegionHK',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Taiwan`
+  String get policyRegionTW {
+    return Intl.message('Taiwan', name: 'policyRegionTW', desc: '', args: []);
+  }
+
+  /// `United States`
+  String get policyRegionUS {
+    return Intl.message(
+      'United States',
+      name: 'policyRegionUS',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Singapore`
+  String get policyRegionSG {
+    return Intl.message(
+      'Singapore',
+      name: 'policyRegionSG',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `South Korea`
+  String get policyRegionKR {
+    return Intl.message(
+      'South Korea',
+      name: 'policyRegionKR',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Germany`
+  String get policyRegionDE {
+    return Intl.message('Germany', name: 'policyRegionDE', desc: '', args: []);
+  }
+
+  /// `United Kingdom`
+  String get policyRegionGB {
+    return Intl.message(
+      'United Kingdom',
+      name: 'policyRegionGB',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `France`
+  String get policyRegionFR {
+    return Intl.message('France', name: 'policyRegionFR', desc: '', args: []);
+  }
+
+  /// `Canada`
+  String get policyRegionCA {
+    return Intl.message('Canada', name: 'policyRegionCA', desc: '', args: []);
+  }
+
+  /// `Australia`
+  String get policyRegionAU {
+    return Intl.message(
+      'Australia',
+      name: 'policyRegionAU',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Netherlands`
+  String get policyRegionNL {
+    return Intl.message(
+      'Netherlands',
+      name: 'policyRegionNL',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Russia`
+  String get policyRegionRU {
+    return Intl.message('Russia', name: 'policyRegionRU', desc: '', args: []);
+  }
+
+  /// `India`
+  String get policyRegionIN {
+    return Intl.message('India', name: 'policyRegionIN', desc: '', args: []);
+  }
+
+  /// `Thailand`
+  String get policyRegionTH {
+    return Intl.message('Thailand', name: 'policyRegionTH', desc: '', args: []);
+  }
+
+  /// `Vietnam`
+  String get policyRegionVN {
+    return Intl.message('Vietnam', name: 'policyRegionVN', desc: '', args: []);
+  }
+
+  /// `Malaysia`
+  String get policyRegionMY {
+    return Intl.message('Malaysia', name: 'policyRegionMY', desc: '', args: []);
+  }
+
+  /// `Turkey`
+  String get policyRegionTR {
+    return Intl.message('Turkey', name: 'policyRegionTR', desc: '', args: []);
+  }
+
+  /// `Philippines`
+  String get policyRegionPH {
+    return Intl.message(
+      'Philippines',
+      name: 'policyRegionPH',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Indonesia`
+  String get policyRegionID {
+    return Intl.message(
+      'Indonesia',
+      name: 'policyRegionID',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Macao`
+  String get policyRegionMO {
+    return Intl.message('Macao', name: 'policyRegionMO', desc: '', args: []);
+  }
+
+  /// `Continue with the next rule`
+  String get policyContinueNextRule {
+    return Intl.message(
+      'Continue with the next rule',
+      name: 'policyContinueNextRule',
       desc: '',
       args: [],
     );

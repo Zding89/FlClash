@@ -169,8 +169,16 @@ class ProfilesAction extends _$ProfilesAction {
     if (id == ref.read(currentProfileIdProvider)) return true;
     if (!system.isMacOS) return false;
     final document = await ref.read(workbenchDatabaseProvider).readPolicies();
-    return document.integrationEnabled &&
-        document.activeIntegration?.sourceProfileIds.contains(id) == true;
+    if (!document.moduleEnabled) return false;
+    if (document.integrationEnabled) {
+      return document.activeIntegration?.sourceProfileIds.contains(id) == true;
+    }
+    return document.policiesEnabled &&
+        document
+            .sourceProfileIdsForTarget(
+              'profile:${ref.read(currentProfileIdProvider)}',
+            )
+            .contains(id);
   }
 
   Future<void> addProfileFormFile() async {

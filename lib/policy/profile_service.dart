@@ -21,9 +21,11 @@ final class PolicyProfileService {
     final integration = document.moduleEnabled && document.integrationEnabled
         ? document.activeIntegration
         : null;
-    final ids = integration == null
-        ? {?profileId}
-        : integration.sourceProfileIds.toSet();
+    final ids = integration != null
+        ? integration.sourceProfileIds.toSet()
+        : document.moduleEnabled && document.policiesEnabled
+        ? document.sourceProfileIdsForTarget('profile:$profileId')
+        : {?profileId};
     final selected = profiles
         .where((profile) => ids.contains(profile.id))
         .toList();
@@ -66,6 +68,7 @@ final class PolicyProfileService {
     required List<Profile> profiles,
     required String targetId,
     bool refresh = false,
+    bool includeAllSources = false,
   }) async {
     final parts = targetId.split(':');
     if (parts.length != 2) throw const FormatException('Invalid policy target');
@@ -88,17 +91,35 @@ final class PolicyProfileService {
       }
     } else if (parts.first == 'profile') {
       final id = int.tryParse(parts.last);
-      selected = profiles.where((profile) => profile.id == id).toList();
-      if (selected.length != 1) throw const FormatException('Missing profile');
+      if (!profiles.any((profile) => profile.id == id)) {
+        throw const FormatException('Missing profile');
+      }
+      final ids = document.sourceProfileIdsForTarget(targetId);
+      selected = includeAllSources
+          ? profiles
+          : profiles.where((profile) => ids.contains(profile.id)).toList();
+      if (!includeAllSources && selected.length != ids.length) {
+        throw const FormatException('A source profile is missing');
+      }
     } else {
       throw const FormatException('Invalid policy target type');
     }
-    final sources = await loader.load(
-      selected,
-      allowNetwork: refresh,
-      persistCache: refresh,
-    );
-    return sources
+    final requiredIds = document.sourceProfileIdsForTarget(targetId);
+    final sources = <PolicySource>[];
+    for (final profile in selected) {
+      try {
+        sources.addAll(
+          await loader.load(
+            [profile],
+            allowNetwork: refresh,
+            persistCache: refresh,
+          ),
+        );
+      } catch (_) {
+        if (!includeAllSources || requiredIds.contains(profile.id)) rethrow;
+      }
+    }
+    final nodes = sources
         .expand(compiler.extractNodes)
         .map(
           (node) => LocalNode(
@@ -123,5 +144,9 @@ final class PolicyProfileService {
               node.label.toLowerCase().contains(filter.toLowerCase());
         })
         .toList();
+    if (nodes.length > 5000) {
+      throw const FormatException('At most 5000 nodes are supported');
+    }
+    return nodes;
   }
 }

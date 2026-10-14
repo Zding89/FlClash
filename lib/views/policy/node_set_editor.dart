@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 
 import 'widgets.dart';
 import 'editor_section.dart';
+import 'selection_fields.dart';
+import 'preference_editor.dart';
+import 'schedule_editor.dart';
 
 final class PolicyNodeSetEdit {
   final PolicyNodeSet nodeSet;
@@ -48,6 +51,12 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
   late Set<String> _regions;
   late UnknownMultiplier _unknown;
   late NodeSetStrategy _strategy;
+  late List<NodePreference> _preferences;
+  late NodeSelectionMode _selectionMode;
+  late NodeBalanceStrategy _balanceStrategy;
+  late PolicySchedule _scheduleValue;
+  late Set<String> _excludedSources;
+  late Set<String> _excludedRegions;
   late bool _hide;
   late bool _automatic;
   late bool _unknownRegion;
@@ -81,8 +90,26 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
         );
     _sources = {...?set?.sourceIds};
     _regions = {...?set?.regions};
-    _unknown = set?.unknownMultiplier ?? UnknownMultiplier.exclude;
+    _unknown = set?.unknownMultiplier ?? UnknownMultiplier.assumeOne;
     _strategy = set?.strategy ?? NodeSetStrategy.stable;
+    _preferences =
+        set != null &&
+            set.preferences.isEmpty &&
+            set.strategy != NodeSetStrategy.stable
+        ? [
+            NodePreference(
+              type: set.strategy == NodeSetStrategy.latency
+                  ? NodePreferenceType.latency
+                  : NodePreferenceType.multiplier,
+              direction: SortDirection.ascending,
+            ),
+          ]
+        : [...?set?.preferences];
+    _selectionMode = set?.selectionMode ?? NodeSelectionMode.priority;
+    _balanceStrategy = set?.balanceStrategy ?? NodeBalanceStrategy.roundRobin;
+    _scheduleValue = set?.schedule ?? const PolicySchedule();
+    _excludedSources = {...?set?.excludedSourceIds};
+    _excludedRegions = {...?set?.excludedRegions};
     _hide = set?.hideUnavailable ?? true;
     _automatic = probe.automatic;
     _unknownRegion = set?.allowUnknownRegion ?? false;
@@ -90,6 +117,8 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
     _attributes.addAll(widget.attributes);
     for (final entry in {
       'label': set?.label ?? '',
+      'nameIncludes': set?.nameIncludes.join('\n') ?? '',
+      'nameExcludes': set?.nameExcludes.join('\n') ?? '',
       'cap': set?.maxMultiplier?.toString() ?? '',
       'url': probe.url,
       'interval': '${probe.intervalSeconds}',
@@ -246,7 +275,13 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
 
   String get _fingerprint => policyDigest({
     'fields': _fields.map((k, v) => MapEntry(k, v.text)),
-    'sources': _sources.toList()..sort(),
+    'sources': _sources.toList(),
+    'excludedSources': _excludedSources.toList()..sort(),
+    'excludedRegions': _excludedRegions.toList()..sort(),
+    'preferences': _preferences.map((value) => value.toJson()).toList(),
+    'selectionMode': _selectionMode.name,
+    'balanceStrategy': _balanceStrategy.name,
+    'schedule': _scheduleValue.toJson(),
     'regions': _regions.toList()..sort(),
     'unknown': _unknown.name,
     'strategy': _strategy.name,
@@ -296,10 +331,32 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
     'label': _fields['label']!.text.trim().isEmpty
         ? _regions.isEmpty
               ? context.appLocalizations.policyNodeSet
-              : _regions.join(' · ')
+              : _regions
+                    .map(
+                      (region) =>
+                          policyRegionOptions(context, _regions)[region] ??
+                          region,
+                    )
+                    .join(' · ')
         : _fields['label']!.text.trim(),
     'targetId': widget.targetId,
     'sourceIds': _sources.toList(),
+    'excludedSourceIds': _excludedSources.toList(),
+    'excludedRegions': _excludedRegions.toList(),
+    'nameIncludes': _fields['nameIncludes']!.text
+        .split('\n')
+        .map((v) => v.trim())
+        .where((v) => v.isNotEmpty)
+        .toList(),
+    'nameExcludes': _fields['nameExcludes']!.text
+        .split('\n')
+        .map((v) => v.trim())
+        .where((v) => v.isNotEmpty)
+        .toList(),
+    'preferences': _preferences.map((p) => p.toJson()).toList(),
+    'selectionMode': _selectionMode.name,
+    'balanceStrategy': _balanceStrategy.name,
+    'schedule': _scheduleValue.toJson(),
     'regions': _regions.toList(),
     'maxMultiplier': _fields['cap']!.text.trim().isEmpty
         ? null
@@ -349,7 +406,14 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
       controller: _fields[key]!,
       label: label,
       required: required,
-      numeric: !{'url', 'label', 'status'}.contains(key),
+      numeric: !{
+        'url',
+        'label',
+        'status',
+        'nameIncludes',
+        'nameExcludes',
+      }.contains(key),
+      maxLines: {'nameIncludes', 'nameExcludes'}.contains(key) ? 2 : 1,
     ),
   );
   String get _preset {
@@ -646,55 +710,46 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
         Text(strings.policyNodeSetHint),
         const SizedBox(height: 12),
         _field('label', strings.name, required: false),
-        Text(strings.policySourcesCollection),
-        Wrap(
-          spacing: 8,
-          children: [
-            for (final source in widget.sources.entries)
-              FilterChip(
-                label: Text(source.value),
-                selected: _sources.contains(source.key),
-                onSelected: _busy
-                    ? null
-                    : (v) => setState(
-                        () => v
-                            ? _sources.add(source.key)
-                            : _sources.remove(source.key),
-                      ),
-              ),
-          ],
+        PolicyMultiSelect(
+          label: strings.policyIncludeSources,
+          options: widget.sources,
+          value: _sources.toList(),
+          enabled: !_busy,
+          onChanged: (values) => setState(() => _sources = values.toSet()),
         ),
-        const SizedBox(height: 16),
-        Text(strings.policyRegions),
-        Wrap(
-          spacing: 8,
-          children: [
-            for (final region in {
-              'JP',
-              'HK',
-              'TW',
-              'US',
-              'SG',
-              'KR',
-              'DE',
-              'GB',
-              ..._regions,
-            })
-              FilterChip(
-                label: Text(region),
-                selected: _regions.contains(region),
-                onSelected: _busy
-                    ? null
-                    : (v) => setState(
-                        () =>
-                            v ? _regions.add(region) : _regions.remove(region),
-                      ),
-              ),
-          ],
+        PolicyMultiSelect(
+          label: strings.policyExcludeSources,
+          options: widget.sources,
+          value: _excludedSources.toList(),
+          enabled: !_busy,
+          onChanged: (values) =>
+              setState(() => _excludedSources = values.toSet()),
         ),
-        const SizedBox(height: 12),
+        PolicyMultiSelect(
+          label: strings.policyIncludeRegions,
+          options: policyRegionOptions(context, [
+            ..._regions,
+            ..._excludedRegions,
+          ]),
+          value: _regions.toList(),
+          enabled: !_busy,
+          onChanged: (values) => setState(() => _regions = values.toSet()),
+        ),
+        PolicyMultiSelect(
+          label: strings.policyExcludeRegions,
+          options: policyRegionOptions(context, [
+            ..._regions,
+            ..._excludedRegions,
+          ]),
+          value: _excludedRegions.toList(),
+          enabled: !_busy,
+          onChanged: (values) =>
+              setState(() => _excludedRegions = values.toSet()),
+        ),
+        _field('nameIncludes', strings.policyNameIncludes, required: false),
+        _field('nameExcludes', strings.policyNameExcludes, required: false),
         _field('cap', strings.policyMultiplierLimit, required: false),
-        SwitchListTile(
+        CheckboxListTile(
           contentPadding: EdgeInsets.zero,
           title: Text(strings.policyUnknownOne),
           subtitle: Text(strings.policyUnknownOneHint),
@@ -702,38 +757,88 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
           onChanged: _busy
               ? null
               : (v) => setState(
-                  () => _unknown = v
+                  () => _unknown = v == true
                       ? UnknownMultiplier.assumeOne
                       : UnknownMultiplier.exclude,
                 ),
         ),
-        DropdownButtonFormField<NodeSetStrategy>(
-          initialValue: _strategy,
-          isExpanded: true,
-          decoration: InputDecoration(
-            labelText: strings.policyNodeSetStrategy,
-            helperText: strings.policyNodeSetStrategyHint,
-            helperMaxLines: 4,
+        if (_preferences.any(
+          (preference) => preference.type == NodePreferenceType.source,
+        )) ...[
+          Text(strings.policySourceOrderHint),
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false,
+            itemCount: _sources.length,
+            onReorderItem: (oldIndex, newIndex) {
+              final sources = _sources.toList();
+              final source = sources.removeAt(oldIndex);
+              sources.insert(newIndex, source);
+              setState(() => _sources = sources.toSet());
+            },
+            itemBuilder: (context, index) {
+              final id = _sources.elementAt(index);
+              return ListTile(
+                key: ValueKey('source-order-$id'),
+                leading: ReorderableDragStartListener(
+                  index: index,
+                  child: const Icon(Icons.drag_indicator),
+                ),
+                title: Text(widget.sources[id] ?? id),
+              );
+            },
           ),
-          items: [
-            DropdownMenuItem(
-              value: NodeSetStrategy.stable,
-              child: Text(strings.policyStableFirst),
+        ],
+        PolicyPreferenceEditor(
+          value: _preferences,
+          onChanged: (values) => setState(() => _preferences = values),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          strings.policySelectionMode,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        SegmentedButton<NodeSelectionMode>(
+          segments: [
+            ButtonSegment(
+              value: NodeSelectionMode.priority,
+              label: Text(strings.policyPriorityMode),
             ),
-            DropdownMenuItem(
-              value: NodeSetStrategy.latency,
-              child: Text(strings.policyLatencyFirst),
-            ),
-            DropdownMenuItem(
-              value: NodeSetStrategy.multiplier,
-              child: Text(strings.policyMultiplierFirst),
+            ButtonSegment(
+              value: NodeSelectionMode.loadBalance,
+              label: Text(strings.policyBalanceMode),
             ),
           ],
-          onChanged: _busy
-              ? null
-              : (v) {
-                  if (v != null) setState(() => _strategy = v);
-                },
+          selected: {_selectionMode},
+          onSelectionChanged: (values) =>
+              setState(() => _selectionMode = values.single),
+        ),
+        if (_selectionMode == NodeSelectionMode.loadBalance)
+          DropdownButtonFormField<NodeBalanceStrategy>(
+            initialValue: _balanceStrategy,
+            isExpanded: true,
+            items: [
+              DropdownMenuItem(
+                value: NodeBalanceStrategy.roundRobin,
+                child: Text(strings.policyRoundRobin),
+              ),
+              DropdownMenuItem(
+                value: NodeBalanceStrategy.consistentHashing,
+                child: Text(strings.policyConsistentHashing),
+              ),
+              DropdownMenuItem(
+                value: NodeBalanceStrategy.stickySessions,
+                child: Text(strings.policyStickySessions),
+              ),
+            ],
+            onChanged: (value) {
+              if (value != null) setState(() => _balanceStrategy = value);
+            },
+          ),
+        PolicyScheduleEditor(
+          value: _scheduleValue,
+          onChanged: (value) => setState(() => _scheduleValue = value),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,

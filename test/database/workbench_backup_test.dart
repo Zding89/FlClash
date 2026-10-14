@@ -210,6 +210,46 @@ void main() {
   });
 
   test(
+    'schema three cross-airport groups retain ranking and schedules in backups',
+    () async {
+      final document = LocalPolicyDocument.fromJson({
+        ...policy.toJson(),
+        'nodeSets': [
+          const PolicyNodeSet(
+            id: 'cross',
+            label: 'Cross',
+            targetId: 'profile:7',
+            sourceIds: ['8'],
+            preferences: [
+              NodePreference(
+                type: NodePreferenceType.expiry,
+                direction: SortDirection.ascending,
+              ),
+            ],
+            selectionMode: NodeSelectionMode.loadBalance,
+            schedule: PolicySchedule(
+              windows: [
+                PolicyWindow(weekdays: [1], startMinute: 1320, endMinute: 60),
+              ],
+            ),
+          ).toJson(),
+        ],
+      });
+      await source.writeSection('policies', document.toJson());
+      final exported = await exportWorkbenchBackup(source, profileIds: {7, 8});
+      await restoreWorkbenchBackup(
+        target,
+        await WorkbenchBackup.parse(exported, profileIds: {7, 8}),
+      );
+      expect((await target.readPolicies()).toJson(), document.toJson());
+      await expectLater(
+        WorkbenchBackup.parse(exported, profileIds: {7}),
+        throwsFormatException,
+      );
+    },
+  );
+
+  test(
     'rejects unknown sections versions credentials and conversation references',
     () async {
       await seed();

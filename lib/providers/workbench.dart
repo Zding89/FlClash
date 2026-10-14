@@ -655,6 +655,7 @@ class WorkbenchController {
     profiles: ref.read(profilesProvider),
     targetId: targetId,
     refresh: refresh,
+    includeAllSources: true,
   );
 }
 

@@ -305,7 +305,10 @@ class _LocalPolicyWorkbenchViewState
                 .sourceProfileIds
                 .map((id) => '$id')
                 .toSet()
-          : {target.split(':').last};
+          : ref
+                .read(profilesProvider)
+                .map((profile) => '${profile.id}')
+                .toSet();
       final sourceNames = {
         for (final profile in ref.read(profilesProvider))
           if (sourceIds.contains('${profile.id}'))
@@ -840,7 +843,7 @@ class _LocalPolicyWorkbenchViewState
         child: Column(
           children: [
             ListTile(
-              leading: draggable && rule.scope.type != PolicyMatchType.global
+              leading: draggable
                   ? ReorderableDragStartListener(
                       index: index,
                       child: const Icon(Icons.drag_indicator),
@@ -858,7 +861,11 @@ class _LocalPolicyWorkbenchViewState
                 ],
               ),
               subtitle: Text(
-                '${rule.scope.type == PolicyMatchType.global ? strings.policyRemainingTraffic : rule.scope.values.join(' · ')} · $runtime',
+                '${policyMatchDescription(context, rule.scope)} · ${rule.action == PolicyAction.direct
+                    ? strings.policyActionDirect
+                    : rule.action == PolicyAction.reject
+                    ? strings.policyActionReject
+                    : strings.policyActionProxy} · $runtime',
               ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -919,10 +926,11 @@ class _LocalPolicyWorkbenchViewState
                       }
                     },
                     itemBuilder: (_) => [
-                      PopupMenuItem(
-                        value: 'override',
-                        child: Text(strings.policyTemporaryOverride),
-                      ),
+                      if (rule.action == PolicyAction.proxy)
+                        PopupMenuItem(
+                          value: 'override',
+                          child: Text(strings.policyTemporaryOverride),
+                        ),
                       if (document.overrides.any((o) => o.policyId == rule.id))
                         PopupMenuItem(
                           value: 'removeOverride',
@@ -939,17 +947,21 @@ class _LocalPolicyWorkbenchViewState
             ),
             ExpansionTile(
               title: Text(
-                selections
-                    .map(
-                      (c) => c.type == PolicyChoiceType.nodeSet
-                          ? document.nodeSets
-                                    .where((s) => s.id == c.id)
-                                    .firstOrNull
-                                    ?.label ??
-                                strings.policySourceMissing
-                          : strings.policyFixedNode,
-                    )
-                    .join(' → '),
+                rule.action != PolicyAction.proxy
+                    ? (rule.action == PolicyAction.direct
+                          ? strings.policyActionDirect
+                          : strings.policyActionReject)
+                    : selections
+                          .map(
+                            (c) => c.type == PolicyChoiceType.nodeSet
+                                ? document.nodeSets
+                                          .where((s) => s.id == c.id)
+                                          .firstOrNull
+                                          ?.label ??
+                                      strings.policySourceMissing
+                                : strings.policyFixedNode,
+                          )
+                          .join(' → '),
               ),
               children: [
                 Padding(
@@ -958,9 +970,11 @@ class _LocalPolicyWorkbenchViewState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        rule.fallback == PolicyFallback.reject
-                            ? strings.policyFallbackReject
-                            : strings.policyFallbackDirect,
+                        rule.action == PolicyAction.direct
+                            ? strings.policyActionDirect
+                            : rule.action == PolicyAction.reject
+                            ? strings.policyActionReject
+                            : strings.policyNoNodeContinue,
                       ),
                       if (status != null)
                         for (final node
@@ -1010,18 +1024,12 @@ class _LocalPolicyWorkbenchViewState
         itemCount: rules.length,
         itemBuilder: (_, index) => row(rules[index], index),
         onReorderItem: (oldIndex, newIndex) {
-          if (_busy || rules[oldIndex].scope.type == PolicyMatchType.global) {
+          if (_busy) {
             return;
           }
           final next = [...rules];
           final value = next.removeAt(oldIndex);
-          final globalIndex = next.indexWhere(
-            (p) => p.scope.type == PolicyMatchType.global,
-          );
-          next.insert(
-            globalIndex >= 0 && newIndex > globalIndex ? globalIndex : newIndex,
-            value,
-          );
+          next.insert(newIndex, value);
           _apply(
             document,
             _patch(document, {
@@ -1104,6 +1112,7 @@ class _LocalPolicyWorkbenchViewState
     }
     if (status['reason'] == 'recovery_hold') return strings.policyRecovery;
     final state = status['state'];
+    if (state == 'skipped') return strings.policyNoNodeContinue;
     return '${strings.policyRuntimeState}: ${state == 'reject'
         ? strings.policyFallbackReject
         : state == 'direct'
@@ -1708,45 +1717,28 @@ class _PolicySourceFacts extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = context.appLocalizations;
-    return StreamBuilder<Map<String, Object?>?>(
-      stream: ref
-          .watch(workbenchDatabaseProvider)
-          .watchSection('sourceMetadata:${profile.id}'),
-      builder: (context, snapshot) {
-        final known = snapshot.data ?? const {};
-        final info = profile.subscriptionInfo;
-        final expiry = known['expiresAt'] is int
-            ? known['expiresAt'] as int
-            : info != null && info.expire > 0
-            ? info.expire * 1000
-            : null;
-        final remaining = known['remainingBytes'] == 0
-            ? 0
-            : info != null &&
-                  info.total > 0 &&
-                  info.knownFields.containsAll({'total', 'upload', 'download'})
-            ? (info.total - info.upload - info.download).clamp(
-                0,
-                9007199254740991,
-              )
-            : null;
-        return ExpansionTile(
-          title: Text(profile.realLabel),
+    final metadata = profile.subscriptionInfo?.metadata;
+    final remaining = metadata?.remainingBytes;
+    return ExpansionTile(
+      title: Text(profile.realLabel),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: SubscriptionInfoView(
+          subscriptionInfo: profile.subscriptionInfo,
+          showUnknown: true,
+          updatedAt: profile.lastUpdateDate,
+        ),
+      ),
+      children: [
+        ListTile(
+          title: Text(strings.policySourceQuota),
           subtitle: Text(
-            '${strings.policySourceQuota}: ${remaining == null ? strings.policySourceQuotaUnknown : '${policyGiB(remaining)} GiB'}',
+            remaining == null
+                ? strings.policyTrafficUnknown
+                : '${policyGiB(remaining)} GiB',
           ),
-          children: [
-            ListTile(
-              title: Text(strings.policySourceExpiry),
-              subtitle: Text(
-                expiry == null
-                    ? strings.policyUnknownAttribute
-                    : policyBeijingTime(expiry),
-              ),
-            ),
-          ],
-        );
-      },
+        ),
+      ],
     );
   }
 }

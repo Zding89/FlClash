@@ -258,41 +258,37 @@ final class PolicySourceLoader {
     String? warning,
   }) async {
     final info = profile.subscriptionInfo;
-    final remainingKnown =
-        info != null &&
-        info.knownFields.containsAll({'total', 'upload', 'download'}) &&
-        info.total > 0;
-    final remaining = remainingKnown
-        ? info.total - info.upload - info.download
-        : null;
+    final current = SubscriptionMetadata.fromInfo(
+      info,
+      updatedAt: profile.lastUpdateDate,
+    );
+    final remainingKnown = current.trafficKnown;
+    final remaining = current.remainingBytes;
     final section = 'sourceMetadata:${profile.id}';
     final metadata = Map<String, Object?>.from(
       await store.readSection(section) ?? const {},
     );
     final previousDigest = policyDigest(metadata);
-    final expireStamp =
-        info?.expireObservedAt?.millisecondsSinceEpoch ??
-        info?.observedAt?.millisecondsSinceEpoch;
-    final remainingStamp =
-        info?.remainingObservedAt?.millisecondsSinceEpoch ??
-        info?.observedAt?.millisecondsSinceEpoch;
-    if (info != null &&
-        info.expire > 0 &&
-        (info.knownFields.contains('expire') ||
-            metadata['expiresAt'] == null)) {
-      if (expireStamp != null &&
-          (metadata['expiresObservedAt'] is! int ||
-              expireStamp >= (metadata['expiresObservedAt'] as int))) {
-        metadata['expiresAt'] = info.expire * 1000;
-        metadata['expiresObservedAt'] = expireStamp;
-      }
+    final expireStamp = current.expiryObservedAt?.millisecondsSinceEpoch;
+    final remainingStamp = current.trafficObservedAt?.millisecondsSinceEpoch;
+    if (current.expiryKnown &&
+        (metadata['expiresAt'] == null ||
+            expireStamp != null &&
+                (metadata['expiresObservedAt'] is! int ||
+                    expireStamp >= (metadata['expiresObservedAt'] as int)))) {
+      metadata['expiresAt'] = current.expiryMilliseconds;
+      if (expireStamp != null) metadata['expiresObservedAt'] = expireStamp;
     }
     if (remainingKnown &&
-        remainingStamp != null &&
-        (metadata['remainingObservedAt'] is! int ||
-            remainingStamp >= (metadata['remainingObservedAt'] as int))) {
-      metadata['remainingBytes'] = remaining!.clamp(0, 9007199254740991);
-      metadata['remainingObservedAt'] = remainingStamp;
+        (metadata['remainingBytes'] == null ||
+            remainingStamp != null &&
+                (metadata['remainingObservedAt'] is! int ||
+                    remainingStamp >=
+                        (metadata['remainingObservedAt'] as int)))) {
+      metadata['remainingBytes'] = remaining;
+      if (remainingStamp != null) {
+        metadata['remainingObservedAt'] = remainingStamp;
+      }
     }
     if (info?.exhausted == true &&
         (metadata['remainingObservedAt'] is! int ||
@@ -308,16 +304,13 @@ final class PolicySourceLoader {
     }
     final expires = metadata['expiresAt'] is int
         ? metadata['expiresAt'] as int
-        : info != null && info.expire > 0
-        ? info.expire * 1000
+        : current.expiryKnown
+        ? current.expiryMilliseconds
         : null;
     final currentRemaining = remainingKnown
-        ? remainingStamp != null &&
-                  metadata['remainingObservedAt'] is int &&
-                  (metadata['remainingObservedAt'] as int) >= remainingStamp &&
-                  metadata['remainingBytes'] is int
+        ? metadata['remainingBytes'] is int
               ? metadata['remainingBytes'] as int
-              : remaining?.clamp(0, 9007199254740991)
+              : remaining
         : null;
     final retainedExhaustion = metadata['remainingBytes'] == 0;
     final stamps = [
@@ -332,8 +325,7 @@ final class PolicySourceLoader {
       raw: raw,
       expiresAt: expires,
       remainingBytes: retainedExhaustion ? 0 : currentRemaining,
-      observedAt:
-          stamps.firstOrNull ?? info?.observedAt?.millisecondsSinceEpoch,
+      observedAt: stamps.firstOrNull,
       warning: warning,
     );
   }

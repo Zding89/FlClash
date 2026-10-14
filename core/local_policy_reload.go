@@ -145,6 +145,7 @@ func sameLocalDefinition(current, previous LocalPolicyDefinition) bool {
 }
 
 func inheritLocalSelection(current, previous *localPolicyRuntime) {
+	current.balanceCursor = previous.balanceCursor
 	current.selected = previous.selected
 	current.selectedChoice = previous.selectedChoice
 	current.reason = previous.reason

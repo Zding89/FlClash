@@ -1026,6 +1026,11 @@ class MessageLookup extends MessageLookupByLibrary {
     "pleaseUploadValidQrcode": MessageLookupByLibrary.simpleMessage(
       "Please upload a valid QR code",
     ),
+    "policyActionDirect": MessageLookupByLibrary.simpleMessage(
+      "Direct connection",
+    ),
+    "policyActionProxy": MessageLookupByLibrary.simpleMessage("Node group"),
+    "policyActionReject": MessageLookupByLibrary.simpleMessage("Block"),
     "policyActiveIntegration": MessageLookupByLibrary.simpleMessage(
       "Merged profile to use",
     ),
@@ -1055,6 +1060,19 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyAiOrigin": MessageLookupByLibrary.simpleMessage("AI generated"),
     "policyApplication": MessageLookupByLibrary.simpleMessage("Application"),
     "policyAppliedStatus": MessageLookupByLibrary.simpleMessage("Applied"),
+    "policyAppsFailed": MessageLookupByLibrary.simpleMessage(
+      "Could not read applications. Refresh to retry.",
+    ),
+    "policyAppsHint": MessageLookupByLibrary.simpleMessage(
+      "Includes network helper processes inside each application. Process identification depends on permissions and connection type.",
+    ),
+    "policyAppsLoading": MessageLookupByLibrary.simpleMessage(
+      "Reading installed applications…",
+    ),
+    "policyAppsUnsupported": MessageLookupByLibrary.simpleMessage(
+      "Application selection is unavailable on this platform.",
+    ),
+    "policyAscending": MessageLookupByLibrary.simpleMessage("Ascending"),
     "policyAssumeHealthy": MessageLookupByLibrary.simpleMessage(
       "Assume all candidates healthy",
     ),
@@ -1065,6 +1083,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyAvailableMembers": MessageLookupByLibrary.simpleMessage(
       "Available members",
     ),
+    "policyBalanceMode": MessageLookupByLibrary.simpleMessage("Load balancing"),
     "policyBudgetGiB": MessageLookupByLibrary.simpleMessage(
       "Monthly traffic limit on this device (GiB)",
     ),
@@ -1077,7 +1096,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Device traffic cap reached; new connections from this subscription are restricted",
     ),
     "policyBudgetReachedHint": MessageLookupByLibrary.simpleMessage(
-      "When selecting through local rules, other available candidates are tried. If none are available, the rule\'s fallback applies.",
+      "When a source reaches its budget, local rules try other available nodes. If none are available, matching continues with the next rule.",
     ),
     "policyBudgetTab": MessageLookupByLibrary.simpleMessage("Traffic limits"),
     "policyCandidateHint": MessageLookupByLibrary.simpleMessage(
@@ -1116,17 +1135,21 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyChecksWaiting": MessageLookupByLibrary.simpleMessage(
       "Queued checks",
     ),
-    "policyChoiceSection": MessageLookupByLibrary.simpleMessage(
-      "Preferred and backups",
-    ),
+    "policyChoiceSection": MessageLookupByLibrary.simpleMessage("Processing"),
     "policyCollectionPending": MessageLookupByLibrary.simpleMessage(
       "Not configured",
     ),
     "policyCombinedConditions": MessageLookupByLibrary.simpleMessage(
       "Combined conditions",
     ),
+    "policyConsistentHashing": MessageLookupByLibrary.simpleMessage(
+      "Consistent hashing",
+    ),
     "policyContinueEditing": MessageLookupByLibrary.simpleMessage(
       "Continue editing",
+    ),
+    "policyContinueNextRule": MessageLookupByLibrary.simpleMessage(
+      "Continue with the next rule",
     ),
     "policyCooldownSeconds": MessageLookupByLibrary.simpleMessage(
       "Switch cooldown (seconds)",
@@ -1144,6 +1167,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyDeleteLinked": MessageLookupByLibrary.simpleMessage(
       "Integration is referenced by rules. Update them first",
     ),
+    "policyDescending": MessageLookupByLibrary.simpleMessage("Descending"),
+    "policyDestinationRegion": MessageLookupByLibrary.simpleMessage(
+      "Destination region",
+    ),
     "policyDiscardChanges": MessageLookupByLibrary.simpleMessage(
       "Discard changes",
     ),
@@ -1152,6 +1179,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyDomainScope": MessageLookupByLibrary.simpleMessage("Exact domain"),
     "policyDomainSuffix": MessageLookupByLibrary.simpleMessage("Domain suffix"),
+    "policyDomestic": MessageLookupByLibrary.simpleMessage("Domestic (China)"),
     "policyDraftStatus": MessageLookupByLibrary.simpleMessage(
       "Pending approval",
     ),
@@ -1185,15 +1213,28 @@ class MessageLookup extends MessageLookupByLibrary {
       "Enable routing rules",
     ),
     "policyEndTime": MessageLookupByLibrary.simpleMessage("End time (HH:mm)"),
+    "policyEveryday": MessageLookupByLibrary.simpleMessage("Every day"),
+    "policyExcludeRegions": MessageLookupByLibrary.simpleMessage(
+      "Exclude regions",
+    ),
+    "policyExcludeSources": MessageLookupByLibrary.simpleMessage(
+      "Exclude providers",
+    ),
     "policyExcluded": MessageLookupByLibrary.simpleMessage("Excluded now"),
     "policyExcludedNodes": MessageLookupByLibrary.simpleMessage(
       "Excluded nodes",
+    ),
+    "policyExistingApps": MessageLookupByLibrary.simpleMessage(
+      "Previously selected applications",
     ),
     "policyExpectedStatus": MessageLookupByLibrary.simpleMessage(
       "Expected HTTP status",
     ),
     "policyExpiryMargin": MessageLookupByLibrary.simpleMessage(
       "Exclude before expiry (hours)",
+    ),
+    "policyExpiryUnknown": MessageLookupByLibrary.simpleMessage(
+      "No expiry information provided",
     ),
     "policyFailures": MessageLookupByLibrary.simpleMessage(
       "Consecutive failures",
@@ -1208,6 +1249,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Reject connections",
     ),
     "policyFixedNode": MessageLookupByLibrary.simpleMessage("Specific node"),
+    "policyForeign": MessageLookupByLibrary.simpleMessage("Outside China"),
     "policyGlobalScope": MessageLookupByLibrary.simpleMessage("All traffic"),
     "policyGroupScope": MessageLookupByLibrary.simpleMessage(
       "Existing proxy group",
@@ -1219,8 +1261,17 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyImprovementPercent": MessageLookupByLibrary.simpleMessage(
       "Latency improvement threshold (%)",
     ),
+    "policyIncludeRegions": MessageLookupByLibrary.simpleMessage(
+      "Include regions",
+    ),
+    "policyIncludeSources": MessageLookupByLibrary.simpleMessage(
+      "Include providers",
+    ),
     "policyIncludeSubdomains": MessageLookupByLibrary.simpleMessage(
       "Include subdomains",
+    ),
+    "policyInstalledApps": MessageLookupByLibrary.simpleMessage(
+      "Installed applications",
     ),
     "policyIntegrationHint": MessageLookupByLibrary.simpleMessage(
       "Combine nodes from selected subscriptions into a separate profile while keeping the originals. Remaining traffic is shown only when the provider supplies it",
@@ -1231,6 +1282,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyInvalidData": MessageLookupByLibrary.simpleMessage(
       "Invalid fields, order or references. Check and retry",
     ),
+    "policyIpNetworks": MessageLookupByLibrary.simpleMessage(
+      "IP address or network",
+    ),
     "policyJsonHint": MessageLookupByLibrary.simpleMessage(
       "Only the current schema is accepted; invalid fields or references cannot be applied",
     ),
@@ -1239,6 +1293,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyLedgerUntrusted": MessageLookupByLibrary.simpleMessage(
       "Ledger untrusted; source restricted",
+    ),
+    "policyLegacySelections": MessageLookupByLibrary.simpleMessage(
+      "This existing rule keeps all previous selections until you choose a replacement.",
     ),
     "policyLoadNodes": MessageLookupByLibrary.simpleMessage(
       "Load available nodes",
@@ -1257,6 +1314,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyMatchAny": MessageLookupByLibrary.simpleMessage(
       "Any condition (advanced)",
+    ),
+    "policyMatchConditions": MessageLookupByLibrary.simpleMessage(
+      "Traffic conditions",
     ),
     "policyMatchNot": MessageLookupByLibrary.simpleMessage(
       "Negated condition (advanced)",
@@ -1287,20 +1347,27 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyNameAttribute": MessageLookupByLibrary.simpleMessage(
       "Detected from name",
     ),
+    "policyNameExcludes": MessageLookupByLibrary.simpleMessage(
+      "Node name excludes (one per line)",
+    ),
     "policyNameFilter": MessageLookupByLibrary.simpleMessage(
       "Node name contains (optional)",
     ),
+    "policyNameIncludes": MessageLookupByLibrary.simpleMessage(
+      "Node name contains (one per line)",
+    ),
     "policyNoMembers": MessageLookupByLibrary.simpleMessage(
-      "No matching members; fallback or final handling will be used",
+      "No available members; continue with the next rule.",
+    ),
+    "policyNoNodeContinue": MessageLookupByLibrary.simpleMessage(
+      "If no node is available, continue with the next rule.",
     ),
     "policyNoProfilesHint": MessageLookupByLibrary.simpleMessage(
-      "Add a subscription or local profile in Profiles before creating rules or candidate node groups",
+      "Add a subscription or local profile in Profiles before creating rules and node groups",
     ),
-    "policyNodeSet": MessageLookupByLibrary.simpleMessage(
-      "Candidate node group",
-    ),
+    "policyNodeSet": MessageLookupByLibrary.simpleMessage("Node group"),
     "policyNodeSetHint": MessageLookupByLibrary.simpleMessage(
-      "Filter by region, source and traffic multiplier, then choose one eligible node; traffic is not shared evenly",
+      "Filter by provider, region, name and multiplier, then select by priority or distribute connections with load balancing.",
     ),
     "policyNodeSetStrategy": MessageLookupByLibrary.simpleMessage(
       "Node selection",
@@ -1311,9 +1378,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyNodeSetTarget": MessageLookupByLibrary.simpleMessage(
       "Profile containing these nodes",
     ),
-    "policyNodeSets": MessageLookupByLibrary.simpleMessage(
-      "Candidate node groups",
-    ),
+    "policyNodeSets": MessageLookupByLibrary.simpleMessage("Node groups"),
     "policyNodes": MessageLookupByLibrary.simpleMessage("Nodes"),
     "policyNotCollected": MessageLookupByLibrary.simpleMessage("Not collected"),
     "policyNotRunning": MessageLookupByLibrary.simpleMessage("Not running"),
@@ -1329,6 +1394,25 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyPendingMembers": MessageLookupByLibrary.simpleMessage(
       "Pending checks",
     ),
+    "policyPreferenceExpiry": MessageLookupByLibrary.simpleMessage(
+      "Subscription expiry",
+    ),
+    "policyPreferenceLatency": MessageLookupByLibrary.simpleMessage("Latency"),
+    "policyPreferenceMultiplier": MessageLookupByLibrary.simpleMessage(
+      "Billing multiplier",
+    ),
+    "policyPreferenceRemaining": MessageLookupByLibrary.simpleMessage(
+      "Remaining allowance",
+    ),
+    "policyPreferenceSource": MessageLookupByLibrary.simpleMessage(
+      "Provider order",
+    ),
+    "policyPreferences": MessageLookupByLibrary.simpleMessage(
+      "Selection priorities",
+    ),
+    "policyPreferencesHint": MessageLookupByLibrary.simpleMessage(
+      "Drag to reorder. Earlier criteria take precedence; unavailable nodes are excluded.",
+    ),
     "policyPreferred": MessageLookupByLibrary.simpleMessage("Preferred"),
     "policyPreparingStatus": MessageLookupByLibrary.simpleMessage("Processing"),
     "policyPreviewHint": MessageLookupByLibrary.simpleMessage(
@@ -1336,6 +1420,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyPriority": MessageLookupByLibrary.simpleMessage(
       "Priority (smaller first)",
+    ),
+    "policyPriorityMode": MessageLookupByLibrary.simpleMessage(
+      "Priority selection",
     ),
     "policyProbe": MessageLookupByLibrary.simpleMessage("Health probes"),
     "policyProbeInterval": MessageLookupByLibrary.simpleMessage(
@@ -1350,6 +1437,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyProcessName": MessageLookupByLibrary.simpleMessage("Process name"),
     "policyProcessPath": MessageLookupByLibrary.simpleMessage("Process path"),
+    "policyProcessing": MessageLookupByLibrary.simpleMessage("Processing"),
     "policyRecovery": MessageLookupByLibrary.simpleMessage(
       "Recovery and cooldown",
     ),
@@ -1365,13 +1453,35 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyRecoveryStatus": MessageLookupByLibrary.simpleMessage(
       "Recovery required",
     ),
+    "policyRegionAU": MessageLookupByLibrary.simpleMessage("Australia"),
+    "policyRegionCA": MessageLookupByLibrary.simpleMessage("Canada"),
+    "policyRegionCN": MessageLookupByLibrary.simpleMessage("China"),
+    "policyRegionDE": MessageLookupByLibrary.simpleMessage("Germany"),
+    "policyRegionFR": MessageLookupByLibrary.simpleMessage("France"),
+    "policyRegionGB": MessageLookupByLibrary.simpleMessage("United Kingdom"),
+    "policyRegionHK": MessageLookupByLibrary.simpleMessage("Hong Kong"),
+    "policyRegionID": MessageLookupByLibrary.simpleMessage("Indonesia"),
+    "policyRegionIN": MessageLookupByLibrary.simpleMessage("India"),
+    "policyRegionJP": MessageLookupByLibrary.simpleMessage("Japan"),
+    "policyRegionKR": MessageLookupByLibrary.simpleMessage("South Korea"),
+    "policyRegionMO": MessageLookupByLibrary.simpleMessage("Macao"),
+    "policyRegionMY": MessageLookupByLibrary.simpleMessage("Malaysia"),
+    "policyRegionNL": MessageLookupByLibrary.simpleMessage("Netherlands"),
+    "policyRegionPH": MessageLookupByLibrary.simpleMessage("Philippines"),
+    "policyRegionRU": MessageLookupByLibrary.simpleMessage("Russia"),
+    "policyRegionSG": MessageLookupByLibrary.simpleMessage("Singapore"),
+    "policyRegionTH": MessageLookupByLibrary.simpleMessage("Thailand"),
+    "policyRegionTR": MessageLookupByLibrary.simpleMessage("Turkey"),
+    "policyRegionTW": MessageLookupByLibrary.simpleMessage("Taiwan"),
+    "policyRegionUS": MessageLookupByLibrary.simpleMessage("United States"),
+    "policyRegionVN": MessageLookupByLibrary.simpleMessage("Vietnam"),
     "policyRegions": MessageLookupByLibrary.simpleMessage("Regions"),
     "policyRejectedStatus": MessageLookupByLibrary.simpleMessage("Rejected"),
     "policyRemainingGiB": MessageLookupByLibrary.simpleMessage(
       "Minimum remaining (GiB)",
     ),
     "policyRemainingTraffic": MessageLookupByLibrary.simpleMessage(
-      "Remaining traffic",
+      "All traffic",
     ),
     "policyRemoveCandidate": MessageLookupByLibrary.simpleMessage(
       "Remove candidate",
@@ -1389,12 +1499,13 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyRetrySeconds": MessageLookupByLibrary.simpleMessage(
       "Retry unavailable nodes (seconds)",
     ),
+    "policyRoundRobin": MessageLookupByLibrary.simpleMessage("Round robin"),
     "policyRuleOrderHint": MessageLookupByLibrary.simpleMessage(
-      "Checked top to bottom; the first match is used",
+      "Match from top to bottom; if no node is available, continue with the next rule.",
     ),
     "policyRuleType": MessageLookupByLibrary.simpleMessage("Rule type"),
     "policyRulesHint": MessageLookupByLibrary.simpleMessage(
-      "Choose primary and backup nodes for websites or apps in the selected profile; applies when that profile is active in rule mode",
+      "Set traffic conditions, active times and actions for the selected profile; applies while that profile is active in rule mode",
     ),
     "policyRulesTab": MessageLookupByLibrary.simpleMessage("Rules"),
     "policyRuntimeState": MessageLookupByLibrary.simpleMessage(
@@ -1405,6 +1516,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Saved; not currently running",
     ),
     "policySchedule": MessageLookupByLibrary.simpleMessage("Schedule"),
+    "policyScheduleAllDay": MessageLookupByLibrary.simpleMessage("All day"),
     "policyScheduleEnabled": MessageLookupByLibrary.simpleMessage(
       "Restrict active hours",
     ),
@@ -1414,6 +1526,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyScheduleSkip": MessageLookupByLibrary.simpleMessage(
       "Outside the schedule, skip to subsequent rules",
     ),
+    "policyScheduleTimezone": MessageLookupByLibrary.simpleMessage("Time zone"),
     "policyScope": MessageLookupByLibrary.simpleMessage("Scope"),
     "policyScopeValues": MessageLookupByLibrary.simpleMessage(
       "One domain, group or process per line",
@@ -1424,9 +1537,13 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySelectCollection": MessageLookupByLibrary.simpleMessage(
       "Select and use",
     ),
+    "policySelectValues": MessageLookupByLibrary.simpleMessage("Select…"),
     "policySelectedNode": MessageLookupByLibrary.simpleMessage("Selected node"),
     "policySelectedOffline": MessageLookupByLibrary.simpleMessage(
       "Selected; used when connected",
+    ),
+    "policySelectionMode": MessageLookupByLibrary.simpleMessage(
+      "Distribution mode",
     ),
     "policySelectionRecoverySection": MessageLookupByLibrary.simpleMessage(
       "Selection and recovery",
@@ -1461,6 +1578,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySourceMissing": MessageLookupByLibrary.simpleMessage(
       "Source or node missing; select again",
     ),
+    "policySourceOrderHint": MessageLookupByLibrary.simpleMessage(
+      "Drag providers into the order used by the provider preference.",
+    ),
     "policySourceQuota": MessageLookupByLibrary.simpleMessage(
       "Provider-reported remaining traffic",
     ),
@@ -1473,11 +1593,17 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySourcesCollection": MessageLookupByLibrary.simpleMessage(
       "Node sources",
     ),
+    "policySpecificRegions": MessageLookupByLibrary.simpleMessage(
+      "Selected regions",
+    ),
     "policyStableFirst": MessageLookupByLibrary.simpleMessage(
       "Stability first",
     ),
     "policyStartTime": MessageLookupByLibrary.simpleMessage(
       "Start time (HH:mm)",
+    ),
+    "policyStickySessions": MessageLookupByLibrary.simpleMessage(
+      "Sticky sessions",
     ),
     "policySubscriptionExhausted": MessageLookupByLibrary.simpleMessage(
       "Subscription traffic exhausted",
@@ -1508,6 +1634,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyTrafficSection": MessageLookupByLibrary.simpleMessage(
       "Which traffic",
+    ),
+    "policyTrafficUnknown": MessageLookupByLibrary.simpleMessage(
+      "No traffic information provided",
     ),
     "policyUndo": MessageLookupByLibrary.simpleMessage("Undo change"),
     "policyUnknownAttribute": MessageLookupByLibrary.simpleMessage("Unknown"),
@@ -1557,6 +1686,13 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyViewChanges": MessageLookupByLibrary.simpleMessage("View changes"),
     "policyWebsite": MessageLookupByLibrary.simpleMessage("Website"),
+    "policyWeekdayFri": MessageLookupByLibrary.simpleMessage("Fri"),
+    "policyWeekdayMon": MessageLookupByLibrary.simpleMessage("Mon"),
+    "policyWeekdaySat": MessageLookupByLibrary.simpleMessage("Sat"),
+    "policyWeekdaySun": MessageLookupByLibrary.simpleMessage("Sun"),
+    "policyWeekdayThu": MessageLookupByLibrary.simpleMessage("Thu"),
+    "policyWeekdayTue": MessageLookupByLibrary.simpleMessage("Tue"),
+    "policyWeekdayWed": MessageLookupByLibrary.simpleMessage("Wed"),
     "policyWeekdays": MessageLookupByLibrary.simpleMessage(
       "Weekdays (1=Monday, 7=Sunday)",
     ),

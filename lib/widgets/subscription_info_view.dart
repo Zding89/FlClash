@@ -4,40 +4,45 @@ import 'package:flutter/material.dart';
 
 class SubscriptionInfoView extends StatelessWidget {
   final SubscriptionInfo? subscriptionInfo;
+  final bool showUnknown;
+  final DateTime? updatedAt;
 
-  const SubscriptionInfoView({super.key, this.subscriptionInfo});
+  const SubscriptionInfoView({
+    super.key,
+    this.subscriptionInfo,
+    this.showUnknown = false,
+    this.updatedAt,
+  });
 
   @override
   Widget build(BuildContext context) {
-    if (subscriptionInfo == null) {
-      return Container();
+    final metadata = SubscriptionMetadata.fromInfo(
+      subscriptionInfo,
+      updatedAt: updatedAt,
+    );
+    if (!showUnknown && !metadata.trafficKnown && !metadata.expiryKnown) {
+      return const SizedBox.shrink();
     }
-    if (subscriptionInfo?.total == 0) {
-      return Container();
-    }
-    final use = subscriptionInfo!.upload + subscriptionInfo!.download;
-    final total = subscriptionInfo!.total;
-    final progress = use / total;
-
-    final useShow = use.traffic.show;
-    final totalShow = total.traffic.show;
-    final expireShow =
-        subscriptionInfo?.expire != null && subscriptionInfo!.expire != 0
-        ? DateTime.fromMillisecondsSinceEpoch(
-            subscriptionInfo!.expire * 1000,
-          ).show
-        : context.appLocalizations.infiniteTime;
+    final strings = context.appLocalizations;
+    final expireShow = metadata.unlimited
+        ? strings.infiniteTime
+        : metadata.expiryDate ?? strings.policyExpiryUnknown;
+    final trafficShow = metadata.trafficKnown
+        ? '${metadata.usedBytes!.traffic.show} / ${metadata.totalBytes!.traffic.show}'
+        : strings.policyTrafficUnknown;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        LinearProgressIndicator(
-          minHeight: 6,
-          value: progress,
-          backgroundColor: context.colorScheme.primary.opacity15,
-        ),
-        const SizedBox(height: 8),
+        if (metadata.trafficKnown) ...[
+          LinearProgressIndicator(
+            minHeight: 6,
+            value: (metadata.usedBytes! / metadata.totalBytes!).clamp(0, 1),
+            backgroundColor: context.colorScheme.primary.opacity15,
+          ),
+          const SizedBox(height: 8),
+        ],
         Text(
-          '$useShow / $totalShow · $expireShow',
+          '$trafficShow · $expireShow',
           style: context.textTheme.labelMedium?.toLight,
         ),
         const SizedBox(height: 4),

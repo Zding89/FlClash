@@ -160,7 +160,7 @@ class _ProfilesViewState extends State<ProfilesView> {
         final appLocalizations = context.appLocalizations;
         final isLoading = ref.watch(loadingProvider(LoadingTag.profiles));
         final state = ref.watch(profilesStateProvider);
-        final spacing = 14.mAp;
+
         final document = system.isMacOS
             ? ref.watch(localPoliciesProvider).value
             : null;
@@ -178,130 +178,113 @@ class _ProfilesViewState extends State<ProfilesView> {
           title: appLocalizations.profiles,
           floatingActionButton: _buildFAB(),
           actions: _buildActions(state.profiles),
-          body: state.profiles.isEmpty
-              ? NullStatus(
-                  label: appLocalizations.nullProfileDesc,
-                  illustration: const ProfileEmptyIllustration(),
-                )
-              : LayoutBuilder(
-                  builder: (_, constraints) {
-                    const horizontalPadding = 16.0;
-                    final columns = utils.getProfilesColumns(
-                      constraints.maxWidth - horizontalPadding * 2,
-                    );
-                    return Align(
-                      alignment: Alignment.topCenter,
-                      child: SingleChildScrollView(
-                        key: profilesStoreKey,
-                        padding: const EdgeInsets.only(
-                          left: horizontalPadding,
-                          right: horizontalPadding,
-                          top: 16,
-                          bottom: 88,
+          body: LayoutBuilder(
+            builder: (_, constraints) {
+              const horizontalPadding = 16.0;
+              return Align(
+                alignment: Alignment.topCenter,
+                child: SingleChildScrollView(
+                  key: profilesStoreKey,
+                  padding: const EdgeInsets.only(
+                    left: horizontalPadding,
+                    right: horizontalPadding,
+                    top: 16,
+                    bottom: 88,
+                  ),
+                  child: Grid(
+                    mainAxisSpacing: 14,
+                    crossAxisSpacing: 14,
+                    crossAxisCount: 1,
+                    children: [
+                      if (document?.moduleEnabled == true)
+                        GridItem(
+                          child: Card(
+                            child: ListTile(
+                              leading: RadioGroup<String>(
+                                groupValue: integrated ? 'local' : null,
+                                onChanged: (_) {
+                                  if (document!.activeIntegration == null) {
+                                    _editCollection();
+                                  } else {
+                                    _select(
+                                      ref,
+                                      integrationId:
+                                          document.activeIntegrationId,
+                                    );
+                                  }
+                                },
+                                child: const Radio<String>(value: 'local'),
+                              ),
+                              title: Text(
+                                appLocalizations.policyLocalCollection,
+                              ),
+                              subtitle: Text(
+                                document!.activeIntegration == null
+                                    ? appLocalizations.policyCollectionPending
+                                    : '${document.activeIntegration!.label} · ${document.activeIntegration!.sourceProfileIds.length} · ${document.policies.where((p) => p.targetId == document.activeIntegration!.targetId).length}\n${integrated
+                                          ? collectionInUse
+                                                ? appLocalizations.policyAppliedStatus
+                                                : appLocalizations.policySelectedOffline
+                                          : appLocalizations.policySelectCollection}',
+                              ),
+                              onTap: () {
+                                if (document.activeIntegration == null) {
+                                  _editCollection();
+                                } else {
+                                  _select(
+                                    ref,
+                                    integrationId: document.activeIntegrationId,
+                                  );
+                                }
+                              },
+                              trailing: IconButton(
+                                onPressed: _editCollection,
+                                tooltip: appLocalizations.edit,
+                                icon: const Icon(Icons.edit_outlined),
+                              ),
+                            ),
+                          ),
                         ),
-                        child: Grid(
-                          mainAxisSpacing: spacing,
-                          crossAxisSpacing: spacing,
-                          crossAxisCount: columns,
-                          children: [
-                            if (system.isMacOS)
-                              GridItem(
-                                child: SwitchListTile(
-                                  title: Text(appLocalizations.policyModule),
-                                  subtitle: Text(
-                                    appLocalizations.policyModuleOffHint,
-                                  ),
-                                  value: document?.moduleEnabled ?? false,
-                                  onChanged: document == null
-                                      ? null
-                                      : (value) =>
-                                            _select(ref, moduleEnabled: value),
-                                ),
-                              ),
-                            if (document?.moduleEnabled == true)
-                              GridItem(
-                                child: Card(
-                                  child: ListTile(
-                                    leading: RadioGroup<String>(
-                                      groupValue: integrated ? 'local' : null,
-                                      onChanged: (_) {
-                                        if (document!.activeIntegration ==
-                                            null) {
-                                          _editCollection();
-                                        } else {
-                                          _select(
-                                            ref,
-                                            integrationId:
-                                                document.activeIntegrationId,
-                                          );
-                                        }
-                                      },
-                                      child: const Radio<String>(
-                                        value: 'local',
-                                      ),
-                                    ),
-                                    title: Text(
-                                      appLocalizations.policyLocalCollection,
-                                    ),
-                                    subtitle: Text(
-                                      document!.activeIntegration == null
-                                          ? appLocalizations
-                                                .policyCollectionPending
-                                          : '${document.activeIntegration!.label} · ${document.activeIntegration!.sourceProfileIds.length} · ${document.policies.where((p) => p.targetId == document.activeIntegration!.targetId).length}\n${integrated
-                                                ? collectionInUse
-                                                      ? appLocalizations.policyAppliedStatus
-                                                      : appLocalizations.policySelectedOffline
-                                                : appLocalizations.policySelectCollection}',
-                                    ),
-                                    onTap: () {
-                                      if (document.activeIntegration == null) {
-                                        _editCollection();
-                                      } else {
-                                        _select(
-                                          ref,
-                                          integrationId:
-                                              document.activeIntegrationId,
-                                        );
-                                      }
-                                    },
-                                    trailing: IconButton(
-                                      onPressed: _editCollection,
-                                      tooltip: appLocalizations.edit,
-                                      icon: const Icon(Icons.edit_outlined),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            if (_selecting)
-                              const GridItem(child: LinearProgressIndicator()),
-                            for (int i = 0; i < state.profiles.length; i++)
-                              GridItem(
-                                child: ProfileItem(
-                                  profile: state.profiles[i],
-                                  groupValue: integrated
-                                      ? null
-                                      : state.currentProfileId,
-                                  onChanged: (profileId) {
-                                    if (system.isMacOS) {
-                                      _select(ref, profileId: profileId);
-                                    } else {
-                                      ref
-                                              .read(
-                                                currentProfileIdProvider
-                                                    .notifier,
-                                              )
-                                              .value =
-                                          profileId;
-                                    }
-                                  },
-                                ),
-                              ),
-                          ],
+                      if (_selecting)
+                        const GridItem(child: LinearProgressIndicator()),
+                      for (int i = 0; i < state.profiles.length; i++)
+                        GridItem(
+                          child: ProfileItem(
+                            profile: state.profiles[i],
+                            groupValue: integrated
+                                ? null
+                                : state.currentProfileId,
+                            onChanged: (profileId) {
+                              if (system.isMacOS) {
+                                _select(ref, profileId: profileId);
+                              } else {
+                                ref
+                                        .read(currentProfileIdProvider.notifier)
+                                        .value =
+                                    profileId;
+                              }
+                            },
+                          ),
                         ),
-                      ),
-                    );
-                  },
+                      if (system.isMacOS)
+                        GridItem(
+                          child: SwitchListTile(
+                            title: Text(appLocalizations.policyModule),
+                            subtitle: Text(
+                              appLocalizations.policyModuleOffHint,
+                            ),
+                            value: document?.moduleEnabled ?? false,
+                            onChanged: document == null
+                                ? null
+                                : (value) => _select(ref, moduleEnabled: value),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
+              );
+            },
+          ),
         );
       },
     );

@@ -11,6 +11,7 @@ import 'clash_config.dart';
 
 part 'generated/profile.freezed.dart';
 part 'generated/profile.g.dart';
+part 'subscription_metadata.dart';
 
 @freezed
 abstract class SubscriptionInfo with _$SubscriptionInfo {
@@ -238,13 +239,7 @@ extension ProfileExtension on Profile {
     final userinfo = response.headers.value('subscription-userinfo');
     var info = SubscriptionInfo.formHString(userinfo);
     final previousInfo = subscriptionInfo;
-    if (info.expire <= 0 && previousInfo != null && previousInfo.expire > 0) {
-      info = info.copyWith(
-        expire: previousInfo.expire,
-        expireObservedAt:
-            previousInfo.expireObservedAt ?? previousInfo.observedAt,
-      );
-    }
+    info = info.retaining(previousInfo, updatedAt: lastUpdateDate);
     if (!info.knownFields.containsAll({'total', 'upload', 'download'})) {
       info = info.copyWith(exhausted: previousInfo?.exhausted ?? false);
     }

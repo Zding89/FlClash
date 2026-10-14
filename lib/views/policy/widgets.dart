@@ -3,6 +3,8 @@ import 'dart:math';
 
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/policy/models.dart';
+import 'package:fl_clash/policy/applications.dart';
+import 'selection_fields.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -25,6 +27,39 @@ String policyGiB(int bytes) =>
     (bytes / (1024 * 1024 * 1024)).toStringAsFixed(2);
 int policyBytes(String text) =>
     (double.parse(text) * 1024 * 1024 * 1024).round();
+
+String policyMatchDescription(BuildContext context, PolicyMatch match) {
+  final strings = context.appLocalizations;
+  if (match.type == PolicyMatchType.global) {
+    return strings.policyRemainingTraffic;
+  }
+  if (match.children.isNotEmpty) {
+    final label = switch (match.type) {
+      PolicyMatchType.all => strings.policyMatchAll,
+      PolicyMatchType.any => strings.policyMatchAny,
+      PolicyMatchType.not => strings.policyMatchNot,
+      _ => strings.policyCombinedConditions,
+    };
+    return '$label: ${match.children.map((child) => policyMatchDescription(context, child)).join(' / ')}';
+  }
+  final regions = policyRegionOptions(context, match.values);
+  return match.values
+      .map(
+        (value) => switch (match.type) {
+          PolicyMatchType.destinationRegion =>
+            value == 'CN'
+                ? strings.policyDomestic
+                : value == '!CN'
+                ? strings.policyForeign
+                : regions[value] ?? value,
+          PolicyMatchType.processName ||
+          PolicyMatchType.processPath ||
+          PolicyMatchType.processPathRegex => policyApplicationLabel(value),
+          _ => value,
+        },
+      )
+      .join(' · ');
+}
 
 class PolicyField extends StatelessWidget {
   const PolicyField({

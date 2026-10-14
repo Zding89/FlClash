@@ -57,6 +57,7 @@ class _Controller extends Mock implements WorkbenchController {
           'at': 0,
           'decisions': [
             {'policyId': 'rule', 'selectedNodeId': '1:a', 'state': 'active'},
+            {'policyId': 'empty', 'state': 'skipped'},
           ],
         },
       ],
@@ -103,7 +104,19 @@ void main() {
       expect(controller.calls, 1);
       expect(controller.suppliedHealth, {'1:a': null});
       expect(find.text('1970-01-01 08:00:00'), findsOneWidget);
-      expect(find.text('rule: Source · Node A'), findsOneWidget);
+      expect(find.textContaining('rule: Source · Node A'), findsOneWidget);
+      expect(
+        find.textContaining(
+          'empty: ${AppLocalizations.current.policyContinueNextRule}',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(
+          'empty: ${AppLocalizations.current.policyFallbackReject}',
+        ),
+        findsNothing,
+      );
       expect(tester.takeException(), isNull);
     },
   );

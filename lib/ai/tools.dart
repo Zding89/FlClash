@@ -857,9 +857,7 @@ final class AgentTools {
             .firstOrNull;
         final ids =
             integration?.sourceProfileIds.toSet() ??
-            {
-              resourceId({'id': target.split(':').last}, 'id'),
-            };
+            document.sourceProfileIdsForTarget(target);
         final selected = profiles
             .where((profile) => ids.contains(profile.id))
             .toList();

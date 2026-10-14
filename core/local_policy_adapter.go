@@ -32,7 +32,7 @@ func (a *localSourceAdapter) admission(ctx context.Context) error {
 	if a.engine.stopped {
 		return errors.New("local policy stopped")
 	}
-	if source := a.engine.sources[a.node.SourceID]; (source.ExpiresAt != nil && *source.ExpiresAt <= a.engine.now().UnixMilli()) || (source.RemainingBytes != nil && *source.RemainingBytes <= 0) {
+	if source := a.engine.sources[a.node.SourceID]; (source.ExpiresAt != nil && *source.ExpiresAt > 0 && *source.ExpiresAt <= a.engine.now().UnixMilli()) || (source.RemainingBytes != nil && *source.RemainingBytes <= 0) {
 		return errors.New("local source rejected: source_expired")
 	}
 	if reason := a.engine.ledger.reason(a.node.SourceID, a.engine.now(), localUnknownBehavior(ctx)); reason != "" {
@@ -95,11 +95,26 @@ func (a *localManagedAdapter) Type() C.AdapterType {
 	if r != nil && !localPolicyScheduleActive(r.definition.Schedule, a.engine.now()) {
 		return C.Pass
 	}
+	if r != nil {
+		switch localPolicyAction(r.definition) {
+		case "direct":
+			return C.Direct
+		case "reject":
+			return C.Reject
+		}
+		if localPolicySkipsUnavailable(a.engine.config, r.definition) {
+			defer a.engine.beginSelectionRoundLocked()()
+			a.engine.evaluateLocked(r, a.engine.now())
+			if r.selected == "" {
+				return C.Pass
+			}
+		}
+	}
 	return C.Selector
 }
 
 func (a *localManagedAdapter) DialContext(ctx context.Context, m *C.Metadata) (C.Conn, error) {
-	proxy, id, err := a.engine.selectProxy(a.policyID)
+	proxy, id, err := a.engine.selectProxyForRequest(a.policyID, m, true)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +140,7 @@ func (a *localManagedAdapter) DialContext(ctx context.Context, m *C.Metadata) (C
 	return wrapped, nil
 }
 func (a *localManagedAdapter) ListenPacketContext(ctx context.Context, m *C.Metadata) (C.PacketConn, error) {
-	proxy, id, err := a.engine.selectProxy(a.policyID)
+	proxy, id, err := a.engine.selectProxyForRequest(a.policyID, m, true)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +166,7 @@ func (a *localManagedAdapter) ListenPacketContext(ctx context.Context, m *C.Meta
 	return wrapped, nil
 }
 func (a *localManagedAdapter) IsL3Protocol(metadata *C.Metadata) bool {
-	proxy, _, err := a.engine.selectProxy(a.policyID)
+	proxy, _, err := a.engine.selectProxyForRequest(a.policyID, metadata, false)
 	if err != nil {
 		return false
 	}
@@ -171,11 +186,16 @@ func (a *localManagedAdapter) SupportUOT() bool {
 	return proxy != nil && proxy.SupportUOT()
 }
 func (a *localManagedAdapter) MarshalJSON() ([]byte, error) {
+	typeName := "Selector"
+	if a.Type() == C.Pass {
+		return json.Marshal(map[string]any{"type": "Pass", "now": "PASS", "all": []string{}, "localPolicyId": a.policyID})
+	}
 	proxy, _, err := a.engine.selectProxy(a.policyID)
 	now := "REJECT"
 	if err == nil {
 		if proxy == nil {
 			now = "DIRECT"
+			typeName = "Direct"
 		} else {
 			now = proxy.Name()
 		}
@@ -184,7 +204,17 @@ func (a *localManagedAdapter) MarshalJSON() ([]byte, error) {
 	for _, id := range a.engine.policies[a.policyID].definition.CandidateNodeIDs {
 		all = append(all, a.engine.nodes[id].ProxyName)
 	}
-	return json.Marshal(map[string]any{"type": "Selector", "now": now, "all": all, "localPolicyId": a.policyID})
+	a.engine.mu.Lock()
+	r := a.engine.policies[a.policyID]
+	if localPolicyAction(r.definition) == "reject" {
+		typeName = "Reject"
+	}
+	if r.selectionMode == "loadBalance" {
+		typeName = "LoadBalance"
+		now = ""
+	}
+	a.engine.mu.Unlock()
+	return json.Marshal(map[string]any{"type": typeName, "now": now, "all": all, "localPolicyId": a.policyID})
 }
 
 type localPolicyConn struct {

@@ -165,7 +165,7 @@ func (e *localPolicyEngine) refreshSource(input LocalPolicySourceRefresh) string
 		if e.nodes[connection.nodeID].SourceID != s.ID {
 			continue
 		}
-		excluded := current.ExpiresAt != nil && *current.ExpiresAt <= now.UnixMilli()
+		excluded := current.ExpiresAt != nil && *current.ExpiresAt > 0 && *current.ExpiresAt <= now.UnixMilli()
 		if runtime := e.policies[connection.policyID]; runtime != nil && runtime.definition.TerminateConnectionsOnExclusion {
 			excluded = excluded || e.sourceReasonLocked(connection.nodeID, runtime.definition, now) != ""
 		}
@@ -190,6 +190,7 @@ func (e *localPolicyEngine) refreshSource(input LocalPolicySourceRefresh) string
 }
 
 type LocalPolicyNode struct {
+	Label           string   `json:"label" yaml:"label"`
 	ID              string   `json:"id" yaml:"id"`
 	SourceID        string   `json:"sourceId" yaml:"sourceId"`
 	ProxyName       string   `json:"proxyName" yaml:"proxyName"`
@@ -232,6 +233,8 @@ type LocalPolicyGuard struct {
 	UnknownBehavior       string `json:"unknownBehavior" yaml:"unknownBehavior"`
 }
 type LocalPolicyDefinition struct {
+	Action                          string               `json:"action" yaml:"action"`
+	SkipUnavailable                 *bool                `json:"skipUnavailable" yaml:"skipUnavailable"`
 	Schedule                        *LocalPolicySchedule `json:"schedule" yaml:"schedule"`
 	ID                              string               `json:"id" yaml:"id"`
 	Label                           string               `json:"label" yaml:"label"`
@@ -290,7 +293,7 @@ func parseLocalPolicyConfig(data []byte) (*LocalPolicyConfig, error) {
 
 func validateLocalPolicyConfig(c *LocalPolicyConfig) error {
 	fail := func(message string) error { return fmt.Errorf("local policy: %s", message) }
-	if (c.SchemaVersion != 1 && c.SchemaVersion != 2) || c.Revision < 0 || (c.DocumentRevision != nil && *c.DocumentRevision < 0) {
+	if (c.SchemaVersion != 1 && c.SchemaVersion != 2 && c.SchemaVersion != 3) || c.Revision < 0 || (c.DocumentRevision != nil && *c.DocumentRevision < 0) {
 		return fail("unsupported schema or invalid revision")
 	}
 	if len(c.Sources) > 20 || len(c.Nodes) > 5000 || len(c.Policies) > 100 || len(c.Budgets) > 20 || len(c.Overrides) > 100 {
@@ -312,7 +315,7 @@ func validateLocalPolicyConfig(c *LocalPolicyConfig) error {
 		}
 	}
 	for _, n := range c.Nodes {
-		if !validID(n.ID) || nodes[n.ID].ID != "" || !sources[n.SourceID] || !validID(n.ProxyName) || names[n.ProxyName] {
+		if !validID(n.ID) || nodes[n.ID].ID != "" || !sources[n.SourceID] || !validID(n.ProxyName) || names[n.ProxyName] || len(n.Label) > 1024 {
 			return fail("invalid or duplicate node identity")
 		}
 		nodes[n.ID] = n
@@ -329,7 +332,10 @@ func validateLocalPolicyConfig(c *LocalPolicyConfig) error {
 		if !validID(p.ID) || policies[p.ID].ID != "" || !validID(p.GroupName) || groups[p.GroupName] || names[p.GroupName] || len(p.Label) > 1024 {
 			return fail("invalid or duplicate policy/group")
 		}
-		if (len(p.CandidateNodeIDs) == 0 && len(p.Choices) == 0) || len(p.CandidateNodeIDs) > 10 || len(p.Choices) > 10 || (len(p.CandidateNodeIDs) > 0 && len(p.Choices) > 0) {
+		if p.Action != "" && p.Action != "proxy" && p.Action != "direct" && p.Action != "reject" || c.SchemaVersion == 3 && (p.SkipUnavailable == nil || !*p.SkipUnavailable) {
+			return fail("invalid policy action or skip behavior")
+		}
+		if (localPolicyAction(p) == "proxy" && len(p.CandidateNodeIDs) == 0 && len(p.Choices) == 0) || len(p.CandidateNodeIDs) > 10 || len(p.Choices) > 10 || (len(p.CandidateNodeIDs) > 0 && len(p.Choices) > 0) {
 			return fail("candidate count must be 1..10")
 		}
 		seen := map[string]bool{}
@@ -339,22 +345,13 @@ func validateLocalPolicyConfig(c *LocalPolicyConfig) error {
 			}
 			seen[id] = true
 		}
-		if p.Schedule != nil {
-			if (p.Schedule.TimeZone != "Asia/Shanghai" && p.Schedule.TimeZone != "UTC") || len(p.Schedule.Windows) > 20 {
-				return fail("invalid schedule")
-			}
-			for _, w := range p.Schedule.Windows {
-				if len(w.Weekdays) == 0 || len(w.Weekdays) > 7 || w.StartMinute < 0 || w.StartMinute >= 1440 || w.EndMinute <= w.StartMinute || w.EndMinute > 1440 {
-					return fail("invalid schedule window")
-				}
-				seenDays := map[int]bool{}
-				for _, day := range w.Weekdays {
-					if day < 1 || day > 7 || seenDays[day] {
-						return fail("invalid schedule weekday")
-					}
-					seenDays[day] = true
-				}
-			}
+		if !validLocalSchedule(p.Schedule) {
+			return fail("invalid schedule")
+		}
+		if localPolicyAction(p) != "proxy" {
+			policies[p.ID] = p
+			groups[p.GroupName] = true
+			continue
 		}
 		expected := p.Probe.ExpectedStatus
 		if expected == "" {
@@ -381,7 +378,7 @@ func validateLocalPolicyConfig(c *LocalPolicyConfig) error {
 		if p.Probe.IntervalSeconds < 1 || p.Probe.IntervalSeconds > 86400 || p.Probe.TimeoutSeconds < 1 || p.Probe.TimeoutSeconds > 60 || p.Probe.TimeoutSeconds > p.Probe.IntervalSeconds || p.Probe.FailureThreshold < 1 || p.Probe.FailureThreshold > 100 || p.Probe.SuccessThreshold < 1 || p.Probe.SuccessThreshold > 100 {
 			return fail("invalid probe limits")
 		}
-		if p.RecoverySeconds < 0 || p.RecoverySeconds > 604800 || p.CooldownSeconds < 0 || p.CooldownSeconds > 604800 || p.Guard.ExpiryMarginSeconds < 0 || p.Guard.ExpiryMarginSeconds > 31536000 || p.Guard.MinRemainingBytes < 0 || p.Guard.MetadataMaxAgeSeconds < 0 || p.Guard.MetadataMaxAgeSeconds > 31536000 || (p.Guard.UnknownBehavior != "allow" && p.Guard.UnknownBehavior != "exclude") || (p.Fallback != "reject" && p.Fallback != "direct") {
+		if p.RecoverySeconds < 0 || p.RecoverySeconds > 604800 || p.CooldownSeconds < 0 || p.CooldownSeconds > 604800 || p.Guard.ExpiryMarginSeconds < 0 || p.Guard.ExpiryMarginSeconds > 31536000 || p.Guard.MinRemainingBytes < 0 || p.Guard.MetadataMaxAgeSeconds < 0 || p.Guard.MetadataMaxAgeSeconds > 31536000 || (p.Guard.UnknownBehavior != "allow" && p.Guard.UnknownBehavior != "exclude") || (c.SchemaVersion < 3 && p.Fallback != "reject" && p.Fallback != "direct") {
 			return fail("invalid policy guard/recovery/fallback")
 		}
 		policies[p.ID] = p
@@ -427,6 +424,9 @@ type LocalPolicyNodeStatus struct {
 	LatencyMillis    *int64 `json:"latencyMillis"`
 }
 type LocalPolicyStatus struct {
+	ActiveNodeCount int      `json:"activeNodeCount,omitempty"`
+	SelectionMode   string   `json:"selectionMode,omitempty"`
+	ActiveNodeIDs   []string `json:"activeNodeIds,omitempty"`
 	LocalPolicyCounts
 	TerminationError string                  `json:"terminationError,omitempty"`
 	PolicyID         string                  `json:"policyId"`
@@ -461,6 +461,10 @@ type LocalPolicySnapshot struct {
 	NodeSets                     []LocalPolicyStatus `json:"nodeSets"`
 }
 type localPolicyRuntime struct {
+	activeNodeIDs     []string
+	selectionMode     string
+	balanceStrategy   string
+	balanceCursor     uint64
 	terminationError  string
 	definition        LocalPolicyDefinition
 	setID             string
@@ -642,7 +646,7 @@ func (e *localPolicyEngine) sourceReasonLocked(nodeID string, p LocalPolicyDefin
 		return "missing_node"
 	}
 	s := e.sources[n.SourceID]
-	if s.ExpiresAt != nil && *s.ExpiresAt-now.UnixMilli() <= p.Guard.ExpiryMarginSeconds*1000 {
+	if s.ExpiresAt != nil && *s.ExpiresAt > 0 && *s.ExpiresAt-now.UnixMilli() <= p.Guard.ExpiryMarginSeconds*1000 {
 		return "source_expiring"
 	}
 	if s.RemainingBytes != nil && *s.RemainingBytes <= p.Guard.MinRemainingBytes {
@@ -665,6 +669,9 @@ func (e *localPolicyEngine) sourceReasonLocked(nodeID string, p LocalPolicyDefin
 	return ""
 }
 func (e *localPolicyEngine) nodeReasonLocked(r *localPolicyRuntime, id string, now time.Time) string {
+	if r.setID != "" && !localPolicyScheduleActive(e.setDefinitions[r.setID].Schedule, now) {
+		return "schedule_inactive"
+	}
 	if reason := e.sourceReasonLocked(id, r.definition, now); reason != "" {
 		return reason
 	}
@@ -684,6 +691,15 @@ func (e *localPolicyEngine) nodeReasonLocked(r *localPolicyRuntime, id string, n
 	return ""
 }
 func (e *localPolicyEngine) evaluateLocked(r *localPolicyRuntime, now time.Time) {
+	if localPolicyAction(r.definition) != "proxy" {
+		r.activeNodeIDs = nil
+		reason := localPolicyAction(r.definition)
+		if !localPolicyScheduleActive(r.definition.Schedule, now) {
+			reason = "schedule_inactive"
+		}
+		e.recordSelectionLocked(r, "", reason, now)
+		return
+	}
 	if r.setID != "" {
 		e.evaluateSetLocked(r, now)
 		return
@@ -750,6 +766,10 @@ func (e *localPolicyEngine) evaluateLocked(r *localPolicyRuntime, now time.Time)
 }
 
 func (e *localPolicyEngine) selectProxy(policyID string) (C.Proxy, string, error) {
+	return e.selectProxyForRequest(policyID, nil, false)
+}
+
+func (e *localPolicyEngine) selectProxyForRequest(policyID string, metadata *C.Metadata, allocate bool) (C.Proxy, string, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.stopped {
@@ -761,8 +781,20 @@ func (e *localPolicyEngine) selectProxy(policyID string) (C.Proxy, string, error
 	}
 	defer e.beginSelectionRoundLocked()()
 	e.evaluateLocked(r, e.now())
+	if !localPolicyScheduleActive(r.definition.Schedule, e.now()) {
+		return nil, "", errors.New("local policy schedule inactive")
+	}
+	if localPolicyAction(r.definition) == "direct" {
+		return nil, "", nil
+	}
+	if localPolicyAction(r.definition) == "reject" {
+		return nil, "", errors.New("local policy rejected by explicit action")
+	}
+	if r.selectionMode == "loadBalance" && len(r.activeNodeIDs) > 0 {
+		r.selected = localBalancedNode(r, metadata, allocate)
+	}
 	if r.selected == "" {
-		if r.definition.Fallback == "direct" {
+		if !localPolicySkipsUnavailable(e.config, r.definition) && r.definition.Fallback == "direct" {
 			return nil, "", nil
 		}
 		return nil, "", errors.New("local policy rejected: no eligible candidate")
@@ -775,7 +807,7 @@ func (e *localPolicyEngine) register(policyID, nodeID string, closer io.Closer) 
 	if e.stopped {
 		return 0, errors.New("local policy stopped")
 	}
-	if source := e.sources[e.nodes[nodeID].SourceID]; (source.ExpiresAt != nil && *source.ExpiresAt <= e.now().UnixMilli()) || (source.RemainingBytes != nil && *source.RemainingBytes <= 0) {
+	if source := e.sources[e.nodes[nodeID].SourceID]; (source.ExpiresAt != nil && *source.ExpiresAt > 0 && *source.ExpiresAt <= e.now().UnixMilli()) || (source.RemainingBytes != nil && *source.RemainingBytes <= 0) {
 		return 0, errors.New("local source rejected: source_expired")
 	}
 	if policyID != "" && (!localPolicyScheduleActive(e.policies[policyID].definition.Schedule, e.now()) || e.policyNodeReasonLocked(e.policies[policyID], nodeID, e.now()) != "") {
@@ -990,10 +1022,14 @@ func (e *localPolicyEngine) snapshot() LocalPolicySnapshot {
 		if r.selected == "" {
 			state = p.Fallback
 		}
-		if r.reason == "schedule_inactive" {
+		if localPolicyAction(p) != "proxy" {
+			state = localPolicyAction(p)
+		}
+		if r.reason == "schedule_inactive" || localPolicyAction(p) == "proxy" && r.selected == "" && localPolicySkipsUnavailable(e.config, p) {
 			state = "skipped"
 		}
 		status := LocalPolicyStatus{TerminationError: r.terminationError, PolicyID: p.ID, GroupName: p.GroupName, SelectedNodeID: r.selected, State: state, Reason: r.reason, UpdatedAt: r.updated.UnixMilli(), History: localBoundedHistory(r.history), Nodes: []LocalPolicyNodeStatus{}}
+		localSelectionStatus(&status, r)
 		ids := append([]string{}, localFixedCandidates(p)...)
 		if r.selected != "" && !localContains(ids, r.selected) {
 			ids = append(ids, r.selected)
@@ -1285,11 +1321,14 @@ func localPolicyScheduleActive(schedule *LocalPolicySchedule, now time.Time) boo
 	}
 	minute := date.Hour()*60 + date.Minute()
 	for _, w := range schedule.Windows {
-		if minute < w.StartMinute || minute >= w.EndMinute {
+		startDay := day
+		if w.StartMinute > w.EndMinute && minute < w.EndMinute {
+			startDay = (day+5)%7 + 1
+		} else if minute < w.StartMinute || w.StartMinute < w.EndMinute && minute >= w.EndMinute {
 			continue
 		}
 		for _, weekday := range w.Weekdays {
-			if weekday == day {
+			if weekday == startDay {
 				return true
 			}
 		}
