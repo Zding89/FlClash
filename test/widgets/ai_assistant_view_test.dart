@@ -18,6 +18,8 @@ import 'package:fl_clash/views/ai/assistant.dart';
 import 'package:fl_clash/views/ai/composer_context.dart';
 import 'package:fl_clash/views/ai/settings.dart';
 import 'package:fl_clash/views/ai/presentation.dart';
+import 'package:fl_clash/views/ai/message.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:fl_clash/capabilities/service.dart';
 import 'package:fl_clash/capabilities/manifest.dart';
 import 'package:fl_clash/configuration/changes.dart';
@@ -101,6 +103,21 @@ class _Transport implements AgentTransport {
     exited.complete(0);
     unawaited(outgoing.close());
     unawaited(diagnostic.close());
+  }
+}
+
+class _MarkdownTransport extends _Transport {
+  _MarkdownTransport(this.content);
+  final String content;
+
+  @override
+  Future<void> write(List<int> bytes) async {
+    final frame = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+    if (frame['type'] != 'prompt') return;
+    promptCalls++;
+    prompt = frame;
+    event('text', {'text': content});
+    event('done', {'cancelled': false, 'failed': false});
   }
 }
 
@@ -209,6 +226,7 @@ const _proposal = ConfigurationProposal(
 class _CapabilityService extends Mock implements ApplicationCapabilityService {
   bool? approved;
   Completer<Map<String, Object?>>? readPending;
+  Map<String, Object?>? runtimeReadResult;
   final pending = Completer<void>();
   @override
   List<Map<String, Object?>> get manifest =>
@@ -223,6 +241,12 @@ class _CapabilityService extends Mock implements ApplicationCapabilityService {
     bool Function()? isCurrent,
     ConfigurationApproval? approve,
   }) async {
+    if (command == 'capabilities') {
+      return {
+        'status': 'completed',
+        'result': {'capabilities': manifest},
+      };
+    }
     if (command == 'operation_query') {
       return {
         'operationId': 'other-conversation-change',
@@ -231,6 +255,7 @@ class _CapabilityService extends Mock implements ApplicationCapabilityService {
     }
     if (command == 'runtime_read') {
       if (readPending != null) return readPending!.future;
+      if (runtimeReadResult != null) return runtimeReadResult!;
       return {
         'status': 'completed',
         'result': {
@@ -350,6 +375,195 @@ Future<void> _tapAi(WidgetTester tester, Finder target) async {
 }
 
 void main() {
+  for (final tool in ['application_catalog', 'application_invoke']) {
+    testWidgets('successful $tool read data stays out of the conversation', (
+      tester,
+    ) async {
+      final transport = _RequestTransport(
+        tool,
+        tool == 'application_catalog'
+            ? {}
+            : {'command': 'runtime_read', 'params': <String, Object?>{}},
+      );
+      final capabilities = _CapabilityService()
+        ..runtimeReadResult = {
+          'status': 'completed',
+          'result': {
+            'summary': 'raw tool summary',
+            'capabilities': ['raw capability'],
+            'rows': ['raw tool row'],
+          },
+        };
+      final container = await _mount(
+        tester,
+        _Controller(
+          AgentRuntime(launcher: () async => transport),
+          _Credentials(),
+        ),
+        capabilities: capabilities,
+      );
+      addTearDown(container.dispose);
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-prompt')),
+        'inspect settings',
+      );
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+      await waitAiCondition(
+        tester,
+        () =>
+            transport.toolResults == 1 &&
+            find.byKey(const ValueKey('ai-send')).evaluate().isNotEmpty,
+        'Read result must still return to the model and finish',
+      );
+      expect(find.byType(AiToolResultCard), findsNothing);
+      expect(find.text(AppLocalizations.current.aiCheckResult), findsNothing);
+      for (final text in [
+        'summary',
+        'capabilities',
+        'rows',
+        'raw tool summary',
+        'raw capability',
+        'raw tool row',
+      ]) {
+        expect(find.text(text), findsNothing);
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final status in ['failed', 'pending_user_input']) {
+    testWidgets('read result retains necessary $status feedback', (
+      tester,
+    ) async {
+      final transport = _RequestTransport('application_invoke', {
+        'command': 'runtime_read',
+        'params': <String, Object?>{},
+      });
+      final capabilities = _CapabilityService()
+        ..runtimeReadResult = {'status': status, 'errorCode': 'core_timeout'};
+      final container = await _mount(
+        tester,
+        _Controller(
+          AgentRuntime(launcher: () async => transport),
+          _Credentials(),
+        ),
+        capabilities: capabilities,
+      );
+      addTearDown(container.dispose);
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-prompt')),
+        'inspect settings',
+      );
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+      await waitAiCondition(
+        tester,
+        () =>
+            transport.toolResults == 1 &&
+            find.byKey(const ValueKey('ai-send')).evaluate().isNotEmpty,
+        'Necessary read feedback must finish',
+      );
+      expect(find.byType(AiToolResultCard), findsOneWidget);
+      expect(
+        find.text(
+          status == 'failed'
+              ? AppLocalizations.current.aiRequestFailed
+              : AppLocalizations.current.aiAwaitingApproval,
+        ),
+        findsWidgets,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final width in [360.0, 944.0]) {
+    testWidgets('selectable Markdown confines tables and code at $width', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 740);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final longValue = 'column-value-' * 20;
+      final source =
+          '# Heading\n\n**strong** and *emphasis*\n\n- one\n- two\n\n| First | Second | Third | Fourth |\n| --- | --- | --- | --- |\n| $longValue | $longValue | $longValue | $longValue |\n\n```yaml\nrule: $longValue$longValue\n```\n\n![remote image](https://example.invalid/image.png)\n\n![local image](file:///private/tmp/image.png)';
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: AiAssistantMarkdown(text: source),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(MarkdownBody), findsOneWidget);
+      expect(
+        tester.widget<MarkdownBody>(find.byType(MarkdownBody)).selectable,
+        true,
+      );
+      expect(find.text('Heading'), findsOneWidget);
+      expect(find.text('# Heading'), findsNothing);
+      expect(find.byType(Table), findsOneWidget);
+      expect(find.byType(SelectableText), findsWidgets);
+      final horizontal = find.byWidgetPredicate(
+        (widget) =>
+            widget is Scrollable &&
+            (widget.axisDirection == AxisDirection.right ||
+                widget.axisDirection == AxisDirection.left),
+      );
+      expect(horizontal, findsNWidgets(2));
+      for (final element in horizontal.evaluate()) {
+        final state = (element as StatefulElement).state as ScrollableState;
+        expect(state.position.maxScrollExtent, greaterThan(0));
+        state.position.jumpTo(state.position.maxScrollExtent);
+      }
+      await tester.pumpAndSettle();
+      expect(find.byType(Image), findsNothing);
+      expect(find.text('remote image'), findsOneWidget);
+      expect(find.text('local image'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('assistant renders Markdown while user input stays plain text', (
+    tester,
+  ) async {
+    const response = '# Assistant heading\n\n**assistant strong**';
+    final transport = _MarkdownTransport(response);
+    final container = await _mount(
+      tester,
+      _Controller(
+        AgentRuntime(launcher: () async => transport),
+        _Credentials(),
+      ),
+    );
+    addTearDown(container.dispose);
+    await tester.enterText(
+      find.byKey(const ValueKey('ai-prompt')),
+      '**literal user**',
+    );
+    await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+    await waitAiCondition(
+      tester,
+      () =>
+          find.text('Assistant heading').evaluate().isNotEmpty &&
+          find.byKey(const ValueKey('ai-send')).evaluate().isNotEmpty,
+      'Markdown response must render after sending',
+    );
+    expect(find.byType(MarkdownBody), findsOneWidget);
+    expect(find.text(response), findsNothing);
+    expect(find.text('assistant strong'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is SelectableText && widget.data == '**literal user**',
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('same runtime sends three arrow turns with accumulated history', (
     tester,
   ) async {
@@ -1129,101 +1343,100 @@ void main() {
   );
 
   for (final width in [1100.0, 944.0, 390.0, 360.0]) {
-    testWidgets('real tool result and pending approval layout $width', (
-      tester,
-    ) async {
-      tester.view.physicalSize = Size(width, switch (width) {
-        944 => 568,
-        360 => 740,
-        _ => width > 500 ? 850 : 700,
-      });
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await loadAiVisualFonts(tester);
-      final transport = _Transport(tools: true);
-      final runtime = AgentRuntime(launcher: () async => transport);
-      final capabilities = _CapabilityService();
-      final container = await _mount(
-        tester,
-        _Controller(runtime, _Credentials()),
-        capabilities: capabilities,
-      );
-      addTearDown(container.dispose);
-      expect(find.byType(AiCapabilityPanel), findsNothing);
-      expect(transport.prompt, isNull);
-      await tester.enterText(
-        find.byKey(const ValueKey('ai-prompt')),
-        '检查当前连接，再提出视频流量方案',
-      );
-      await tester.pump();
-      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
-      for (var i = 0; i < 12; i++) {
-        await tester.pump(const Duration(milliseconds: 100));
-      }
-      expect(
-        find.byKey(const ValueKey('ai-result-visual-proposal')),
-        findsOneWidget,
-      );
-      expect(capabilities.approved, isNull);
-      expect(
-        find.text(AppLocalizations.current.aiAwaitingApproval),
-        findsOneWidget,
-      );
-      await tester.scrollUntilVisible(
-        find.byKey(const ValueKey('ai-result-check')),
-        -150,
-        scrollable: _conversationScrollable(tester),
-      );
-      await captureAiVisual(tester, 'v3-check-${width.toInt()}');
-      await tester.scrollUntilVisible(
-        find.text(AppLocalizations.current.aiReviewPlan),
-        150,
-        scrollable: _conversationScrollable(tester),
-      );
-      await captureAiVisual(tester, 'v3-pending-${width.toInt()}');
-      await tester.ensureVisible(
-        find.text(AppLocalizations.current.aiReviewPlan),
-      );
-      await _tapAi(tester, find.text(AppLocalizations.current.aiReviewPlan));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(
-        find.text(AppLocalizations.current.aiFinalConfigDifferences),
-        findsOneWidget,
-      );
-      expect(capabilities.approved, isNull);
-      await _tapAi(tester, find.text(AppLocalizations.current.cancel).last);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.ensureVisible(find.text(AppLocalizations.current.aiApprove));
-      await _tapAi(tester, find.text(AppLocalizations.current.aiApprove));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(
-        find.text(AppLocalizations.current.aiFinalConfigDifferences),
-        findsOneWidget,
-      );
-      expect(capabilities.approved, isNull);
-      await _tapAi(tester, find.text(AppLocalizations.current.aiReject));
-      await tester.pumpAndSettle();
-      expect(capabilities.approved, false);
-      expect(
-        find.text(AppLocalizations.current.policyAppliedStatus),
-        findsNothing,
-      );
-      expect(tester.takeException(), isNull);
-      await captureAiVisual(tester, 'v3-rejected-${width.toInt()}');
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pumpAndSettle();
-      var closed = false;
-      unawaited(runtime.close().then((_) => closed = true));
-      await waitAiCondition(
-        tester,
-        () => closed && transport.closed,
-        'Disposed assistant must finish runtime closure',
-      );
-    });
+    testWidgets(
+      'read results stay hidden while pending approval is usable $width',
+      (tester) async {
+        tester.view.physicalSize = Size(width, switch (width) {
+          944 => 568,
+          360 => 740,
+          _ => width > 500 ? 850 : 700,
+        });
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await loadAiVisualFonts(tester);
+        final transport = _Transport(tools: true);
+        final runtime = AgentRuntime(launcher: () async => transport);
+        final capabilities = _CapabilityService();
+        final container = await _mount(
+          tester,
+          _Controller(runtime, _Credentials()),
+          capabilities: capabilities,
+        );
+        addTearDown(container.dispose);
+        expect(find.byType(AiCapabilityPanel), findsNothing);
+        expect(transport.prompt, isNull);
+        await tester.enterText(
+          find.byKey(const ValueKey('ai-prompt')),
+          '检查当前连接，再提出视频流量方案',
+        );
+        await tester.pump();
+        await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+        for (var i = 0; i < 12; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(
+          find.byKey(const ValueKey('ai-result-visual-proposal')),
+          findsOneWidget,
+        );
+        expect(capabilities.approved, isNull);
+        expect(
+          find.text(AppLocalizations.current.aiAwaitingApproval),
+          findsOneWidget,
+        );
+        expect(find.byKey(const ValueKey('ai-result-check')), findsNothing);
+        expect(find.text(AppLocalizations.current.aiCheckResult), findsNothing);
+        await tester.scrollUntilVisible(
+          find.text(AppLocalizations.current.aiReviewPlan),
+          150,
+          scrollable: _conversationScrollable(tester),
+        );
+        await captureAiVisual(tester, 'v3-pending-${width.toInt()}');
+        await tester.ensureVisible(
+          find.text(AppLocalizations.current.aiReviewPlan),
+        );
+        await _tapAi(tester, find.text(AppLocalizations.current.aiReviewPlan));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(
+          find.text(AppLocalizations.current.aiFinalConfigDifferences),
+          findsOneWidget,
+        );
+        expect(capabilities.approved, isNull);
+        await _tapAi(tester, find.text(AppLocalizations.current.cancel).last);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.ensureVisible(
+          find.text(AppLocalizations.current.aiApprove),
+        );
+        await _tapAi(tester, find.text(AppLocalizations.current.aiApprove));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(
+          find.text(AppLocalizations.current.aiFinalConfigDifferences),
+          findsOneWidget,
+        );
+        expect(capabilities.approved, isNull);
+        await _tapAi(tester, find.text(AppLocalizations.current.aiReject));
+        await tester.pumpAndSettle();
+        expect(capabilities.approved, false);
+        expect(
+          find.text(AppLocalizations.current.policyAppliedStatus),
+          findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+        await captureAiVisual(tester, 'v3-rejected-${width.toInt()}');
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+        var closed = false;
+        unawaited(runtime.close().then((_) => closed = true));
+        await waitAiCondition(
+          tester,
+          () => closed && transport.closed,
+          'Disposed assistant must finish runtime closure',
+        );
+      },
+    );
   }
 
   testWidgets(

@@ -24,6 +24,7 @@ import 'errors.dart';
 import 'settings.dart';
 import 'presentation.dart';
 import 'history.dart';
+import 'message.dart';
 
 class AiAssistantView extends ConsumerStatefulWidget {
   const AiAssistantView({super.key, this.initialPrompt});
@@ -189,6 +190,45 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       );
     });
     _followOutput();
+  }
+
+  bool _showToolResult(AgentToolRequest request, AgentToolResult result) {
+    if (result.isError ||
+        aiResultProposal(result.value) != null ||
+        const {
+          'failed',
+          'unsupported',
+          'cancelled',
+          'rejected',
+          'pending_confirmation',
+          'pending_user_input',
+          'requires_user_action',
+          'recovery_required',
+        }.contains(result.value['status'])) {
+      return true;
+    }
+    if (request.name == 'application_invoke') {
+      return applicationCapabilities.any(
+        (capability) =>
+            capability.command == request.arguments['command'] &&
+            capability.mutating,
+      );
+    }
+    return !const {
+      'application_catalog',
+      'application_operation',
+      'settings_catalog',
+      'settings_read',
+      'policies_read',
+      'nodes_list',
+      'policies_simulate',
+      'changes_status',
+      'profiles_list',
+      'rules_read',
+      'groups_read',
+      'scripts_list',
+      'usage_read',
+    }.contains(request.name);
   }
 
   void _linkResult(AgentToolRequest request, Map<String, Object?> value) {
@@ -384,12 +424,14 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
             _linkResult(request, result.value);
             setState(() {
               _status = context.appLocalizations.aiThinking;
-              _appendToolMessage(
-                _ConversationMessage('tool', '')
-                  ..result = result.value
-                  ..proposal = aiResultProposal(result.value)
-                  ..failed = result.isError,
-              );
+              if (_showToolResult(request, result)) {
+                _appendToolMessage(
+                  _ConversationMessage('tool', '')
+                    ..result = result.value
+                    ..proposal = aiResultProposal(result.value)
+                    ..failed = result.isError,
+                );
+              }
             });
             _followOutput();
             await _persistConversation();
@@ -948,7 +990,12 @@ class _MessageCard extends StatelessWidget {
                 style: Theme.of(context).textTheme.labelMedium,
               ),
               const SizedBox(height: 6),
-              SelectableText(message.text.isEmpty ? '…' : message.text),
+              if (user)
+                SelectableText(message.text)
+              else
+                AiAssistantMarkdown(
+                  text: message.text.isEmpty ? '…' : message.text,
+                ),
             ],
           ),
         ),

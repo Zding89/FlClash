@@ -161,7 +161,7 @@ class WorkbenchController {
     AgentRuntime Function()? runtimeFactory,
   }) : _runtimeFactory = runtimeFactory ?? AgentRuntime.new,
        store = store ?? ref.read(workbenchDatabaseProvider),
-       credentials = credentials ?? const KeychainAgentCredentialStore() {
+       credentials = credentials ?? KeychainAgentCredentialStore() {
     profiles = PolicyProfileService(
       loader: PolicySourceLoader(
         store: this.store,
