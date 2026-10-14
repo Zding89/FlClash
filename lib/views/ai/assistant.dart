@@ -194,9 +194,12 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
 
   bool _showToolResult(AgentToolResult result) =>
       result.isError ||
+      result.value['errorCode'] != null ||
+      result.value['error'] != null ||
       aiResultProposal(result.value) != null ||
       const {
         'failed',
+        'conflict',
         'unsupported',
         'cancelled',
         'rejected',

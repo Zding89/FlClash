@@ -489,8 +489,13 @@ void main() {
     });
   }
 
-  for (final status in ['failed', 'pending_user_input']) {
-    testWidgets('read result retains necessary $status feedback', (
+  for (final (status, errorField) in [
+    ('failed', 'errorCode'),
+    ('pending_user_input', 'errorCode'),
+    ('conflict', 'errorCode'),
+    ('conflict', 'error'),
+  ]) {
+    testWidgets('read result retains necessary $status feedback $errorField', (
       tester,
     ) async {
       final transport = _RequestTransport('application_invoke', {
@@ -498,7 +503,7 @@ void main() {
         'params': <String, Object?>{},
       });
       final capabilities = _CapabilityService()
-        ..runtimeReadResult = {'status': status, 'errorCode': 'core_timeout'};
+        ..runtimeReadResult = {'status': status, errorField: 'core_timeout'};
       final container = await _mount(
         tester,
         _Controller(
@@ -522,11 +527,11 @@ void main() {
       );
       expect(find.byType(AiToolResultCard), findsOneWidget);
       expect(
-        find.text(
-          status == 'failed'
-              ? AppLocalizations.current.aiRequestFailed
-              : AppLocalizations.current.aiAwaitingApproval,
-        ),
+        find.text(switch (status) {
+          'failed' => AppLocalizations.current.aiRequestFailed,
+          'pending_user_input' => AppLocalizations.current.aiAwaitingApproval,
+          _ => AppLocalizations.current.aiCheckResult,
+        }),
         findsWidgets,
       );
       expect(tester.takeException(), isNull);
