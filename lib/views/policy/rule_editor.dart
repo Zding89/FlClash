@@ -623,7 +623,11 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
     return DropdownButtonFormField<String>(
       initialValue: _target.isEmpty ? null : _target,
       isExpanded: true,
-      decoration: InputDecoration(labelText: strings.policyTarget),
+      decoration: InputDecoration(
+        labelText: strings.policyTarget,
+        helperText: strings.policyTargetHint,
+        helperMaxLines: 3,
+      ),
       items: [
         for (final target in targets.entries)
           DropdownMenuItem(

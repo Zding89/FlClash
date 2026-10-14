@@ -173,6 +173,7 @@ class WorkbenchController {
       ref: ref,
       store: this.store,
       profiles: profiles,
+      closeAgent: closeAgent,
     );
     changes = ConfigurationChangeService(backend: backend, store: this.store);
     resources = ResourceChangeService(
@@ -663,6 +664,7 @@ class FlutterConfigurationBackend
   final WorkbenchDatabase store;
   final PolicyProfileService profiles;
   final SettingsCatalog catalog;
+  final Future<void> Function() _closeAgent;
   Map<String, Object?>? _lastActivated;
   final Map<String, String?> _commitArtifacts = {};
   String? _providedYaml;
@@ -674,7 +676,11 @@ class FlutterConfigurationBackend
     required this.store,
     required this.profiles,
     SettingsCatalog? catalog,
-  }) : catalog = catalog ?? SettingsCatalog();
+    Future<void> Function()? closeAgent,
+  }) : catalog = catalog ?? SettingsCatalog(),
+       _closeAgent =
+           closeAgent ??
+           (() => ref.read(workbenchControllerProvider).closeAgent());
 
   Future<void> synchronizeActivatedState() async {
     if (_activating) return;
@@ -1096,28 +1102,7 @@ class FlutterConfigurationBackend
     String? artifact,
   }) async {
     final current = await readState();
-    Object? restoreField(Object? original, Object? changed, Object? live) {
-      if (policyDigest(original) == policyDigest(changed)) return live;
-      if (original is Map && changed is Map && live is Map) {
-        final result = Map<String, Object?>.from(live);
-        for (final key in {...original.keys, ...changed.keys}) {
-          result['$key'] = restoreField(original[key], changed[key], live[key]);
-        }
-        return result;
-      }
-      if (policyDigest(live) == policyDigest(changed) ||
-          policyDigest(live) == policyDigest(original)) {
-        return original;
-      }
-      throw const ConfigurationChangeException(
-        'configuration_recovery_conflict',
-      );
-    }
-
-    final restored = policyObject(
-      restoreField(before, after, current),
-      'restored',
-    );
+    final restored = configurationRecoveryState(before, after, current);
     await persist(restored);
     if (ref.read(coreStatusProvider) != CoreStatus.connected) {
       _lastActivated = restored;
@@ -1216,7 +1201,8 @@ class FlutterConfigurationBackend
     Map<String, Object?> candidate, {
     bool force = false,
   }) async {
-    if (policyDigest(await readState()) != policyDigest(candidate)) {
+    if (configurationDigest(await readState()) !=
+        configurationDigest(candidate)) {
       throw const ConfigurationChangeException(
         'configuration_version_conflict',
       );
@@ -1331,7 +1317,7 @@ class FlutterConfigurationBackend
         (_lastActivated != null &&
             policyDigest(_lastActivated!['ai']) !=
                 policyDigest(candidate['ai']))) {
-      await ref.read(workbenchControllerProvider).closeAgent();
+      await _closeAgent();
     }
     _lastActivated = policyObject(
       jsonDecode(jsonEncode(candidate)),

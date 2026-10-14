@@ -209,7 +209,14 @@ Future<void> mount(
   await tester.pumpAndSettle();
   await tap(
     tester,
-    find.widgetWithText(Tab, AppLocalizations.current.policyBudgetTab),
+    find.widgetWithText(Tab, AppLocalizations.current.policyAdvancedTab),
+  );
+  await tap(
+    tester,
+    find.widgetWithText(
+      ExpansionTile,
+      AppLocalizations.current.policyBudgetTab,
+    ),
   );
 }
 

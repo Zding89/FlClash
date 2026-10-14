@@ -5629,20 +5629,20 @@ class AppLocalizations {
     );
   }
 
-  /// `Local policy workbench`
+  /// `Local rules`
   String get policyWorkbenchTitle {
     return Intl.message(
-      'Local policy workbench',
+      'Local rules',
       name: 'policyWorkbenchTitle',
       desc: '',
       args: [],
     );
   }
 
-  /// `Integrations`
+  /// `Merge subscriptions`
   String get policyIntegrationTab {
     return Intl.message(
-      'Integrations',
+      'Merge subscriptions',
       name: 'policyIntegrationTab',
       desc: '',
       args: [],
@@ -5654,9 +5654,14 @@ class AppLocalizations {
     return Intl.message('Rules', name: 'policyRulesTab', desc: '', args: []);
   }
 
-  /// `Budgets`
+  /// `Traffic limits`
   String get policyBudgetTab {
-    return Intl.message('Budgets', name: 'policyBudgetTab', desc: '', args: []);
+    return Intl.message(
+      'Traffic limits',
+      name: 'policyBudgetTab',
+      desc: '',
+      args: [],
+    );
   }
 
   /// `History`
@@ -5669,59 +5674,64 @@ class AppLocalizations {
     );
   }
 
-  /// `Enable integration`
+  /// `Use merged profile`
   String get policyEnableIntegrations {
     return Intl.message(
-      'Enable integration',
+      'Use merged profile',
       name: 'policyEnableIntegrations',
       desc: '',
       args: [],
     );
   }
 
-  /// `Original subscriptions remain; selected sources form a separate configuration`
+  /// `Combine nodes from selected subscriptions into a separate profile while keeping the originals. Remaining traffic is shown only when the provider supplies it`
   String get policyIntegrationHint {
     return Intl.message(
-      'Original subscriptions remain; selected sources form a separate configuration',
+      'Combine nodes from selected subscriptions into a separate profile while keeping the originals. Remaining traffic is shown only when the provider supplies it',
       name: 'policyIntegrationHint',
       desc: '',
       args: [],
     );
   }
 
-  /// `Active integration`
+  /// `Merged profile to use`
   String get policyActiveIntegration {
     return Intl.message(
-      'Active integration',
+      'Merged profile to use',
       name: 'policyActiveIntegration',
       desc: '',
       args: [],
     );
   }
 
-  /// `Create integration`
+  /// `Create merged profile`
   String get policyAddIntegration {
     return Intl.message(
-      'Create integration',
+      'Create merged profile',
       name: 'policyAddIntegration',
       desc: '',
       args: [],
     );
   }
 
-  /// `Edit integration`
+  /// `Edit merged profile`
   String get policyEditIntegration {
     return Intl.message(
-      'Edit integration',
+      'Edit merged profile',
       name: 'policyEditIntegration',
       desc: '',
       args: [],
     );
   }
 
-  /// `Sources`
+  /// `Subscription sources`
   String get policySources {
-    return Intl.message('Sources', name: 'policySources', desc: '', args: []);
+    return Intl.message(
+      'Subscription sources',
+      name: 'policySources',
+      desc: '',
+      args: [],
+    );
   }
 
   /// `Node name contains (optional)`
@@ -5744,20 +5754,20 @@ class AppLocalizations {
     );
   }
 
-  /// `Enable local rules`
+  /// `Enable routing rules`
   String get policyEnableRules {
     return Intl.message(
-      'Enable local rules',
+      'Enable routing rules',
       name: 'policyEnableRules',
       desc: '',
       args: [],
     );
   }
 
-  /// `Choose available nodes in the specified order; no model calls`
+  /// `Choose primary and backup nodes for websites or apps in the selected profile; applies when that profile is active in rule mode`
   String get policyRulesHint {
     return Intl.message(
-      'Choose available nodes in the specified order; no model calls',
+      'Choose primary and backup nodes for websites or apps in the selected profile; applies when that profile is active in rule mode',
       name: 'policyRulesHint',
       desc: '',
       args: [],
@@ -5779,10 +5789,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Target configuration`
+  /// `Profile for these rules`
   String get policyTarget {
     return Intl.message(
-      'Target configuration',
+      'Profile for these rules',
       name: 'policyTarget',
       desc: '',
       args: [],
@@ -6314,10 +6324,10 @@ class AppLocalizations {
     );
   }
 
-  /// `No integrations yet`
+  /// `No merged profile yet; ordinary rules can use existing profiles directly`
   String get policyEmptyIntegrations {
     return Intl.message(
-      'No integrations yet',
+      'No merged profile yet; ordinary rules can use existing profiles directly',
       name: 'policyEmptyIntegrations',
       desc: '',
       args: [],
@@ -6334,10 +6344,10 @@ class AppLocalizations {
     );
   }
 
-  /// `No local source budgets yet`
+  /// `No traffic limits set on this device`
   String get policyEmptyBudgets {
     return Intl.message(
-      'No local source budgets yet',
+      'No traffic limits set on this device',
       name: 'policyEmptyBudgets',
       desc: '',
       args: [],
@@ -6354,40 +6364,40 @@ class AppLocalizations {
     );
   }
 
-  /// `Enable local source budgets`
+  /// `Enable traffic limits on this device`
   String get policyEnableBudgets {
     return Intl.message(
-      'Enable local source budgets',
+      'Enable traffic limits on this device',
       name: 'policyEnableBudgets',
       desc: '',
       args: [],
     );
   }
 
-  /// `Counts this device’s FlClash traffic only; not account-wide usage or a byte-exact cap`
+  /// `Counts managed connections on this device and limits new connections at the cap; excludes other devices and may not close existing connections immediately`
   String get policyBudgetHint {
     return Intl.message(
-      'Counts this device’s FlClash traffic only; not account-wide usage or a byte-exact cap',
+      'Counts managed connections on this device and limits new connections at the cap; excludes other devices and may not close existing connections immediately',
       name: 'policyBudgetHint',
       desc: '',
       args: [],
     );
   }
 
-  /// `Add budget`
+  /// `Add traffic limit`
   String get policyAddBudget {
     return Intl.message(
-      'Add budget',
+      'Add traffic limit',
       name: 'policyAddBudget',
       desc: '',
       args: [],
     );
   }
 
-  /// `Local budget (GiB)`
+  /// `Monthly traffic limit on this device (GiB)`
   String get policyBudgetGiB {
     return Intl.message(
-      'Local budget (GiB)',
+      'Monthly traffic limit on this device (GiB)',
       name: 'policyBudgetGiB',
       desc: '',
       args: [],
@@ -6409,10 +6419,10 @@ class AppLocalizations {
     return Intl.message('Local usage', name: 'policyUsage', desc: '', args: []);
   }
 
-  /// `Local budget reached; new source connections restricted`
+  /// `Device traffic cap reached; new connections from this subscription are restricted`
   String get policyBudgetReached {
     return Intl.message(
-      'Local budget reached; new source connections restricted',
+      'Device traffic cap reached; new connections from this subscription are restricted',
       name: 'policyBudgetReached',
       desc: '',
       args: [],
@@ -7094,20 +7104,20 @@ class AppLocalizations {
     );
   }
 
-  /// `Local rules module`
+  /// `Enable local rule features`
   String get policyModule {
     return Intl.message(
-      'Local rules module',
+      'Enable local rule features',
       name: 'policyModule',
       desc: '',
       args: [],
     );
   }
 
-  /// `Local subscription collection`
+  /// `Merged profile`
   String get policyLocalCollection {
     return Intl.message(
-      'Local subscription collection',
+      'Merged profile',
       name: 'policyLocalCollection',
       desc: '',
       args: [],
@@ -7144,10 +7154,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Rules, node sets and budget records remain when disabled`
+  /// `Turning this off stops local rules, subscription merging and traffic limits; saved settings are kept`
   String get policyModuleOffHint {
     return Intl.message(
-      'Rules, node sets and budget records remain when disabled',
+      'Turning this off stops local rules, subscription merging and traffic limits; saved settings are kept',
       name: 'policyModuleOffHint',
       desc: '',
       args: [],
@@ -7164,20 +7174,20 @@ class AppLocalizations {
     );
   }
 
-  /// `Node sets`
+  /// `Candidate node groups`
   String get policyNodeSets {
     return Intl.message(
-      'Node sets',
+      'Candidate node groups',
       name: 'policyNodeSets',
       desc: '',
       args: [],
     );
   }
 
-  /// `Sources and collection`
+  /// `Node sources`
   String get policySourcesCollection {
     return Intl.message(
-      'Sources and collection',
+      'Node sources',
       name: 'policySourcesCollection',
       desc: '',
       args: [],
@@ -7214,9 +7224,14 @@ class AppLocalizations {
     );
   }
 
-  /// `Node set`
+  /// `Candidate node group`
   String get policyNodeSet {
-    return Intl.message('Node set', name: 'policyNodeSet', desc: '', args: []);
+    return Intl.message(
+      'Candidate node group',
+      name: 'policyNodeSet',
+      desc: '',
+      args: [],
+    );
   }
 
   /// `More settings`
@@ -7759,10 +7774,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Subscription remaining quota`
+  /// `Provider-reported remaining traffic`
   String get policySourceQuota {
     return Intl.message(
-      'Subscription remaining quota',
+      'Provider-reported remaining traffic',
       name: 'policySourceQuota',
       desc: '',
       args: [],
@@ -8179,6 +8194,106 @@ class AppLocalizations {
     return Intl.message(
       'Could not save conversation history',
       name: 'aiHistorySaveFailed',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Advanced`
+  String get policyAdvancedTab {
+    return Intl.message(
+      'Advanced',
+      name: 'policyAdvancedTab',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Add a subscription or local profile in Profiles before creating rules or candidate node groups`
+  String get policyNoProfilesHint {
+    return Intl.message(
+      'Add a subscription or local profile in Profiles before creating rules or candidate node groups',
+      name: 'policyNoProfilesHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Applies while this profile is active; changing this field does not switch the running profile`
+  String get policyTargetHint {
+    return Intl.message(
+      'Applies while this profile is active; changing this field does not switch the running profile',
+      name: 'policyTargetHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Profile containing these nodes`
+  String get policyNodeSetTarget {
+    return Intl.message(
+      'Profile containing these nodes',
+      name: 'policyNodeSetTarget',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Node selection`
+  String get policyNodeSetStrategy {
+    return Intl.message(
+      'Node selection',
+      name: 'policyNodeSetStrategy',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Filter by region, source and traffic multiplier, then choose one eligible node; traffic is not shared evenly`
+  String get policyNodeSetHint {
+    return Intl.message(
+      'Filter by region, source and traffic multiplier, then choose one eligible node; traffic is not shared evenly',
+      name: 'policyNodeSetHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Stable keeps the current node when possible; low latency uses probe delay; low multiplier uses the provider’s traffic charging multiplier`
+  String get policyNodeSetStrategyHint {
+    return Intl.message(
+      'Stable keeps the current node when possible; low latency uses probe delay; low multiplier uses the provider’s traffic charging multiplier',
+      name: 'policyNodeSetStrategyHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Traffic information not supplied`
+  String get policySourceQuotaUnknown {
+    return Intl.message(
+      'Traffic information not supplied',
+      name: 'policySourceQuotaUnknown',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Local configuration validation failed; nothing was saved. Check the configuration and retry`
+  String get aiConfigurationInvalid {
+    return Intl.message(
+      'Local configuration validation failed; nothing was saved. Check the configuration and retry',
+      name: 'aiConfigurationInvalid',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Local configuration was not saved successfully. Check change history before retrying`
+  String get aiConfigurationSaveFailed {
+    return Intl.message(
+      'Local configuration was not saved successfully. Check change history before retrying',
+      name: 'aiConfigurationSaveFailed',
       desc: '',
       args: [],
     );

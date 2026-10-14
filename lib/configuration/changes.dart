@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:fl_clash/database/workbench_database.dart';
+import 'package:fl_clash/configuration/settings.dart';
 import 'package:fl_clash/policy/models.dart';
 
 abstract interface class ConfigurationBackend {
@@ -53,38 +54,61 @@ Map<String, Object?> configurationRecoveryState(
   Map<String, Object?> after,
   Map<String, Object?> current,
 ) {
-  Object? restore(Object? original, Object? changed, Object? live) {
-    if (policyDigest(original) == policyDigest(changed)) return live;
+  Object? restore(
+    Object? original,
+    Object? changed,
+    Object? live,
+    String path,
+  ) {
+    if (configurationDigest(original, path) ==
+        configurationDigest(changed, path)) {
+      return live;
+    }
     if (original is Map && changed is Map && live is Map) {
       final result = Map<String, Object?>.from(live);
       for (final key in {...original.keys, ...changed.keys}) {
-        result['$key'] = restore(original[key], changed[key], live[key]);
+        final childPath = path.isEmpty ? '$key' : '$path.$key';
+        result['$key'] = restore(
+          original[key],
+          changed[key],
+          live[key],
+          childPath,
+        );
       }
       return result;
     }
-    if (policyDigest(live) == policyDigest(changed) ||
-        policyDigest(live) == policyDigest(original)) {
+    if (configurationDigest(live, path) == configurationDigest(changed, path) ||
+        configurationDigest(live, path) ==
+            configurationDigest(original, path)) {
       return original;
     }
     throw const ConfigurationChangeException('configuration_recovery_conflict');
   }
 
-  return policyObject(restore(before, after, current), 'recovery');
+  return policyObject(restore(before, after, current, ''), 'recovery');
 }
 
 bool configurationRestoredMatches(
   Object? before,
   Object? after,
-  Object? current,
-) {
-  if (policyDigest(before) == policyDigest(after)) return true;
+  Object? current, [
+  String path = '',
+]) {
+  if (configurationDigest(before, path) == configurationDigest(after, path)) {
+    return true;
+  }
   if (before is Map && after is Map && current is Map) {
     return {...before.keys, ...after.keys}.every(
-      (key) =>
-          configurationRestoredMatches(before[key], after[key], current[key]),
+      (key) => configurationRestoredMatches(
+        before[key],
+        after[key],
+        current[key],
+        path.isEmpty ? '$key' : '$path.$key',
+      ),
     );
   }
-  return policyDigest(before) == policyDigest(current);
+  return configurationDigest(before, path) ==
+      configurationDigest(current, path);
 }
 
 final class ConfigurationChangeException implements Exception {
@@ -131,7 +155,8 @@ List<ConfigurationDifference> configurationDifferences(
         ),
       );
     }
-  } else if (policyDigest(before) != policyDigest(after)) {
+  } else if (configurationDigest(before, path) !=
+      configurationDigest(after, path)) {
     final sensitive = RegExp(
       r'(password|secret|token|credential|api.?key|authorization|protectedContent)',
       caseSensitive: false,
@@ -266,7 +291,7 @@ final class ConfigurationChangeService {
       category: category,
       summary: summary,
       highRisk: highRisk,
-      fingerprint: policyDigest(before),
+      fingerprint: configurationDigest(before),
       before: before,
       after: snapshot,
       createdAt: now.millisecondsSinceEpoch,
@@ -337,8 +362,8 @@ final class ConfigurationChangeService {
     final cached = _prepared[id];
     if (cached != null &&
         cached['fingerprint'] == row.fingerprint &&
-        cached['afterDigest'] == policyDigest(candidate)) {
-      if (policyDigest(await backend.readState()) != row.fingerprint) {
+        cached['afterDigest'] == configurationDigest(candidate)) {
+      if (configurationDigest(await backend.readState()) != row.fingerprint) {
         throw const ConfigurationChangeException(
           'configuration_version_conflict',
         );
@@ -358,7 +383,7 @@ final class ConfigurationChangeService {
     if (isCurrent?.call() == false) {
       throw const ConfigurationChangeException('configuration_cancelled');
     }
-    if (policyDigest(await backend.readState()) != row.fingerprint) {
+    if (configurationDigest(await backend.readState()) != row.fingerprint) {
       throw const ConfigurationChangeException(
         'configuration_version_conflict',
       );
@@ -383,7 +408,7 @@ final class ConfigurationChangeService {
     if (isCurrent?.call() == false) {
       throw const ConfigurationChangeException('configuration_cancelled');
     }
-    if (policyDigest(await backend.readState()) != row.fingerprint) {
+    if (configurationDigest(await backend.readState()) != row.fingerprint) {
       throw const ConfigurationChangeException(
         'configuration_version_conflict',
       );
@@ -403,7 +428,7 @@ final class ConfigurationChangeService {
       if (isCurrent?.call() == false) {
         throw const ConfigurationChangeException('configuration_cancelled');
       }
-      if (policyDigest(await backend.readState()) != row.fingerprint) {
+      if (configurationDigest(await backend.readState()) != row.fingerprint) {
         throw const ConfigurationChangeException(
           'configuration_version_conflict',
         );
@@ -411,7 +436,7 @@ final class ConfigurationChangeService {
       final cached = _prepared[id];
       if (cached != null &&
           cached['fingerprint'] == row.fingerprint &&
-          cached['afterDigest'] == policyDigest(candidate)) {
+          cached['afterDigest'] == configurationDigest(candidate)) {
         return readProposal(id);
       }
       final validator = backend;
@@ -430,7 +455,7 @@ final class ConfigurationChangeService {
       if (isCurrent?.call() == false) {
         throw const ConfigurationChangeException('configuration_cancelled');
       }
-      if (policyDigest(await backend.readState()) != row.fingerprint) {
+      if (configurationDigest(await backend.readState()) != row.fingerprint) {
         throw const ConfigurationChangeException(
           'configuration_version_conflict',
         );
@@ -438,7 +463,7 @@ final class ConfigurationChangeService {
       if (_prepared.length >= 4) _prepared.remove(_prepared.keys.first);
       _prepared[id] = {
         'fingerprint': row.fingerprint,
-        'afterDigest': policyDigest(candidate),
+        'afterDigest': configurationDigest(candidate),
         'validation': prepared,
       };
       return readProposal(id);
@@ -504,7 +529,7 @@ final class ConfigurationChangeService {
       }
       final before = policyObject(jsonDecode(row.beforePayload), 'before');
       final after = policyObject(jsonDecode(row.afterPayload), 'after');
-      if (policyDigest(await backend.readState()) != row.fingerprint) {
+      if (configurationDigest(await backend.readState()) != row.fingerprint) {
         await store.changeStatus(id, 'superseded');
         throw const ConfigurationChangeException(
           'configuration_version_conflict',
@@ -521,7 +546,7 @@ final class ConfigurationChangeService {
       final matchesPrepared =
           prepared != null &&
           prepared['fingerprint'] == row.fingerprint &&
-          prepared['afterDigest'] == policyDigest(after);
+          prepared['afterDigest'] == configurationDigest(after);
       if (validation['requiresScriptExecutionApproval'] == true &&
           !matchesPrepared) {
         throw const ConfigurationChangeException(
@@ -539,7 +564,7 @@ final class ConfigurationChangeService {
       if (isCurrent?.call() == false) {
         throw const ConfigurationChangeException('configuration_cancelled');
       }
-      if (policyDigest(await backend.readState()) != row.fingerprint) {
+      if (configurationDigest(await backend.readState()) != row.fingerprint) {
         await store.changeStatus(id, 'superseded');
         throw const ConfigurationChangeException(
           'configuration_version_conflict',
@@ -553,7 +578,7 @@ final class ConfigurationChangeService {
         if (isCurrent?.call() == false) {
           throw const ConfigurationChangeException('configuration_cancelled');
         }
-        if (policyDigest(await backend.readState()) != row.fingerprint) {
+        if (configurationDigest(await backend.readState()) != row.fingerprint) {
           await store.changeStatus(id, 'superseded');
           throw const ConfigurationChangeException(
             'configuration_version_conflict',
@@ -571,7 +596,8 @@ final class ConfigurationChangeService {
           } else {
             await backend.activate(after);
           }
-          if (policyDigest(await backend.readState()) != policyDigest(after)) {
+          if (configurationDigest(await backend.readState()) !=
+              configurationDigest(after)) {
             await store.changeStatus(id, 'superseded');
             throw const ConfigurationChangeException(
               'configuration_version_conflict',
@@ -595,8 +621,8 @@ final class ConfigurationChangeService {
               );
             } else {
               final current = await backend.readState();
-              if (policyDigest(current) != policyDigest(after) &&
-                  policyDigest(current) != policyDigest(before)) {
+              if (configurationDigest(current) != configurationDigest(after) &&
+                  configurationDigest(current) != configurationDigest(before)) {
                 await store.changeStatus(
                   id,
                   'superseded',
@@ -648,7 +674,8 @@ final class ConfigurationChangeService {
       throw const ConfigurationChangeException('configuration_not_undoable');
     }
     final after = policyObject(jsonDecode(row.afterPayload), 'after');
-    if (policyDigest(await backend.readState()) != policyDigest(after)) {
+    if (configurationDigest(await backend.readState()) !=
+        configurationDigest(after)) {
       throw const ConfigurationChangeException('configuration_undo_conflict');
     }
     return propose(
@@ -739,8 +766,8 @@ final class ConfigurationChangeService {
         final after = policyObject(jsonDecode(row.afterPayload), 'after');
         final current = await backend.readState();
         if (backend is! ConfigurationRecoveryBackend &&
-            policyDigest(current) != policyDigest(before) &&
-            policyDigest(current) != policyDigest(after)) {
+            configurationDigest(current) != configurationDigest(before) &&
+            configurationDigest(current) != configurationDigest(after)) {
           await store.changeStatus(
             row.id,
             'superseded',

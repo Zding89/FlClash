@@ -61,6 +61,33 @@ final class SettingCapability {
 Map<String, Object?> configJson(Config config) =>
     policyObject(jsonDecode(jsonEncode(config)), 'config');
 
+String configurationDigest(Object? value, [String path = '']) {
+  bool isDavPassword(String value) {
+    return value == 'davProps.password' || value == 'config.davProps.password';
+  }
+
+  Object? normalize(Object? entry, String currentPath) {
+    if (isDavPassword(currentPath) && (entry is String || entry == null)) {
+      return davPasswordFingerprint(entry as String? ?? '');
+    }
+    if (entry is Map) {
+      return {
+        for (final item in entry.entries)
+          '${item.key}': normalize(
+            item.value,
+            currentPath.isEmpty ? '${item.key}' : '$currentPath.${item.key}',
+          ),
+      };
+    }
+    if (entry is List) {
+      return entry.map((item) => normalize(item, currentPath)).toList();
+    }
+    return entry;
+  }
+
+  return policyDigest(normalize(value, path));
+}
+
 final class SettingsCatalog {
   late final Map<String, SettingCapability> capabilities = _build();
 
@@ -287,7 +314,7 @@ final class SettingsCatalog {
     if ((config.windowProps.width == 0) != (config.windowProps.height == 0)) {
       throw const FormatException('Set both window dimensions together');
     }
-    if (policyDigest(configJson(config)) != policyDigest(value)) {
+    if (configurationDigest(configJson(config)) != configurationDigest(value)) {
       throw const FormatException(
         'Configuration contains values that cannot be represented',
       );
@@ -323,8 +350,14 @@ final class SettingsCatalog {
       capabilities.values.any(
         (capability) =>
             capability.highRisk &&
-            policyDigest(readPath(before, capability.path)) !=
-                policyDigest(readPath(after, capability.path)),
+            configurationDigest(
+                  readPath(before, capability.path),
+                  capability.path,
+                ) !=
+                configurationDigest(
+                  readPath(after, capability.path),
+                  capability.path,
+                ),
       );
 
   Object? readPath(Map<String, Object?> value, String path) {

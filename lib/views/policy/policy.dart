@@ -173,18 +173,18 @@ class _LocalPolicyWorkbenchViewState
     Map<String, String> targets,
     LocalPolicy? existing,
   ) async {
-    if (existing == null && document.activeIntegration == null) {
-      await _integration(document, ref.read(profilesProvider), null);
-      return;
-    }
+    final availableTargets = _availableTargets(
+      document,
+      ref.read(profilesProvider),
+    );
+    if (existing == null && availableTargets.isEmpty) return;
     final preferredTarget =
-        existing?.targetId ??
-        _viewTarget ??
-        document.activeIntegration?.targetId;
+        existing?.targetId ?? _selectedTarget(document, availableTargets);
     final orderedTargets = <String, String>{
-      if (preferredTarget != null && targets.containsKey(preferredTarget))
-        preferredTarget: targets[preferredTarget]!,
-      if (existing != null) ...targets,
+      if (preferredTarget != null &&
+          availableTargets.containsKey(preferredTarget))
+        preferredTarget: availableTargets[preferredTarget]!,
+      ...availableTargets,
     };
     await showDialog<LocalPolicy>(
       context: context,
@@ -289,11 +289,12 @@ class _LocalPolicyWorkbenchViewState
     Map<String, Object?> snapshot,
     PolicyNodeSet? existing,
   ) async {
+    final availableTargets = _availableTargets(
+      document,
+      ref.read(profilesProvider),
+    );
     final target =
-        existing?.targetId ??
-        _viewTarget ??
-        document.activeIntegration?.targetId ??
-        targets.keys.firstOrNull;
+        existing?.targetId ?? _selectedTarget(document, availableTargets);
     if (target == null) return;
     try {
       final nodes = await _controller.loadNodes(target);
@@ -370,9 +371,14 @@ class _LocalPolicyWorkbenchViewState
     Map<String, Object?> snapshot,
   ) {
     final strings = context.appLocalizations;
+    final selected = _selectedTarget(document, targets);
     return _list([
+      _targetSelector(document, targets, nodeSets: true),
+      const SizedBox(height: 12),
+      Text(strings.policyNodeSetHint),
+      const SizedBox(height: 8),
       Text(strings.policySharedSetImpact),
-      for (final set in document.nodeSets)
+      for (final set in document.nodeSets.where((s) => s.targetId == selected))
         Card(
           child: ListTile(
             title: Text(set.label),
@@ -426,12 +432,14 @@ class _LocalPolicyWorkbenchViewState
           ),
         ),
       FilledButton.tonalIcon(
-        onPressed: _busy || targets.isEmpty
+        onPressed: _busy || ref.watch(profilesProvider).isEmpty
             ? null
             : () => _nodeSet(document, targets, snapshot, null),
         icon: const Icon(Icons.add),
         label: Text(strings.policyNodeSet),
       ),
+      if (ref.watch(profilesProvider).isEmpty)
+        Text(strings.policyNoProfilesHint),
     ]);
   }
 
@@ -514,11 +522,115 @@ class _LocalPolicyWorkbenchViewState
   Widget _list(List<Widget> children) =>
       ListView(padding: const EdgeInsets.all(16), children: children);
 
+  Map<String, String> _availableTargets(
+    LocalPolicyDocument document,
+    List<Profile> profiles,
+  ) => {
+    for (final profile in profiles) 'profile:${profile.id}': profile.realLabel,
+    for (final integration in document.integrations)
+      if (integration.sourceProfileIds.every(
+        (id) => profiles.any((profile) => profile.id == id),
+      ))
+        integration.targetId: integration.label,
+  };
+
+  String? _selectedTarget(
+    LocalPolicyDocument document,
+    Map<String, String> targets,
+  ) {
+    if (targets.containsKey(_viewTarget)) return _viewTarget;
+    final profileId = ref.read(currentProfileIdProvider);
+    final running = document.moduleEnabled && document.integrationEnabled
+        ? document.activeIntegration?.targetId
+        : profileId == null
+        ? null
+        : 'profile:$profileId';
+    return targets.containsKey(running) ? running : targets.keys.firstOrNull;
+  }
+
+  Widget _targetSelector(
+    LocalPolicyDocument document,
+    Map<String, String> targets, {
+    bool nodeSets = false,
+  }) => targets.isEmpty
+      ? const SizedBox.shrink()
+      : DropdownButtonFormField<String>(
+          key: ValueKey(_selectedTarget(document, targets)),
+          initialValue: _selectedTarget(document, targets),
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: nodeSets
+                ? context.appLocalizations.policyNodeSetTarget
+                : context.appLocalizations.policyTarget,
+            helperText: context.appLocalizations.policyTargetHint,
+            helperMaxLines: 3,
+          ),
+          items: [
+            for (final entry in targets.entries)
+              DropdownMenuItem(
+                value: entry.key,
+                child: Text(entry.value, overflow: TextOverflow.ellipsis),
+              ),
+          ],
+          onChanged: _busy
+              ? null
+              : (value) => setState(() => _viewTarget = value),
+        );
+
+  Widget _section(List<Widget> children) => Padding(
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
+    ),
+  );
+
+  Widget _targetUse({
+    required bool selected,
+    required VoidCallback? onSelect,
+    required String targetKey,
+  }) => Padding(
+    padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+    child: Align(
+      alignment: Alignment.centerRight,
+      child: selected
+          ? Text(
+              ref.watch(coreStatusProvider) == CoreStatus.connected
+                  ? context.appLocalizations.policyAppliedStatus
+                  : context.appLocalizations.policySelectedOffline,
+            )
+          : FilledButton.tonal(
+              key: ValueKey('policy-use-$targetKey'),
+              onPressed: _busy ? null : onSelect,
+              child: Text(context.appLocalizations.policySelectCollection),
+            ),
+    ),
+  );
+
   Widget _integrations(LocalPolicyDocument document, List<Profile> profiles) {
     final strings = context.appLocalizations;
-    return _list([
+    return _section([
       Text(strings.policyIntegrationHint),
-      for (final profile in profiles) _PolicySourceFacts(profile: profile),
+      for (final profile in profiles)
+        Card(
+          child: Column(
+            children: [
+              _PolicySourceFacts(profile: profile),
+              _targetUse(
+                selected:
+                    !document.integrationEnabled &&
+                    ref.watch(currentProfileIdProvider) == profile.id,
+                onSelect: () => _operation(
+                  (_) => _controller.selectPolicyTarget(
+                    profileId: profile.id,
+                    approve: _approve,
+                  ),
+                ),
+                targetKey: 'profile:${profile.id}',
+              ),
+            ],
+          ),
+        ),
       if (document.integrations.isNotEmpty)
         DropdownButtonFormField<String>(
           key: ValueKey(document.activeIntegrationId),
@@ -580,64 +692,90 @@ class _LocalPolicyWorkbenchViewState
       if (document.integrations.isEmpty) Text(strings.policyEmptyIntegrations),
       for (final integration in document.integrations)
         Card(
-          child: ListTile(
-            leading: const Icon(Icons.merge_outlined),
-            title: Text(integration.label),
-            subtitle: Text(
-              integration.sourceProfileIds
-                  .map(
-                    (id) =>
-                        profiles
-                            .where((profile) => profile.id == id)
-                            .firstOrNull
-                            ?.label ??
-                        '$id',
-                  )
-                  .join(' · '),
-            ),
-            onTap: _busy
-                ? null
-                : () => _integration(document, profiles, integration),
-            trailing: IconButton(
-              onPressed: _busy
-                  ? null
-                  : () {
-                      if (document.policies.any(
-                        (rule) => rule.targetId == integration.targetId,
-                      )) {
-                        setState(() {
-                          _failed = true;
-                          _message = strings.policyDeleteLinked;
-                        });
-                        return;
-                      }
-                      if (document.integrationEnabled &&
-                          document.activeIntegrationId == integration.id) {
-                        setState(() => _message = strings.policyDeleteLinked);
-                        return;
-                      }
-                      final remaining = document.integrations
-                          .where((entry) => entry.id != integration.id)
-                          .toList();
-                      final active =
-                          document.activeIntegrationId == integration.id
-                          ? null
-                          : document.activeIntegrationId;
-                      _apply(
-                        document,
-                        _patch(document, {
-                          'integrations': remaining
-                              .map((entry) => entry.toJson())
-                              .toList(),
-                          'activeIntegrationId': active,
-                          'integrationEnabled':
-                              document.integrationEnabled && active != null,
-                        }),
-                      );
-                    },
-              tooltip: strings.delete,
-              icon: const Icon(Icons.delete_outline),
-            ),
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.merge_outlined),
+                title: Text(integration.label),
+                subtitle: Text(
+                  integration.sourceProfileIds
+                      .map(
+                        (id) =>
+                            profiles
+                                .where((profile) => profile.id == id)
+                                .firstOrNull
+                                ?.label ??
+                            '$id',
+                      )
+                      .join(' · '),
+                ),
+                onTap: _busy
+                    ? null
+                    : () => _integration(document, profiles, integration),
+                trailing: IconButton(
+                  onPressed: _busy
+                      ? null
+                      : () {
+                          if (document.policies.any(
+                            (rule) => rule.targetId == integration.targetId,
+                          )) {
+                            setState(() {
+                              _failed = true;
+                              _message = strings.policyDeleteLinked;
+                            });
+                            return;
+                          }
+                          if (document.integrationEnabled &&
+                              document.activeIntegrationId == integration.id) {
+                            setState(
+                              () => _message = strings.policyDeleteLinked,
+                            );
+                            return;
+                          }
+                          final remaining = document.integrations
+                              .where((entry) => entry.id != integration.id)
+                              .toList();
+                          final active =
+                              document.activeIntegrationId == integration.id
+                              ? null
+                              : document.activeIntegrationId;
+                          _apply(
+                            document,
+                            _patch(document, {
+                              'integrations': remaining
+                                  .map((entry) => entry.toJson())
+                                  .toList(),
+                              'activeIntegrationId': active,
+                              'integrationEnabled':
+                                  document.integrationEnabled && active != null,
+                            }),
+                          );
+                        },
+                  tooltip: strings.delete,
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ),
+              _targetUse(
+                selected:
+                    document.moduleEnabled &&
+                    document.integrationEnabled &&
+                    document.activeIntegrationId == integration.id,
+                onSelect:
+                    document.moduleEnabled &&
+                        _availableTargets(
+                          document,
+                          profiles,
+                        ).containsKey(integration.targetId)
+                    ? () => _operation(
+                        (_) => _controller.selectPolicyTarget(
+                          integrationId: integration.id,
+                          approve: _approve,
+                        ),
+                      )
+                    : null,
+                targetKey: integration.targetId,
+              ),
+            ],
           ),
         ),
       const SizedBox(height: 16),
@@ -658,10 +796,7 @@ class _LocalPolicyWorkbenchViewState
     Map<String, Object?> snapshot,
   ) {
     final strings = context.appLocalizations;
-    final selected =
-        _viewTarget ??
-        document.activeIntegration?.targetId ??
-        targets.keys.firstOrNull;
+    final selected = _selectedTarget(document, targets);
     final rules = orderedPolicies(
       document.policies.where(
         (p) => p.targetId == selected && p.scope.type != PolicyMatchType.group,
@@ -853,24 +988,10 @@ class _LocalPolicyWorkbenchViewState
     }
 
     return _list([
-      if (targets.isNotEmpty)
-        DropdownButtonFormField<String>(
-          key: ValueKey(selected),
-          initialValue: selected,
-          isExpanded: true,
-          decoration: InputDecoration(labelText: strings.policyTarget),
-          items: [
-            for (final entry in targets.entries)
-              DropdownMenuItem(
-                value: entry.key,
-                child: Text(entry.value, overflow: TextOverflow.ellipsis),
-              ),
-          ],
-          onChanged: _busy
-              ? null
-              : (value) => setState(() => _viewTarget = value),
-        ),
+      _targetSelector(document, targets),
       const SizedBox(height: 12),
+      if (ref.watch(profilesProvider).isEmpty)
+        Text(strings.policyNoProfilesHint),
       Text(strings.policyRuleOrderHint),
       if (!document.policiesEnabled)
         SwitchListTile(
@@ -932,7 +1053,9 @@ class _LocalPolicyWorkbenchViewState
         children: [
           FilledButton.tonalIcon(
             onPressed:
-                _busy || targets.isEmpty || document.policies.length >= 100
+                _busy ||
+                    ref.watch(profilesProvider).isEmpty ||
+                    document.policies.length >= 100
                 ? null
                 : () => _rule(document, targets, null),
             icon: const Icon(Icons.add),
@@ -1094,7 +1217,7 @@ class _LocalPolicyWorkbenchViewState
       );
     }
 
-    return _list([
+    return _section([
       SwitchListTile(
         contentPadding: EdgeInsets.zero,
         title: Text(strings.policyEnableBudgets),
@@ -1457,13 +1580,17 @@ class _LocalPolicyWorkbenchViewState
   Widget build(BuildContext context) {
     final strings = context.appLocalizations;
     final profiles = ref.watch(profilesProvider);
+    ref.watch(currentProfileIdProvider);
     final snapshot =
         ref.watch(localPolicyStatusProvider).asData?.value ??
         const <String, Object?>{};
     final value = ref.watch(localPoliciesProvider);
     return DefaultTabController(
-      length: 5,
-      initialIndex: widget.initialTab,
+      length: 4,
+      initialIndex: switch (widget.initialTab) {
+        4 => 3,
+        final index => index.clamp(0, 3),
+      },
       child: CommonScaffold(
         title: strings.policyWorkbenchTitle,
         actions: [
@@ -1480,8 +1607,7 @@ class _LocalPolicyWorkbenchViewState
           error: (_, _) => Center(child: Text(strings.policyOperationFailed)),
           data: (document) {
             final targets = <String, String>{
-              for (final profile in profiles)
-                'profile:${profile.id}': profile.label,
+              ..._availableTargets(document, profiles),
               for (final integration in document.integrations)
                 integration.targetId: integration.label,
               for (final rule in document.policies)
@@ -1490,6 +1616,12 @@ class _LocalPolicyWorkbenchViewState
                       (i) => i.targetId == rule.targetId,
                     ))
                   rule.targetId: rule.targetId,
+              for (final set in document.nodeSets)
+                if (!profiles.any((p) => 'profile:${p.id}' == set.targetId) &&
+                    !document.integrations.any(
+                      (i) => i.targetId == set.targetId,
+                    ))
+                  set.targetId: set.targetId,
             };
             final sources = {
               for (final profile in profiles) '${profile.id}': profile.label,
@@ -1518,8 +1650,7 @@ class _LocalPolicyWorkbenchViewState
                       tabs: [
                         Tab(text: strings.policyRulesTab),
                         Tab(text: strings.policyNodeSets),
-                        Tab(text: strings.policySourcesCollection),
-                        Tab(text: strings.policyBudgetTab),
+                        Tab(text: strings.policyAdvancedTab),
                         Tab(text: strings.policyHistoryTab),
                       ],
                     ),
@@ -1544,8 +1675,18 @@ class _LocalPolicyWorkbenchViewState
                         children: [
                           _rules(document, targets, snapshot),
                           _nodeSets(document, targets, snapshot),
-                          _integrations(document, profiles),
-                          _budgets(document, sources, snapshot),
+                          _list([
+                            ExpansionTile(
+                              key: const PageStorageKey('policy-integrations'),
+                              title: Text(strings.policyIntegrationTab),
+                              children: [_integrations(document, profiles)],
+                            ),
+                            ExpansionTile(
+                              key: const PageStorageKey('policy-budgets'),
+                              title: Text(strings.policyBudgetTab),
+                              children: [_budgets(document, sources, snapshot)],
+                            ),
+                          ]),
                           _history(),
                         ],
                       ),
@@ -1592,7 +1733,7 @@ class _PolicySourceFacts extends ConsumerWidget {
         return ExpansionTile(
           title: Text(profile.realLabel),
           subtitle: Text(
-            '${strings.policySourceQuota}: ${remaining == null ? strings.policyUnknownAttribute : '${policyGiB(remaining)} GiB'}',
+            '${strings.policySourceQuota}: ${remaining == null ? strings.policySourceQuotaUnknown : '${policyGiB(remaining)} GiB'}',
           ),
           children: [
             ListTile(

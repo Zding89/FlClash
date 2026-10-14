@@ -20,6 +20,14 @@ String aiErrorText(BuildContext context, Object? error) {
     String() => error,
     _ => '',
   };
+  if (error is FormatException) {
+    return strings.aiConfigurationInvalid;
+  }
+  if (error is ConfigurationChangeException &&
+      code.startsWith('configuration_') &&
+      code != 'configuration_cancelled') {
+    return strings.aiConfigurationSaveFailed;
+  }
   return switch (code) {
     'authenticationFailed' => strings.aiAuthFailed,
     'quotaExceeded' => strings.aiQuotaExceeded,

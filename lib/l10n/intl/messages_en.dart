@@ -192,6 +192,12 @@ class MessageLookup extends MessageLookupByLibrary {
       "Clear conversation",
     ),
     "aiCodingPlan": MessageLookupByLibrary.simpleMessage("Coding plan"),
+    "aiConfigurationInvalid": MessageLookupByLibrary.simpleMessage(
+      "Local configuration validation failed; nothing was saved. Check the configuration and retry",
+    ),
+    "aiConfigurationSaveFailed": MessageLookupByLibrary.simpleMessage(
+      "Local configuration was not saved successfully. Check change history before retrying",
+    ),
     "aiConnection": MessageLookupByLibrary.simpleMessage("Connection"),
     "aiConversationHistory": MessageLookupByLibrary.simpleMessage(
       "Conversation history",
@@ -1015,12 +1021,14 @@ class MessageLookup extends MessageLookupByLibrary {
       "Please upload a valid QR code",
     ),
     "policyActiveIntegration": MessageLookupByLibrary.simpleMessage(
-      "Active integration",
+      "Merged profile to use",
     ),
     "policyAddBackup": MessageLookupByLibrary.simpleMessage("Add fallback"),
-    "policyAddBudget": MessageLookupByLibrary.simpleMessage("Add budget"),
+    "policyAddBudget": MessageLookupByLibrary.simpleMessage(
+      "Add traffic limit",
+    ),
     "policyAddIntegration": MessageLookupByLibrary.simpleMessage(
-      "Create integration",
+      "Create merged profile",
     ),
     "policyAddRule": MessageLookupByLibrary.simpleMessage("Add rule"),
     "policyAdmission": MessageLookupByLibrary.simpleMessage(
@@ -1029,6 +1037,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyAdvancedJson": MessageLookupByLibrary.simpleMessage(
       "Advanced structured JSON",
     ),
+    "policyAdvancedTab": MessageLookupByLibrary.simpleMessage("Advanced"),
     "policyAiGenerate": MessageLookupByLibrary.simpleMessage(
       "Generate a plan with AI",
     ),
@@ -1051,20 +1060,20 @@ class MessageLookup extends MessageLookupByLibrary {
       "Available members",
     ),
     "policyBudgetGiB": MessageLookupByLibrary.simpleMessage(
-      "Local budget (GiB)",
+      "Monthly traffic limit on this device (GiB)",
     ),
     "policyBudgetHint": MessageLookupByLibrary.simpleMessage(
-      "Counts this device’s FlClash traffic only; not account-wide usage or a byte-exact cap",
+      "Counts managed connections on this device and limits new connections at the cap; excludes other devices and may not close existing connections immediately",
     ),
     "policyBudgetLastSample": m24,
     "policyBudgetPeriod": m25,
     "policyBudgetReached": MessageLookupByLibrary.simpleMessage(
-      "Local budget reached; new source connections restricted",
+      "Device traffic cap reached; new connections from this subscription are restricted",
     ),
     "policyBudgetReachedHint": MessageLookupByLibrary.simpleMessage(
       "When selecting through local rules, other available candidates are tried. If none are available, the rule\'s fallback applies.",
     ),
-    "policyBudgetTab": MessageLookupByLibrary.simpleMessage("Budgets"),
+    "policyBudgetTab": MessageLookupByLibrary.simpleMessage("Traffic limits"),
     "policyCandidateHint": MessageLookupByLibrary.simpleMessage(
       "Only these nodes are considered, in order",
     ),
@@ -1144,30 +1153,30 @@ class MessageLookup extends MessageLookupByLibrary {
       "Draft changed; save to view check results",
     ),
     "policyEditIntegration": MessageLookupByLibrary.simpleMessage(
-      "Edit integration",
+      "Edit merged profile",
     ),
     "policyEditRule": MessageLookupByLibrary.simpleMessage("Edit rule"),
     "policyEligible": MessageLookupByLibrary.simpleMessage("Eligible now"),
     "policyEmptyBudgets": MessageLookupByLibrary.simpleMessage(
-      "No local source budgets yet",
+      "No traffic limits set on this device",
     ),
     "policyEmptyHistory": MessageLookupByLibrary.simpleMessage(
       "No change history yet",
     ),
     "policyEmptyIntegrations": MessageLookupByLibrary.simpleMessage(
-      "No integrations yet",
+      "No merged profile yet; ordinary rules can use existing profiles directly",
     ),
     "policyEmptyRules": MessageLookupByLibrary.simpleMessage(
       "No local rules yet",
     ),
     "policyEnableBudgets": MessageLookupByLibrary.simpleMessage(
-      "Enable local source budgets",
+      "Enable traffic limits on this device",
     ),
     "policyEnableIntegrations": MessageLookupByLibrary.simpleMessage(
-      "Enable integration",
+      "Use merged profile",
     ),
     "policyEnableRules": MessageLookupByLibrary.simpleMessage(
-      "Enable local rules",
+      "Enable routing rules",
     ),
     "policyEndTime": MessageLookupByLibrary.simpleMessage("End time (HH:mm)"),
     "policyExcluded": MessageLookupByLibrary.simpleMessage("Excluded now"),
@@ -1208,10 +1217,10 @@ class MessageLookup extends MessageLookupByLibrary {
       "Include subdomains",
     ),
     "policyIntegrationHint": MessageLookupByLibrary.simpleMessage(
-      "Original subscriptions remain; selected sources form a separate configuration",
+      "Combine nodes from selected subscriptions into a separate profile while keeping the originals. Remaining traffic is shown only when the provider supplies it",
     ),
     "policyIntegrationTab": MessageLookupByLibrary.simpleMessage(
-      "Integrations",
+      "Merge subscriptions",
     ),
     "policyInvalidData": MessageLookupByLibrary.simpleMessage(
       "Invalid fields, order or references. Check and retry",
@@ -1229,7 +1238,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Load available nodes",
     ),
     "policyLocalCollection": MessageLookupByLibrary.simpleMessage(
-      "Local subscription collection",
+      "Merged profile",
     ),
     "policyManualAttribute": MessageLookupByLibrary.simpleMessage(
       "Manually confirmed",
@@ -1254,9 +1263,11 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyMethod": MessageLookupByLibrary.simpleMessage("Request method"),
     "policyMissingNode": MessageLookupByLibrary.simpleMessage("Node missing"),
-    "policyModule": MessageLookupByLibrary.simpleMessage("Local rules module"),
+    "policyModule": MessageLookupByLibrary.simpleMessage(
+      "Enable local rule features",
+    ),
     "policyModuleOffHint": MessageLookupByLibrary.simpleMessage(
-      "Rules, node sets and budget records remain when disabled",
+      "Turning this off stops local rules, subscription merging and traffic limits; saved settings are kept",
     ),
     "policyMoreSettings": MessageLookupByLibrary.simpleMessage("More settings"),
     "policyMoveDown": MessageLookupByLibrary.simpleMessage("Move down"),
@@ -1276,8 +1287,27 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyNoMembers": MessageLookupByLibrary.simpleMessage(
       "No matching members; fallback or final handling will be used",
     ),
-    "policyNodeSet": MessageLookupByLibrary.simpleMessage("Node set"),
-    "policyNodeSets": MessageLookupByLibrary.simpleMessage("Node sets"),
+    "policyNoProfilesHint": MessageLookupByLibrary.simpleMessage(
+      "Add a subscription or local profile in Profiles before creating rules or candidate node groups",
+    ),
+    "policyNodeSet": MessageLookupByLibrary.simpleMessage(
+      "Candidate node group",
+    ),
+    "policyNodeSetHint": MessageLookupByLibrary.simpleMessage(
+      "Filter by region, source and traffic multiplier, then choose one eligible node; traffic is not shared evenly",
+    ),
+    "policyNodeSetStrategy": MessageLookupByLibrary.simpleMessage(
+      "Node selection",
+    ),
+    "policyNodeSetStrategyHint": MessageLookupByLibrary.simpleMessage(
+      "Stable keeps the current node when possible; low latency uses probe delay; low multiplier uses the provider’s traffic charging multiplier",
+    ),
+    "policyNodeSetTarget": MessageLookupByLibrary.simpleMessage(
+      "Profile containing these nodes",
+    ),
+    "policyNodeSets": MessageLookupByLibrary.simpleMessage(
+      "Candidate node groups",
+    ),
     "policyNodes": MessageLookupByLibrary.simpleMessage("Nodes"),
     "policyNotCollected": MessageLookupByLibrary.simpleMessage("Not collected"),
     "policyNotRunning": MessageLookupByLibrary.simpleMessage("Not running"),
@@ -1358,7 +1388,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyRuleType": MessageLookupByLibrary.simpleMessage("Rule type"),
     "policyRulesHint": MessageLookupByLibrary.simpleMessage(
-      "Choose available nodes in the specified order; no model calls",
+      "Choose primary and backup nodes for websites or apps in the selected profile; applies when that profile is active in rule mode",
     ),
     "policyRulesTab": MessageLookupByLibrary.simpleMessage("Rules"),
     "policyRuntimeState": MessageLookupByLibrary.simpleMessage(
@@ -1426,11 +1456,16 @@ class MessageLookup extends MessageLookupByLibrary {
       "Source or node missing; select again",
     ),
     "policySourceQuota": MessageLookupByLibrary.simpleMessage(
-      "Subscription remaining quota",
+      "Provider-reported remaining traffic",
     ),
-    "policySources": MessageLookupByLibrary.simpleMessage("Sources"),
+    "policySourceQuotaUnknown": MessageLookupByLibrary.simpleMessage(
+      "Traffic information not supplied",
+    ),
+    "policySources": MessageLookupByLibrary.simpleMessage(
+      "Subscription sources",
+    ),
     "policySourcesCollection": MessageLookupByLibrary.simpleMessage(
-      "Sources and collection",
+      "Node sources",
     ),
     "policyStableFirst": MessageLookupByLibrary.simpleMessage(
       "Stability first",
@@ -1451,7 +1486,10 @@ class MessageLookup extends MessageLookupByLibrary {
       "Superseded",
     ),
     "policyTarget": MessageLookupByLibrary.simpleMessage(
-      "Target configuration",
+      "Profile for these rules",
+    ),
+    "policyTargetHint": MessageLookupByLibrary.simpleMessage(
+      "Applies while this profile is active; changing this field does not switch the running profile",
     ),
     "policyTemporaryOverride": MessageLookupByLibrary.simpleMessage(
       "Temporary override",
@@ -1516,9 +1554,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyWeekdays": MessageLookupByLibrary.simpleMessage(
       "Weekdays (1=Monday, 7=Sunday)",
     ),
-    "policyWorkbenchTitle": MessageLookupByLibrary.simpleMessage(
-      "Local policy workbench",
-    ),
+    "policyWorkbenchTitle": MessageLookupByLibrary.simpleMessage("Local rules"),
     "port": MessageLookupByLibrary.simpleMessage("Port"),
     "portConflictTip": MessageLookupByLibrary.simpleMessage(
       "Please enter a different port",

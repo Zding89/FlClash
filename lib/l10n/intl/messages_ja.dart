@@ -162,6 +162,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiChinaCoding": MessageLookupByLibrary.simpleMessage("中国 Coding プラン"),
     "aiClearConversation": MessageLookupByLibrary.simpleMessage("会話を消去"),
     "aiCodingPlan": MessageLookupByLibrary.simpleMessage("Coding プラン"),
+    "aiConfigurationInvalid": MessageLookupByLibrary.simpleMessage(
+      "ローカル設定の検証に失敗し、保存されていません。設定を確認して再試行してください",
+    ),
+    "aiConfigurationSaveFailed": MessageLookupByLibrary.simpleMessage(
+      "ローカル設定を保存できませんでした。変更履歴を確認して再試行してください",
+    ),
     "aiConnection": MessageLookupByLibrary.simpleMessage("モデル接続"),
     "aiConversationHistory": MessageLookupByLibrary.simpleMessage("会話履歴"),
     "aiConversationHistoryHint": MessageLookupByLibrary.simpleMessage(
@@ -800,13 +806,16 @@ class MessageLookup extends MessageLookupByLibrary {
     "pleaseUploadValidQrcode": MessageLookupByLibrary.simpleMessage(
       "有効なQRコードをアップロードしてください",
     ),
-    "policyActiveIntegration": MessageLookupByLibrary.simpleMessage("使用する統合"),
+    "policyActiveIntegration": MessageLookupByLibrary.simpleMessage(
+      "使用する統合プロファイル",
+    ),
     "policyAddBackup": MessageLookupByLibrary.simpleMessage("予備を追加"),
-    "policyAddBudget": MessageLookupByLibrary.simpleMessage("予算を追加"),
-    "policyAddIntegration": MessageLookupByLibrary.simpleMessage("統合を作成"),
+    "policyAddBudget": MessageLookupByLibrary.simpleMessage("通信量制限を追加"),
+    "policyAddIntegration": MessageLookupByLibrary.simpleMessage("統合プロファイルを作成"),
     "policyAddRule": MessageLookupByLibrary.simpleMessage("ルールを追加"),
     "policyAdmission": MessageLookupByLibrary.simpleMessage("有効期限と残量"),
     "policyAdvancedJson": MessageLookupByLibrary.simpleMessage("詳細 JSON"),
+    "policyAdvancedTab": MessageLookupByLibrary.simpleMessage("詳細"),
     "policyAiGenerate": MessageLookupByLibrary.simpleMessage("AI でプランを生成"),
     "policyAiGenerationRequest": m22,
     "policyAiOptimizationRequest": m23,
@@ -818,19 +827,21 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyAutoCheck": MessageLookupByLibrary.simpleMessage("自動チェック"),
     "policyAutoRecover": MessageLookupByLibrary.simpleMessage("優先ノードへ自動復帰"),
     "policyAvailableMembers": MessageLookupByLibrary.simpleMessage("利用可能なメンバー"),
-    "policyBudgetGiB": MessageLookupByLibrary.simpleMessage("ローカル上限（GiB）"),
+    "policyBudgetGiB": MessageLookupByLibrary.simpleMessage(
+      "この端末の月間通信量上限（GiB）",
+    ),
     "policyBudgetHint": MessageLookupByLibrary.simpleMessage(
-      "この端末の FlClash 通信量のみ集計。アカウント全体や厳密な上限ではありません",
+      "この端末の管理対象接続のみ集計し、上限で新規接続を制限します。他の端末は含まず、既存の接続がすぐ切断されるとは限りません",
     ),
     "policyBudgetLastSample": m24,
     "policyBudgetPeriod": m25,
     "policyBudgetReached": MessageLookupByLibrary.simpleMessage(
-      "ローカル予算に達したため、このソースの新しい接続は制限されます",
+      "この端末の上限に達したため、この購読の新規接続を制限しています",
     ),
     "policyBudgetReachedHint": MessageLookupByLibrary.simpleMessage(
       "ローカルルールでノードを選ぶ場合は、他の利用可能な候補を試します。候補がない場合は、ルールのフォールバック設定に従います。",
     ),
-    "policyBudgetTab": MessageLookupByLibrary.simpleMessage("予算"),
+    "policyBudgetTab": MessageLookupByLibrary.simpleMessage("通信量制限"),
     "policyCandidateHint": MessageLookupByLibrary.simpleMessage(
       "このリスト内のノードのみ、指定順に選択します",
     ),
@@ -875,16 +886,26 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyDraftStatusHint": MessageLookupByLibrary.simpleMessage(
       "下書きが変更されています。保存後にチェック結果を表示",
     ),
-    "policyEditIntegration": MessageLookupByLibrary.simpleMessage("統合を編集"),
+    "policyEditIntegration": MessageLookupByLibrary.simpleMessage(
+      "統合プロファイルを編集",
+    ),
     "policyEditRule": MessageLookupByLibrary.simpleMessage("ルールを編集"),
     "policyEligible": MessageLookupByLibrary.simpleMessage("現在の条件に適合"),
-    "policyEmptyBudgets": MessageLookupByLibrary.simpleMessage("ローカル予算がありません"),
+    "policyEmptyBudgets": MessageLookupByLibrary.simpleMessage(
+      "この端末の通信量制限は未設定です",
+    ),
     "policyEmptyHistory": MessageLookupByLibrary.simpleMessage("変更履歴がありません"),
-    "policyEmptyIntegrations": MessageLookupByLibrary.simpleMessage("統合がありません"),
+    "policyEmptyIntegrations": MessageLookupByLibrary.simpleMessage(
+      "統合プロファイルはありません。通常のルールは既存のプロファイルに直接設定できます",
+    ),
     "policyEmptyRules": MessageLookupByLibrary.simpleMessage("ローカルルールがありません"),
-    "policyEnableBudgets": MessageLookupByLibrary.simpleMessage("ローカル予算を有効化"),
-    "policyEnableIntegrations": MessageLookupByLibrary.simpleMessage("統合を有効化"),
-    "policyEnableRules": MessageLookupByLibrary.simpleMessage("ローカルルールを有効化"),
+    "policyEnableBudgets": MessageLookupByLibrary.simpleMessage(
+      "この端末の通信量制限を有効化",
+    ),
+    "policyEnableIntegrations": MessageLookupByLibrary.simpleMessage(
+      "統合プロファイルを使用",
+    ),
+    "policyEnableRules": MessageLookupByLibrary.simpleMessage("振り分けルールを有効化"),
     "policyEndTime": MessageLookupByLibrary.simpleMessage("終了時刻（HH:mm）"),
     "policyExcluded": MessageLookupByLibrary.simpleMessage("現在の条件に不適合"),
     "policyExcludedNodes": MessageLookupByLibrary.simpleMessage("除外するノード"),
@@ -910,9 +931,9 @@ class MessageLookup extends MessageLookupByLibrary {
       "サブドメインを含む",
     ),
     "policyIntegrationHint": MessageLookupByLibrary.simpleMessage(
-      "元の購読を保持し、選択したソースを別設定に統合します",
+      "選択した購読のノードを独立したプロファイルにまとめ、元の購読は保持します。残り通信量は事業者から提供された場合のみ表示します",
     ),
-    "policyIntegrationTab": MessageLookupByLibrary.simpleMessage("統合"),
+    "policyIntegrationTab": MessageLookupByLibrary.simpleMessage("購読の統合"),
     "policyInvalidData": MessageLookupByLibrary.simpleMessage(
       "項目、順序、参照が不正です。確認してください",
     ),
@@ -924,9 +945,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "台帳を確認できないためソースを制限",
     ),
     "policyLoadNodes": MessageLookupByLibrary.simpleMessage("利用可能なノードを読み込む"),
-    "policyLocalCollection": MessageLookupByLibrary.simpleMessage(
-      "ローカル購読コレクション",
-    ),
+    "policyLocalCollection": MessageLookupByLibrary.simpleMessage("統合プロファイル"),
     "policyManualAttribute": MessageLookupByLibrary.simpleMessage("手動確認"),
     "policyManualOrigin": MessageLookupByLibrary.simpleMessage("手動追加"),
     "policyMatchAll": MessageLookupByLibrary.simpleMessage("全条件（詳細）"),
@@ -936,9 +955,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyMetadataAge": MessageLookupByLibrary.simpleMessage("メタデータの有効時間（時間）"),
     "policyMethod": MessageLookupByLibrary.simpleMessage("リクエスト方式"),
     "policyMissingNode": MessageLookupByLibrary.simpleMessage("ノードがありません"),
-    "policyModule": MessageLookupByLibrary.simpleMessage("ローカルルール機能"),
+    "policyModule": MessageLookupByLibrary.simpleMessage("ローカルルール機能を有効化"),
     "policyModuleOffHint": MessageLookupByLibrary.simpleMessage(
-      "無効にしてもルール、ノード集合、予算記録は保持",
+      "無効にするとルール、購読統合、通信量制限を停止します。保存済み設定は残ります",
     ),
     "policyMoreSettings": MessageLookupByLibrary.simpleMessage("その他の設定"),
     "policyMoveDown": MessageLookupByLibrary.simpleMessage("下へ"),
@@ -950,8 +969,19 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyNoMembers": MessageLookupByLibrary.simpleMessage(
       "一致するメンバーがなく、予備または最終処理を使用",
     ),
-    "policyNodeSet": MessageLookupByLibrary.simpleMessage("ノード集合"),
-    "policyNodeSets": MessageLookupByLibrary.simpleMessage("ノード集合"),
+    "policyNoProfilesHint": MessageLookupByLibrary.simpleMessage(
+      "ルールや候補ノードグループを作る前に、「プロファイル」で購読またはローカル設定を追加してください",
+    ),
+    "policyNodeSet": MessageLookupByLibrary.simpleMessage("候補ノードグループ"),
+    "policyNodeSetHint": MessageLookupByLibrary.simpleMessage(
+      "地域、配信元、通信量倍率で絞り込み、条件に合うノードを1つ選びます。通信量の均等分散は行いません",
+    ),
+    "policyNodeSetStrategy": MessageLookupByLibrary.simpleMessage("ノード選択方法"),
+    "policyNodeSetStrategyHint": MessageLookupByLibrary.simpleMessage(
+      "安定優先は現在のノードを維持し、低遅延優先は検査の遅延で選び、低倍率優先は事業者の通信量課金倍率で選びます",
+    ),
+    "policyNodeSetTarget": MessageLookupByLibrary.simpleMessage("ノードの所属プロファイル"),
+    "policyNodeSets": MessageLookupByLibrary.simpleMessage("候補ノードグループ"),
     "policyNodes": MessageLookupByLibrary.simpleMessage("ノード"),
     "policyNotCollected": MessageLookupByLibrary.simpleMessage("未収集"),
     "policyNotRunning": MessageLookupByLibrary.simpleMessage("現在停止中"),
@@ -1000,7 +1030,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyRuleType": MessageLookupByLibrary.simpleMessage("ルールの種類"),
     "policyRulesHint": MessageLookupByLibrary.simpleMessage(
-      "指定順に利用可能なノードを選択します。AI は呼び出しません",
+      "選択したプロファイルのサイトやアプリに優先・予備ノードを設定します。そのプロファイルをルールモードで使用中に適用されます",
     ),
     "policyRulesTab": MessageLookupByLibrary.simpleMessage("ルール"),
     "policyRuntimeState": MessageLookupByLibrary.simpleMessage("実行状態"),
@@ -1053,11 +1083,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySourceMissing": MessageLookupByLibrary.simpleMessage(
       "ソースまたはノードがありません。再選択してください",
     ),
-    "policySourceQuota": MessageLookupByLibrary.simpleMessage("サブスクリプション残量"),
-    "policySources": MessageLookupByLibrary.simpleMessage("元のソース"),
-    "policySourcesCollection": MessageLookupByLibrary.simpleMessage(
-      "ソースとコレクション",
+    "policySourceQuota": MessageLookupByLibrary.simpleMessage("事業者が報告した残り通信量"),
+    "policySourceQuotaUnknown": MessageLookupByLibrary.simpleMessage(
+      "購読に通信量情報がありません",
     ),
+    "policySources": MessageLookupByLibrary.simpleMessage("購読元を選択"),
+    "policySourcesCollection": MessageLookupByLibrary.simpleMessage("ノードの配信元"),
     "policyStableFirst": MessageLookupByLibrary.simpleMessage("安定性を優先"),
     "policyStartTime": MessageLookupByLibrary.simpleMessage("開始時刻（HH:mm）"),
     "policySubscriptionExhausted": MessageLookupByLibrary.simpleMessage(
@@ -1068,7 +1099,10 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policySuccesses": MessageLookupByLibrary.simpleMessage("連続成功回数"),
     "policySupersededStatus": MessageLookupByLibrary.simpleMessage("後続の変更で置換"),
-    "policyTarget": MessageLookupByLibrary.simpleMessage("対象設定"),
+    "policyTarget": MessageLookupByLibrary.simpleMessage("ルールを適用するプロファイル"),
+    "policyTargetHint": MessageLookupByLibrary.simpleMessage(
+      "このプロファイルを使用中に適用されます。ここで選択しても使用中のプロファイルは切り替わりません",
+    ),
     "policyTemporaryOverride": MessageLookupByLibrary.simpleMessage("一時的な指定"),
     "policyTerminate": MessageLookupByLibrary.simpleMessage("ソース除外時に関連接続を終了"),
     "policyTerminateHint": MessageLookupByLibrary.simpleMessage(
@@ -1108,7 +1142,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyViewChanges": MessageLookupByLibrary.simpleMessage("差分を見る"),
     "policyWebsite": MessageLookupByLibrary.simpleMessage("ウェブサイト"),
     "policyWeekdays": MessageLookupByLibrary.simpleMessage("曜日（1=月、7=日）"),
-    "policyWorkbenchTitle": MessageLookupByLibrary.simpleMessage("ローカルポリシー"),
+    "policyWorkbenchTitle": MessageLookupByLibrary.simpleMessage("ローカルルール"),
     "port": MessageLookupByLibrary.simpleMessage("ポート"),
     "portConflictTip": MessageLookupByLibrary.simpleMessage("別のポートを入力してください"),
     "portTip": m28,

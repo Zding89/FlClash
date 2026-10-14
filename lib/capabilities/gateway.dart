@@ -8,6 +8,7 @@ import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/common/dav_client.dart';
 import 'package:fl_clash/configuration/changes.dart';
 import 'package:fl_clash/configuration/resources.dart';
+import 'package:fl_clash/configuration/settings.dart';
 import 'package:fl_clash/core/controller.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
@@ -74,7 +75,7 @@ class FlutterApplicationCapabilityGateway
 
   @override
   Future<String> version() async =>
-      policyDigest(await controller.backend.readState());
+      configurationDigest(await controller.backend.readState());
 
   Future<List<Group>> _groups() => core.getProxiesGroups(
     sortType: ProxiesSortType.none,

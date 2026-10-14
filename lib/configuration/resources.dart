@@ -822,7 +822,7 @@ final class FlutterResourceEnvironment
   String _settingsSignature() {
     final config = configJson(ref.read(configProvider))
       ..remove('currentProfileId');
-    return policyDigest(config);
+    return configurationDigest(config);
   }
 
   Future<String> _otherContextSignature(ResourceScope scope) async {

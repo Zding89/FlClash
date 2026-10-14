@@ -2,7 +2,9 @@ import 'dart:convert';
 
 import 'package:drift/native.dart';
 import 'package:fl_clash/configuration/changes.dart';
+import 'package:fl_clash/configuration/settings.dart';
 import 'package:fl_clash/database/workbench_database.dart';
+import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/policy/models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -77,46 +79,77 @@ class _Backend
   }
 }
 
-class _TransactionalBackend extends _Backend implements ConfigurationCommitBackend {
+class _TransactionalBackend extends _Backend
+    implements ConfigurationCommitBackend {
   final Map<String, String> artifacts = {};
   final Map<String, String> approved = {};
   String actual = 'before';
   bool failReadAfterActivation = false;
   bool _failNextRead = false;
 
-  String key(Map<String, Object?> after, String digest) => '${policyDigest(after)}:$digest';
+  String key(Map<String, Object?> after, String digest) =>
+      '${policyDigest(after)}:$digest';
   @override
   Future<Map<String, Object?>> readState() async {
-    if (_failNextRead) { _failNextRead = false; throw StateError('read failed'); }
+    if (_failNextRead) {
+      _failNextRead = false;
+      throw StateError('read failed');
+    }
     return super.readState();
   }
+
   @override
-  Future<Map<String, Object?>> validateApproved(Map<String, Object?> candidate) async {
+  Future<Map<String, Object?>> validateApproved(
+    Map<String, Object?> candidate,
+  ) async {
     scriptRuns++;
     final output = 'result-$scriptRuns';
     final digest = policyDigest(output);
     approved[key(candidate, digest)] = output;
     return {'finalConfigValidated': true, 'finalConfigDigest': digest};
   }
+
   @override
-  Future<void> beginCommit(String id, Map<String, Object?> before, Map<String, Object?> after, Map<String, Object?> validation) async {
+  Future<void> beginCommit(
+    String id,
+    Map<String, Object?> before,
+    Map<String, Object?> after,
+    Map<String, Object?> validation,
+  ) async {
     final digest = validation['finalConfigDigest'] as String;
-    if (!approved.containsKey(key(after, digest))) throw const ConfigurationChangeException('configuration_script_preview_missing');
+    if (!approved.containsKey(key(after, digest))) {
+      throw const ConfigurationChangeException(
+        'configuration_script_preview_missing',
+      );
+    }
     artifacts[id] = actual;
   }
+
   @override
-  Future<void> activateCommit(String id, Map<String, Object?> after, Map<String, Object?> validation) async {
+  Future<void> activateCommit(
+    String id,
+    Map<String, Object?> after,
+    Map<String, Object?> validation,
+  ) async {
     actual = approved[key(after, validation['finalConfigDigest'] as String)]!;
     await activate(after);
     _failNextRead = failReadAfterActivation;
   }
+
   @override
-  Future<void> restoreCommit(String id, Map<String, Object?> before, Map<String, Object?> after) async {
+  Future<void> restoreCommit(
+    String id,
+    Map<String, Object?> before,
+    Map<String, Object?> after,
+  ) async {
     await restore(before, after);
     actual = artifacts[id]!;
   }
+
   @override
-  Future<void> endCommit(String id) async { artifacts.remove(id); }
+  Future<void> endCommit(String id) async {
+    artifacts.remove(id);
+  }
 }
 
 class _JournalFailureDatabase extends WorkbenchDatabase {
@@ -143,58 +176,129 @@ void main() {
     summary: 'change',
     candidate: {'value': 2, 'other': 1},
   );
-  test('all services sharing one store serialize overlapping approved writes', () async {
-    final first = await proposal();
-    final secondService = ConfigurationChangeService(backend: backend, store: database);
-    final second = await secondService.propose(category: 'resource:profile:1', summary: 'same state', candidate: {'value': 2, 'other': 1});
-    final outcomes = await Future.wait([
-      service.commit(id: first.id, approve: (_) async => true).then((r) => r['status'], onError: (Object e) => e),
-      secondService.commit(id: second.id, approve: (_) async => true).then((r) => r['status'], onError: (Object e) => e),
-    ]);
-    expect(outcomes.where((result) => result == 'applied').length, 1);
-    expect(outcomes.whereType<ConfigurationChangeException>().single.code, 'configuration_version_conflict');
-    expect(backend.writes, 1);
-  });
-  test('repeat prepare while final approval waits cannot replace script output', () async {
-    final tx = _TransactionalBackend()..scriptRequired = true;
-    service = ConfigurationChangeService(backend: tx, store: database);
-    final draft = await service.propose(category: 'settings', summary: 'script', candidate: {'value': 2, 'other': 1});
-    final prepared = await service.prepareApprovedValidation(id: draft.id, approve: (_) async => true);
-    await service.commit(id: draft.id, approve: (shown) async {
-      final repeat = await service.prepareApprovedValidation(id: draft.id, approve: (_) async => true);
-      expect(repeat.validation, prepared.validation);
-      return true;
-    });
-    expect(tx.scriptRuns, 1);
-    expect(tx.actual, 'result-1');
-    expect(tx.artifacts, isEmpty);
-  });
-  test('distinct drafts of an identical candidate retain the approved output', () async {
-    final tx = _TransactionalBackend()..scriptRequired = true;
-    service = ConfigurationChangeService(backend: tx, store: database);
-    final one = await service.propose(category: 'settings', summary: 'one', candidate: {'value': 2, 'other': 1});
-    final two = await service.propose(category: 'settings', summary: 'two', candidate: {'value': 2, 'other': 1});
-    await service.prepareApprovedValidation(id: one.id, approve: (_) async => true);
-    await service.commit(id: one.id, approve: (_) async {
-      await service.prepareApprovedValidation(id: two.id, approve: (_) async => true);
-      return true;
-    });
-    expect(tx.scriptRuns, 2);
-    expect(tx.actual, 'result-1');
-  });
-  for (final fault in ['journal', 'readback']) {
-    test('successful activation followed by $fault failure restores original artifact', () async {
-      if (fault == 'journal') { await database.close(); database = _JournalFailureDatabase(); }
-      final tx = _TransactionalBackend()..scriptRequired = true..failReadAfterActivation = fault == 'readback';
+  test(
+    'all services sharing one store serialize overlapping approved writes',
+    () async {
+      final first = await proposal();
+      final secondService = ConfigurationChangeService(
+        backend: backend,
+        store: database,
+      );
+      final second = await secondService.propose(
+        category: 'resource:profile:1',
+        summary: 'same state',
+        candidate: {'value': 2, 'other': 1},
+      );
+      final outcomes = await Future.wait([
+        service
+            .commit(id: first.id, approve: (_) async => true)
+            .then((r) => r['status'], onError: (Object e) => e),
+        secondService
+            .commit(id: second.id, approve: (_) async => true)
+            .then((r) => r['status'], onError: (Object e) => e),
+      ]);
+      expect(outcomes.where((result) => result == 'applied').length, 1);
+      expect(
+        outcomes.whereType<ConfigurationChangeException>().single.code,
+        'configuration_version_conflict',
+      );
+      expect(backend.writes, 1);
+    },
+  );
+  test(
+    'repeat prepare while final approval waits cannot replace script output',
+    () async {
+      final tx = _TransactionalBackend()..scriptRequired = true;
       service = ConfigurationChangeService(backend: tx, store: database);
-      final draft = await service.propose(category: 'settings', summary: 'script', candidate: {'value': 2, 'other': 1});
-      await service.prepareApprovedValidation(id: draft.id, approve: (_) async => true);
-      await expectLater(service.commit(id: draft.id, approve: (_) async => true), throwsA(isA<ConfigurationChangeException>()));
-      expect(tx.state, {'value': 1, 'other': 1});
-      expect(tx.actual, 'before');
-      expect((await database.readChange(draft.id))!.status, 'restored');
+      final draft = await service.propose(
+        category: 'settings',
+        summary: 'script',
+        candidate: {'value': 2, 'other': 1},
+      );
+      final prepared = await service.prepareApprovedValidation(
+        id: draft.id,
+        approve: (_) async => true,
+      );
+      await service.commit(
+        id: draft.id,
+        approve: (shown) async {
+          final repeat = await service.prepareApprovedValidation(
+            id: draft.id,
+            approve: (_) async => true,
+          );
+          expect(repeat.validation, prepared.validation);
+          return true;
+        },
+      );
+      expect(tx.scriptRuns, 1);
+      expect(tx.actual, 'result-1');
       expect(tx.artifacts, isEmpty);
-    });
+    },
+  );
+  test(
+    'distinct drafts of an identical candidate retain the approved output',
+    () async {
+      final tx = _TransactionalBackend()..scriptRequired = true;
+      service = ConfigurationChangeService(backend: tx, store: database);
+      final one = await service.propose(
+        category: 'settings',
+        summary: 'one',
+        candidate: {'value': 2, 'other': 1},
+      );
+      final two = await service.propose(
+        category: 'settings',
+        summary: 'two',
+        candidate: {'value': 2, 'other': 1},
+      );
+      await service.prepareApprovedValidation(
+        id: one.id,
+        approve: (_) async => true,
+      );
+      await service.commit(
+        id: one.id,
+        approve: (_) async {
+          await service.prepareApprovedValidation(
+            id: two.id,
+            approve: (_) async => true,
+          );
+          return true;
+        },
+      );
+      expect(tx.scriptRuns, 2);
+      expect(tx.actual, 'result-1');
+    },
+  );
+  for (final fault in ['journal', 'readback']) {
+    test(
+      'successful activation followed by $fault failure restores original artifact',
+      () async {
+        if (fault == 'journal') {
+          await database.close();
+          database = _JournalFailureDatabase();
+        }
+        final tx = _TransactionalBackend()
+          ..scriptRequired = true
+          ..failReadAfterActivation = fault == 'readback';
+        service = ConfigurationChangeService(backend: tx, store: database);
+        final draft = await service.propose(
+          category: 'settings',
+          summary: 'script',
+          candidate: {'value': 2, 'other': 1},
+        );
+        await service.prepareApprovedValidation(
+          id: draft.id,
+          approve: (_) async => true,
+        );
+        await expectLater(
+          service.commit(id: draft.id, approve: (_) async => true),
+          throwsA(isA<ConfigurationChangeException>()),
+        );
+        expect(tx.state, {'value': 1, 'other': 1});
+        expect(tx.actual, 'before');
+        expect((await database.readChange(draft.id))!.status, 'restored');
+        expect(tx.artifacts, isEmpty);
+      },
+    );
   }
   test('preview and rejection never persist or activate', () async {
     final draft = await proposal();
@@ -258,6 +362,62 @@ void main() {
     await expectLater(
       service.proposeUndo(draft.id),
       throwsA(isA<ConfigurationChangeException>()),
+    );
+  });
+
+  test('AI-only changes survive randomized WebDAV password encoding', () async {
+    const config = Config(
+      themeProps: defaultThemeProps,
+      davProps: DAVProps(
+        uri: 'https://example.invalid/dav',
+        user: 'user',
+        password: 'secret',
+      ),
+    );
+    backend.state = {
+      'config': configJson(config),
+      'ai': {
+        'schemaVersion': 1,
+        'enabled': false,
+        'selectedConnectionId': null,
+        'connections': <Object?>[],
+      },
+    };
+    final candidate = {
+      'config': configJson(config),
+      'ai': {
+        'schemaVersion': 1,
+        'enabled': true,
+        'selectedConnectionId': 'ds',
+        'connections': [
+          {
+            'id': 'ds',
+            'label': 'DeepSeek',
+            'provider': 'deepseek',
+            'model': 'deepseek-chat',
+            'baseUrl': '',
+            'api': 'openai-completions',
+            'useProxy': false,
+            'timeoutSeconds': 90,
+            'maxTokens': 4096,
+          },
+        ],
+      },
+    };
+    final proposal = await service.propose(
+      category: 'ai',
+      summary: 'AI settings',
+      candidate: candidate,
+    );
+    final result = await service.commit(
+      id: proposal.id,
+      approve: (_) async => true,
+    );
+    expect(result['status'], 'applied');
+    expect((await backend.readState())['config'], isNotNull);
+    expect(
+      configurationDigest(await backend.readState()),
+      configurationDigest(candidate),
     );
   });
   test(

@@ -1,4 +1,5 @@
 import 'package:fl_clash/configuration/settings.dart';
+import 'package:fl_clash/configuration/changes.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -138,4 +139,79 @@ void main() {
     expect(safe['uri'], 'https://example.invalid');
     expect((local['davProps'] as Map)['password'], 'never-share');
   });
+
+  test('WebDAV password obfuscation is stable for state validation', () {
+    const config = Config(
+      themeProps: defaultThemeProps,
+      davProps: DAVProps(
+        uri: 'https://example.invalid/dav',
+        user: 'user',
+        password: 'secret',
+      ),
+    );
+    final first = configJson(config);
+    final second = configJson(config);
+    expect(
+      (first['davProps'] as Map)['password'],
+      isNot((second['davProps'] as Map)['password']),
+    );
+    expect(configurationDigest(first), configurationDigest(second));
+    expect(configurationDifferences(first, second), isEmpty);
+    final legacy = configJson(config);
+    (legacy['davProps'] as Map)['password'] = 'secret';
+    expect(configurationDigest(first), configurationDigest(legacy));
+    expect(() => catalog.validate(first), returnsNormally);
+    expect(catalog.highRisk(first, second), false);
+
+    final changed = configJson(
+      config.copyWith(davProps: config.davProps!.copyWith(password: 'changed')),
+    );
+    expect(catalog.highRisk(first, changed), true);
+  });
+
+  test(
+    'only DAV passwords are normalized and malformed values stay distinct',
+    () {
+      expect(
+        configurationDigest({'password': 'v1.invalid'}),
+        isNot(configurationDigest({'password': ''})),
+      );
+      final empty = {
+        'config': {
+          'davProps': {'password': ''},
+        },
+      };
+      final malformed = {
+        'config': {
+          'davProps': {'password': 'v1.invalid.invalid'},
+        },
+      };
+      expect(configurationDigest(empty), isNot(configurationDigest(malformed)));
+      expect(configurationDifferences(empty, malformed), hasLength(1));
+      for (final password in ['v1.invalid', 'v1.legacy.with.more.parts']) {
+        final legacy = defaults()
+          ..['davProps'] = const DAVProps(
+            uri: 'https://example.invalid/dav',
+            user: 'user',
+          ).toJson();
+        (legacy['davProps'] as Map)['password'] = password;
+        expect(catalog.validate(legacy).davProps!.password, password);
+      }
+      final unrelated = {
+        'other': {
+          'davProps': {'password': 'v1.invalid.invalid'},
+        },
+      };
+      expect(
+        configurationDigest(unrelated),
+        isNot(
+          configurationDigest({
+            'other': {
+              'davProps': {'password': ''},
+            },
+          }),
+        ),
+      );
+    },
+  );
 }

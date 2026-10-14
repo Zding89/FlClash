@@ -50,9 +50,14 @@ class _Keys implements AgentCredentialStore {
 }
 
 class _Controller extends Mock implements WorkbenchController {
-  _Controller({this.scriptPreview = false, this.settings = _settings});
+  _Controller({
+    this.scriptPreview = false,
+    this.settings = _settings,
+    this.proposalError,
+  });
   final AgentSettings settings;
   final bool scriptPreview;
+  final Exception? proposalError;
   AgentSettings? proposed;
   int closes = 0;
   bool finalApproved = false;
@@ -69,6 +74,7 @@ class _Controller extends Mock implements WorkbenchController {
   Future<ConfigurationProposal> proposeAgentSettings(
     AgentSettings settings,
   ) async {
+    if (proposalError != null) throw proposalError!;
     proposed = settings;
     return ConfigurationProposal(
       id: 'proposal',
@@ -536,6 +542,37 @@ void main() {
     expect(find.text(AppLocalizations.current.aiSaveFailed), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  for (final invalid in [true, false]) {
+    testWidgets(
+      'local configuration failure is not reported as a network error: invalid=$invalid',
+      (tester) async {
+        final controller = _Controller(
+          proposalError: invalid
+              ? const FormatException('fixture-invalid-config')
+              : const ConfigurationChangeException(
+                  'configuration_version_conflict',
+                ),
+        );
+        final container = await _mount(tester, controller);
+        addTearDown(container.dispose);
+        await _editKey(tester);
+        final strings = AppLocalizations.current;
+        expect(
+          find.text(
+            invalid
+                ? strings.aiConfigurationInvalid
+                : strings.aiConfigurationSaveFailed,
+          ),
+          findsOneWidget,
+        );
+        expect(find.text(strings.aiRequestFailed), findsNothing);
+        expect(controller.credentials.secret, 'old-secret');
+        expect(controller.closes, 0);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets(
     'preview approval does not approve the final result and rejected final restores key',

@@ -643,6 +643,8 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
               setState(() => _advanced = values.single),
         ),
         const SizedBox(height: 16),
+        Text(strings.policyNodeSetHint),
+        const SizedBox(height: 12),
         _field('label', strings.name, required: false),
         Text(strings.policySourcesCollection),
         Wrap(
@@ -708,7 +710,11 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
         DropdownButtonFormField<NodeSetStrategy>(
           initialValue: _strategy,
           isExpanded: true,
-          decoration: InputDecoration(labelText: strings.policyNodeSet),
+          decoration: InputDecoration(
+            labelText: strings.policyNodeSetStrategy,
+            helperText: strings.policyNodeSetStrategyHint,
+            helperMaxLines: 4,
+          ),
           items: [
             DropdownMenuItem(
               value: NodeSetStrategy.stable,

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:collection/collection.dart';
+import 'package:crypto/crypto.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:flutter/material.dart';
@@ -296,6 +297,38 @@ String _decodeDavPassword(String? value) {
   } on FormatException {
     return '';
   }
+}
+
+String davPasswordFingerprint(String value) {
+  final parts = value.split('.');
+  var validEncoding = false;
+  if (parts.length == 3 && parts[0] == _davPasswordFormatVersion) {
+    try {
+      final nonce = base64Url.decode(parts[1]);
+      final obfuscated = base64Url.decode(parts[2]);
+      if (nonce.length == _davPasswordNonceLength) {
+        final passwordBytes = List<int>.generate(
+          obfuscated.length,
+          (index) =>
+              obfuscated[index] ^
+              nonce[index % nonce.length] ^
+              _davPasswordObfuscationMask[index %
+                  _davPasswordObfuscationMask.length],
+          growable: false,
+        );
+        utf8.decode(passwordBytes);
+        validEncoding = true;
+      }
+    } on FormatException {
+      validEncoding = false;
+    }
+  }
+  final valueToHash = validEncoding
+      ? 'value:${_decodeDavPassword(value)}'
+      : parts.length == 3 && parts[0] == _davPasswordFormatVersion
+      ? 'invalid:$value'
+      : 'value:$value';
+  return sha256.convert(utf8.encode(valueToHash)).toString();
 }
 
 @Freezed(toStringOverride: false)
