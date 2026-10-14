@@ -527,6 +527,7 @@ type localPolicyEngine struct {
 	epoch                uint64
 	checks               map[string]*localPolicyCheck
 	healthPool           map[localHealthKey]*localNodeHealth
+	nodeIdentities       map[string][32]byte
 	evaluatedSets        map[string]bool
 	selectionRoundActive bool
 	stopped              bool

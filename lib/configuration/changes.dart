@@ -559,6 +559,9 @@ final class ConfigurationChangeService {
             'configuration_version_conflict',
           );
         }
+        if (isCurrent?.call() == false) {
+          throw const ConfigurationChangeException('configuration_cancelled');
+        }
         await store.changeStatus(id, 'committing');
         try {
           await backend.persist(after);
@@ -688,6 +691,7 @@ final class ConfigurationChangeService {
   Future<Map<String, Object?>> commitRecovery(
     ConfigurationProposal proposal, {
     required ConfigurationApproval approve,
+    bool Function()? isCurrent,
   }) async {
     final row = await store.readChange(proposal.id);
     if (row == null || !row.category.startsWith('recovery:')) {
@@ -705,8 +709,13 @@ final class ConfigurationChangeService {
     final prepared = await prepareApprovedValidation(
       id: proposal.id,
       approve: approve,
+      isCurrent: isCurrent,
     );
-    final result = await commit(id: prepared.id, approve: approve);
+    final result = await commit(
+      id: prepared.id,
+      approve: approve,
+      isCurrent: isCurrent,
+    );
     if (result['status'] == 'applied') {
       await store.changeStatus(originalId, 'resolved', error: original!.error);
     }

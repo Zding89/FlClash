@@ -26,7 +26,8 @@ import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/core/controller.dart';
 
 class LocalPolicyWorkbenchView extends ConsumerStatefulWidget {
-  const LocalPolicyWorkbenchView({super.key});
+  const LocalPolicyWorkbenchView({super.key, this.initialTab = 0});
+  final int initialTab;
   @override
   ConsumerState<LocalPolicyWorkbenchView> createState() =>
       _LocalPolicyWorkbenchViewState();
@@ -1462,6 +1463,7 @@ class _LocalPolicyWorkbenchViewState
     final value = ref.watch(localPoliciesProvider);
     return DefaultTabController(
       length: 5,
+      initialIndex: widget.initialTab,
       child: CommonScaffold(
         title: strings.policyWorkbenchTitle,
         actions: [

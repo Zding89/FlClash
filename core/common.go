@@ -303,12 +303,17 @@ func applyConfig(params *SetupParams) error {
 	if err != nil {
 		return err
 	}
-	if old := activeLocalPolicy.Load(); old != nil {
+	old := activeLocalPolicy.Load()
+	if localEngine != nil {
+		localEngine.identifyNodes(data)
+	}
+	if old != nil {
 		old.stop()
 	}
 	if localEngine != nil {
 		localBudgetStore.configure(localConfig.Budgets, time.Now())
 		localBudgetStore.save(false)
+		localEngine.inheritRuntime(old)
 		localEngine.install(parsedConfig)
 	}
 	currentConfig = parsedConfig

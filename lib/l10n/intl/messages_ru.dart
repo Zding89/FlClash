@@ -181,6 +181,14 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiCapabilityHint": MessageLookupByLibrary.simpleMessage(
       "Запросите действие обычным языком из текущего каталога возможностей",
     ),
+    "aiChangeCompleted": MessageLookupByLibrary.simpleMessage("Завершено"),
+    "aiChangeExpired": MessageLookupByLibrary.simpleMessage("Срок истёк"),
+    "aiChangeFailed": MessageLookupByLibrary.simpleMessage(
+      "Ошибка или прерывание",
+    ),
+    "aiChangesUnavailable": MessageLookupByLibrary.simpleMessage(
+      "Некоторые связанные записи недоступны.",
+    ),
     "aiCheckResult": MessageLookupByLibrary.simpleMessage("Результат проверки"),
     "aiChinaApi": MessageLookupByLibrary.simpleMessage("API Китая"),
     "aiChinaCoding": MessageLookupByLibrary.simpleMessage("Coding-тариф Китая"),
@@ -189,6 +197,12 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "aiCodingPlan": MessageLookupByLibrary.simpleMessage("Coding-тариф"),
     "aiConnection": MessageLookupByLibrary.simpleMessage("Подключение"),
+    "aiConversationHistory": MessageLookupByLibrary.simpleMessage(
+      "История диалогов",
+    ),
+    "aiConversationHistoryHint": MessageLookupByLibrary.simpleMessage(
+      "На устройстве хранятся последние 20 диалогов, до 80 текстовых сообщений в каждом. Открытие истории восстанавливает только текст, без повторения действий. Удаление диалога сохраняет журнал изменений.",
+    ),
     "aiCredentialRecoveryFailed": MessageLookupByLibrary.simpleMessage(
       "Восстановить ключ не удалось. Настройте его заново перед использованием",
     ),
@@ -218,6 +232,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiEmptyConversation": MessageLookupByLibrary.simpleMessage(
       "Проверьте текущую конфигурацию и просмотрите изменения",
     ),
+    "aiEmptyHistory": MessageLookupByLibrary.simpleMessage(
+      "Сохранённых диалогов нет",
+    ),
     "aiEnable": MessageLookupByLibrary.simpleMessage("Включить ИИ-помощника"),
     "aiEnableHint": MessageLookupByLibrary.simpleMessage(
       "Модель вызывается только при отправке сообщения; локальные политики работают независимо",
@@ -235,6 +252,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "aiHistoryLimit": MessageLookupByLibrary.simpleMessage(
       "Достигнут лимит диалога. Очистите его для продолжения",
+    ),
+    "aiHistorySaveFailed": MessageLookupByLibrary.simpleMessage(
+      "Не удалось сохранить историю диалога",
     ),
     "aiHostUnavailable": MessageLookupByLibrary.simpleMessage(
       "Среда ИИ недоступна. Используйте сборку macOS с этим компонентом",
@@ -254,6 +274,15 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiKeyStored": MessageLookupByLibrary.simpleMessage(
       "Сохранён в Связке ключей; оставьте пустым для сохранения",
     ),
+    "aiLinkedChanges": MessageLookupByLibrary.simpleMessage(
+      "Связанные изменения",
+    ),
+    "aiLinkedChangesHint": MessageLookupByLibrary.simpleMessage(
+      "Актуальные записи существующего журнала и различия. Отмена и восстановление доступны в истории изменений.",
+    ),
+    "aiManageChanges": MessageLookupByLibrary.simpleMessage(
+      "Открыть историю изменений",
+    ),
     "aiManualModel": MessageLookupByLibrary.simpleMessage(
       "ID модели (можно ввести вручную)",
     ),
@@ -271,6 +300,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiModelsUnsupported": MessageLookupByLibrary.simpleMessage(
       "Этот сервис не поддерживает получение моделей. Введите ID вручную.",
     ),
+    "aiNewConversation": MessageLookupByLibrary.simpleMessage("Новый диалог"),
     "aiNoConnection": MessageLookupByLibrary.simpleMessage(
       "Добавьте подключение для начала диалога",
     ),
@@ -334,6 +364,9 @@ class MessageLookup extends MessageLookupByLibrary {
       "Сервис и учётные данные",
     ),
     "aiSettingsTitle": MessageLookupByLibrary.simpleMessage("Подключения ИИ"),
+    "aiStartedWithProfile": MessageLookupByLibrary.simpleMessage(
+      "Профиль при запуске",
+    ),
     "aiStop": MessageLookupByLibrary.simpleMessage("Остановить"),
     "aiTargetChanged": MessageLookupByLibrary.simpleMessage(
       "Адрес изменён. Введите ключ для нового сервиса",
@@ -1385,9 +1418,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyRulesTab": MessageLookupByLibrary.simpleMessage("Правила"),
     "policyRuntimeState": MessageLookupByLibrary.simpleMessage("Состояние"),
-    "policySaved": MessageLookupByLibrary.simpleMessage(
-      "Сохранено и применено",
-    ),
+    "policySaved": MessageLookupByLibrary.simpleMessage("Сохранено"),
     "policySavedInactive": MessageLookupByLibrary.simpleMessage(
       "Сохранено; сейчас не работает",
     ),
@@ -1427,13 +1458,13 @@ class MessageLookup extends MessageLookupByLibrary {
       "Показать всех участников",
     ),
     "policySimulation": MessageLookupByLibrary.simpleMessage(
-      "Моделирование политик",
+      "Моделирование сценария",
     ),
     "policySimulationCoreRequired": MessageLookupByLibrary.simpleMessage(
       "Для моделирования нужно запущенное ядро прокси",
     ),
     "policySimulationHint": MessageLookupByLibrary.simpleMessage(
-      "Прогноз по текущим источникам, состоянию и использованию; шаги сценария показывают проверки, паузы и восстановление. Реальные проверки и запись конфигурации не выполняются.",
+      "Независимый сценарий холодного запуска. Состояние узлов и расход используются как исходные допущения; текущий выбор, время проверки, задержка, пауза и ход восстановления не переносятся. Это не прогноз текущей работы. Реальные проверки и запись конфигурации не выполняются.",
     ),
     "policySimulationSteps": MessageLookupByLibrary.simpleMessage(
       "Шаги сценария (расширенный JSON)",

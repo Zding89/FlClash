@@ -189,6 +189,7 @@ class AgentRuntime {
 
   Stream<AgentRuntimeEvent> get events => _events.stream;
   bool get isRunning => _completion != null;
+  bool get isClosed => _closed;
 
   static String _newId() {
     final random = Random.secure();

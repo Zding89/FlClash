@@ -6299,14 +6299,9 @@ class AppLocalizations {
     );
   }
 
-  /// `Saved and applied`
+  /// `Saved`
   String get policySaved {
-    return Intl.message(
-      'Saved and applied',
-      name: 'policySaved',
-      desc: '',
-      args: [],
-    );
+    return Intl.message('Saved', name: 'policySaved', desc: '', args: []);
   }
 
   /// `Operation incomplete. Check status or retry later`
@@ -6484,20 +6479,20 @@ class AppLocalizations {
     );
   }
 
-  /// `Policy simulation`
+  /// `Scenario simulation`
   String get policySimulation {
     return Intl.message(
-      'Policy simulation',
+      'Scenario simulation',
       name: 'policySimulation',
       desc: '',
       args: [],
     );
   }
 
-  /// `Predict from current sources, health and usage; add scenario steps to inspect probe, cooldown and recovery timing. No real probes or configuration writes.`
+  /// `Independent cold-start scenario. Health flags and usage are input assumptions; live selection, probe age, latency, cooldown and recovery state are not restored. Results do not predict current runtime behavior. No real probes or configuration writes.`
   String get policySimulationHint {
     return Intl.message(
-      'Predict from current sources, health and usage; add scenario steps to inspect probe, cooldown and recovery timing. No real probes or configuration writes.',
+      'Independent cold-start scenario. Health flags and usage are input assumptions; live selection, probe age, latency, cooldown and recovery state are not restored. Results do not predict current runtime behavior. No real probes or configuration writes.',
       name: 'policySimulationHint',
       desc: '',
       args: [],
@@ -8061,6 +8056,131 @@ class AppLocalizations {
       name: 'policyAiOptimizationRequest',
       desc: '',
       args: [target],
+    );
+  }
+
+  /// `Conversation history`
+  String get aiConversationHistory {
+    return Intl.message(
+      'Conversation history',
+      name: 'aiConversationHistory',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `New conversation`
+  String get aiNewConversation {
+    return Intl.message(
+      'New conversation',
+      name: 'aiNewConversation',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Keeps the latest 20 conversations on this device, up to 80 text messages each. Opening one restores text only; old actions are never resumed. Deleting a conversation keeps its change journal.`
+  String get aiConversationHistoryHint {
+    return Intl.message(
+      'Keeps the latest 20 conversations on this device, up to 80 text messages each. Opening one restores text only; old actions are never resumed. Deleting a conversation keeps its change journal.',
+      name: 'aiConversationHistoryHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `No saved conversations`
+  String get aiEmptyHistory {
+    return Intl.message(
+      'No saved conversations',
+      name: 'aiEmptyHistory',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Profile at start`
+  String get aiStartedWithProfile {
+    return Intl.message(
+      'Profile at start',
+      name: 'aiStartedWithProfile',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Related changes`
+  String get aiLinkedChanges {
+    return Intl.message(
+      'Related changes',
+      name: 'aiLinkedChanges',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Live records from the existing change journal. Review differences here; use change history for available undo or recovery.`
+  String get aiLinkedChangesHint {
+    return Intl.message(
+      'Live records from the existing change journal. Review differences here; use change history for available undo or recovery.',
+      name: 'aiLinkedChangesHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Some related records are no longer available.`
+  String get aiChangesUnavailable {
+    return Intl.message(
+      'Some related records are no longer available.',
+      name: 'aiChangesUnavailable',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Open change history`
+  String get aiManageChanges {
+    return Intl.message(
+      'Open change history',
+      name: 'aiManageChanges',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Completed`
+  String get aiChangeCompleted {
+    return Intl.message(
+      'Completed',
+      name: 'aiChangeCompleted',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Failed or interrupted`
+  String get aiChangeFailed {
+    return Intl.message(
+      'Failed or interrupted',
+      name: 'aiChangeFailed',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Expired`
+  String get aiChangeExpired {
+    return Intl.message('Expired', name: 'aiChangeExpired', desc: '', args: []);
+  }
+
+  /// `Could not save conversation history`
+  String get aiHistorySaveFailed {
+    return Intl.message(
+      'Could not save conversation history',
+      name: 'aiHistorySaveFailed',
+      desc: '',
+      args: [],
     );
   }
 }

@@ -549,6 +549,8 @@ void main() {
       expect(result.isError, false, reason: '${result.value}');
       expect(controller.simulations, 1);
       expect(controller.simulationSteps, steps);
+      expect(result.value['mode'], 'cold_start');
+      expect(result.value['predictsCurrentRuntime'], false);
       expect(result.value['timeline'], [
         {'at': 1700000000000},
       ]);

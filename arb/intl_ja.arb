@@ -755,7 +755,7 @@
   "policyAdvancedJson": "詳細 JSON",
   "policyJsonHint": "現行スキーマのみ対応。不正な項目・参照は適用できません",
   "policyInvalidData": "項目、順序、参照が不正です。確認してください",
-  "policySaved": "保存・適用しました",
+  "policySaved": "保存しました",
   "policyOperationFailed": "操作が未完了です。状態を確認してください",
   "policyEmptyIntegrations": "統合がありません",
   "policyEmptyRules": "ローカルルールがありません",
@@ -774,8 +774,8 @@
   "policyCoreStopped": "Core が停止中。ポリシーは実行されません",
   "policyRuntimeState": "実行状態",
   "policySelectedNode": "現在のノード",
-  "policySimulation": "ポリシーシミュレーション",
-  "policySimulationHint": "現在のソース、稼働状況、使用量から予測します。シナリオ手順で検査、待機、復旧の時間経過を確認できます。実際の検査や設定変更は行いません。",
+  "policySimulation": "シナリオシミュレーション",
+  "policySimulationHint": "独立したコールドスタートのシナリオです。稼働フラグと使用量を入力の仮定として使い、現在の選択、検査時刻、遅延、待機、復旧の進行状態は引き継ぎません。現在の動作予測ではありません。実際の検査や設定変更は行いません。",
   "policyAssumeHealthy": "全候補を正常と仮定",
   "policyEligible": "現在の条件に適合",
   "policyExcluded": "現在の条件に不適合",
@@ -970,5 +970,18 @@
         "type": "String"
       }
     }
-  }
+  },
+  "aiConversationHistory": "会話履歴",
+  "aiNewConversation": "新しい会話",
+  "aiConversationHistoryHint": "この端末に最新20件、各80件までのテキストを保存します。履歴を開いても過去の操作は再実行しません。会話を削除しても変更履歴は残ります。",
+  "aiEmptyHistory": "会話履歴はありません",
+  "aiStartedWithProfile": "開始時のプロファイル",
+  "aiLinkedChanges": "関連する変更",
+  "aiLinkedChangesHint": "既存の変更履歴の最新状態と差分を表示します。取り消しや復旧は変更履歴で行います。",
+  "aiChangesUnavailable": "一部の関連記録は利用できません。",
+  "aiManageChanges": "変更履歴を開く",
+  "aiChangeCompleted": "完了",
+  "aiChangeFailed": "失敗または中断",
+  "aiChangeExpired": "期限切れ",
+  "aiHistorySaveFailed": "会話履歴を保存できませんでした"
 }

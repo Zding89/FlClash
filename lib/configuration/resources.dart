@@ -667,6 +667,7 @@ final class ResourceChangeService {
       return scoped.commitRecovery(
         await scoped.readProposal(id),
         approve: approve,
+        isCurrent: isCurrent,
       );
     }
     final scoped = service(ResourceScope.fromCategory(row.category));

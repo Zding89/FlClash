@@ -248,12 +248,16 @@ func (e *localPolicyEngine) sharedHealthLocked(r *localPolicyRuntime, id string)
 	if e.healthPool == nil {
 		e.healthPool = map[localHealthKey]*localNodeHealth{}
 	}
-	p := r.definition.Probe
-	key := localHealthKey{Network: localNetworkProbeKey(r, id), Interval: p.IntervalSeconds, Retry: p.RetrySeconds, Validity: p.ValiditySeconds, Failures: p.FailureThreshold, Successes: p.SuccessThreshold, Recovery: r.definition.RecoverySeconds, Automatic: p.Automatic == nil || *p.Automatic}
+	key := localHealthKeyFor(r, id)
 	h := e.healthPool[key]
 	if h == nil {
 		h = &localNodeHealth{}
 		e.healthPool[key] = h
 	}
 	return h
+}
+
+func localHealthKeyFor(r *localPolicyRuntime, id string) localHealthKey {
+	p := r.definition.Probe
+	return localHealthKey{Network: localNetworkProbeKey(r, id), Interval: p.IntervalSeconds, Retry: p.RetrySeconds, Validity: p.ValiditySeconds, Failures: p.FailureThreshold, Successes: p.SuccessThreshold, Recovery: r.definition.RecoverySeconds, Automatic: p.Automatic == nil || *p.Automatic}
 }

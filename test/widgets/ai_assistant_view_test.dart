@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:fl_clash/ai/credentials.dart';
+import 'package:fl_clash/ai/history.dart';
 import 'package:fl_clash/database/workbench_database.dart';
 import 'package:fl_clash/configuration/resources.dart';
 import 'package:drift/native.dart';
@@ -10,6 +11,8 @@ import 'package:fl_clash/ai/settings.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/l10n/l10n.dart';
 import 'package:fl_clash/providers/workbench.dart';
+import 'package:fl_clash/providers/state.dart';
+import 'package:fl_clash/providers/ai_history.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/views/ai/assistant.dart';
 import 'package:fl_clash/views/ai/composer_context.dart';
@@ -100,6 +103,30 @@ class _Transport implements AgentTransport {
   }
 }
 
+class _RequestTransport extends _Transport {
+  _RequestTransport(this.name, this.arguments);
+  final String name;
+  final Map<String, Object?> arguments;
+
+  @override
+  Future<void> write(List<int> bytes) async {
+    final frame = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+    if (frame['type'] == 'toolResult') {
+      toolResults++;
+      event('done', {'cancelled': false, 'failed': false});
+    } else if (frame['type'] == 'prompt') {
+      promptCalls++;
+      prompt = frame;
+      event('toolRequest', {
+        'requestId': 'history-request',
+        'toolCallId': 'history-call',
+        'name': name,
+        'arguments': arguments,
+      });
+    }
+  }
+}
+
 class _Credentials implements AgentCredentialStore {
   _Credentials({this.pending});
   final Completer<String?>? pending;
@@ -173,6 +200,12 @@ class _CapabilityService extends Mock implements ApplicationCapabilityService {
     bool Function()? isCurrent,
     ConfigurationApproval? approve,
   }) async {
+    if (command == 'operation_query') {
+      return {
+        'operationId': 'other-conversation-change',
+        'status': 'completed',
+      };
+    }
     if (command == 'runtime_read') {
       if (readPending != null) return readPending!.future;
       return {
@@ -218,6 +251,7 @@ Future<ProviderContainer> _mount(
         return controller;
       }),
       agentSettingsProvider.overrideWith((_) => Stream.value(_settings)),
+      currentProfileProvider.overrideWith((_) => null),
       if (capabilities != null)
         applicationCapabilityServiceProvider.overrideWithValue(capabilities),
     ],
@@ -290,6 +324,152 @@ Future<void> _tapAi(WidgetTester tester, Finder target) async {
 }
 
 void main() {
+  testWidgets(
+    'saved text restores without replaying approval or calling model',
+    (tester) async {
+      final transport = _Transport();
+      final controller = _Controller(
+        AgentRuntime(launcher: () async => transport),
+        _Credentials(),
+      );
+      final container = await _mount(tester, controller);
+      addTearDown(container.dispose);
+      final store = container.read(aiHistoryStoreProvider);
+      await store.save(
+        const AiConversation(
+          id: '11111111111111111111111111111111',
+          updatedAt: 1700000000000,
+          messages: [
+            {'role': 'user', 'content': 'saved configuration question'},
+            {'role': 'assistant', 'content': 'saved explanation'},
+          ],
+          changeIds: ['previous-pending-change'],
+        ),
+      );
+      await _tapAi(
+        tester,
+        find.byTooltip(AppLocalizations.current.aiConversationHistory),
+      );
+      await tester.pumpAndSettle();
+      await _tapAi(tester, find.text('saved configuration question'));
+      await tester.pumpAndSettle();
+      expect(find.text('saved explanation'), findsOneWidget);
+      expect(transport.promptCalls, 0);
+      expect(
+        find.byTooltip(AppLocalizations.current.aiLinkedChanges),
+        findsOneWidget,
+      );
+      expect(find.byType(AiToolResultCard), findsNothing);
+      await _tapAi(
+        tester,
+        find.byTooltip(AppLocalizations.current.aiNewConversation),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('saved explanation'), findsNothing);
+      final entries = await store.list();
+      expect(entries, hasLength(1));
+      expect(transport.promptCalls, 0);
+    },
+  );
+
+  testWidgets('sent text is persisted with selected credential redacted', (
+    tester,
+  ) async {
+    final transport = _Transport();
+    final controller = _Controller(
+      AgentRuntime(launcher: () async => transport),
+      _Credentials(),
+    );
+    final container = await _mount(tester, controller);
+    addTearDown(container.dispose);
+    await tester.enterText(
+      find.byKey(const ValueKey('ai-prompt')),
+      'inspect test-secret',
+    );
+    await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+    await tester.pumpAndSettle();
+    final entries = await container.read(aiHistoryStoreProvider).list();
+    expect(entries, hasLength(1));
+    expect(entries.single.messages, [
+      {'role': 'user', 'content': 'inspect [redacted]'},
+      {'role': 'assistant', 'content': 'streamed answer'},
+    ]);
+    expect(transport.prompt!['data']['user'], 'inspect test-secret');
+  });
+
+  for (final tool in ['application_operation', 'application_invoke']) {
+    testWidgets('$tool query never associates another conversation change', (
+      tester,
+    ) async {
+      final transport = _RequestTransport(
+        tool,
+        tool == 'application_operation'
+            ? {'operationId': 'other-conversation-change'}
+            : {
+                'command': 'operation_query',
+                'params': {'operationId': 'other-conversation-change'},
+              },
+      );
+      final controller = _Controller(
+        AgentRuntime(launcher: () async => transport),
+        _Credentials(),
+      );
+      final container = await _mount(
+        tester,
+        controller,
+        capabilities: _CapabilityService(),
+      );
+      addTearDown(container.dispose);
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-prompt')),
+        'inspect operation',
+      );
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+      await tester.pumpAndSettle();
+      expect(transport.toolResults, 1);
+      final entries = await container.read(aiHistoryStoreProvider).list();
+      expect(entries.single.changeIds, isEmpty);
+      expect(
+        find.byTooltip(AppLocalizations.current.aiLinkedChanges),
+        findsNothing,
+      );
+    });
+  }
+
+  testWidgets(
+    'fatal host failure suppresses late tool cards and history links',
+    (tester) async {
+      final pending = Completer<Map<String, Object?>>();
+      final capabilities = _CapabilityService()..readPending = pending;
+      final transport = _RequestTransport('application_invoke', {
+        'command': 'runtime_read',
+        'params': <String, Object?>{},
+      });
+      final runtime = AgentRuntime(launcher: () async => transport);
+      final container = await _mount(
+        tester,
+        _Controller(runtime, _Credentials()),
+        capabilities: capabilities,
+      );
+      addTearDown(container.dispose);
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-prompt')),
+        'inspect runtime',
+      );
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+      await tester.pump();
+      transport.outgoing.add(utf8.encode('invalid-frame\n'));
+      await tester.pumpAndSettle();
+      expect(runtime.isClosed, true);
+      pending.complete({'status': 'completed', 'operationId': 'late-change'});
+      await tester.pumpAndSettle();
+      expect(find.byType(AiToolResultCard), findsNothing);
+      expect(transport.toolResults, 0);
+      final entries = await container.read(aiHistoryStoreProvider).list();
+      expect(entries.single.changeIds, isEmpty);
+    },
+  );
+
   testWidgets(
     'context offered before first mount fills composer once without launching runtime',
     (tester) async {
@@ -632,10 +812,7 @@ void main() {
         capabilities: capabilities,
       );
       addTearDown(container.dispose);
-      expect(
-        find.byType(AiCapabilityPanel),
-        width > 500 ? findsOneWidget : findsNothing,
-      );
+      expect(find.byType(AiCapabilityPanel), findsNothing);
       expect(transport.prompt, isNull);
       await tester.enterText(
         find.byKey(const ValueKey('ai-prompt')),
@@ -727,9 +904,19 @@ void main() {
         capabilities: _CapabilityService(),
       );
       addTearDown(container.dispose);
-      await _tapAi(tester, find.byTooltip(AppLocalizations.current.aiCanHelp));
+      await _tapAi(tester, find.text(AppLocalizations.current.aiCanHelp));
       await tester.pumpAndSettle();
       expect(find.byType(AiCapabilityPanel), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text(AppLocalizations.current.delayTest),
+        100,
+        scrollable: find
+            .descendant(
+              of: find.byType(AiCapabilityPanel),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
       expect(find.text(AppLocalizations.current.delayTest), findsWidgets);
       expect(transport.prompt, isNull);
       await captureAiVisual(tester, 'v3-capabilities-360');

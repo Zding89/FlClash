@@ -143,12 +143,22 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiCapabilityHint": MessageLookupByLibrary.simpleMessage(
       "根据当前能力目录，用自然语言发起操作",
     ),
+    "aiChangeCompleted": MessageLookupByLibrary.simpleMessage("已完成"),
+    "aiChangeExpired": MessageLookupByLibrary.simpleMessage("已过期"),
+    "aiChangeFailed": MessageLookupByLibrary.simpleMessage("失败或中断"),
+    "aiChangesUnavailable": MessageLookupByLibrary.simpleMessage(
+      "部分关联记录已清理或不可用。",
+    ),
     "aiCheckResult": MessageLookupByLibrary.simpleMessage("检查结果"),
     "aiChinaApi": MessageLookupByLibrary.simpleMessage("中国 API"),
     "aiChinaCoding": MessageLookupByLibrary.simpleMessage("中国 Coding 套餐"),
     "aiClearConversation": MessageLookupByLibrary.simpleMessage("清空对话"),
     "aiCodingPlan": MessageLookupByLibrary.simpleMessage("Coding 套餐"),
     "aiConnection": MessageLookupByLibrary.simpleMessage("模型连接"),
+    "aiConversationHistory": MessageLookupByLibrary.simpleMessage("对话历史"),
+    "aiConversationHistoryHint": MessageLookupByLibrary.simpleMessage(
+      "仅在本机保留最近 20 个对话，每个最多 80 条文字。打开历史只恢复上下文，不续跑旧操作；删除对话不会删除修改记录。",
+    ),
     "aiCredentialRecoveryFailed": MessageLookupByLibrary.simpleMessage(
       "密钥恢复未完成，请重新配置 Key 后再使用",
     ),
@@ -168,6 +178,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiEmptyConversation": MessageLookupByLibrary.simpleMessage(
       "可以先检查当前配置，再预览需要的修改",
     ),
+    "aiEmptyHistory": MessageLookupByLibrary.simpleMessage("暂无对话历史"),
     "aiEnable": MessageLookupByLibrary.simpleMessage("启用 AI 助手"),
     "aiEnableHint": MessageLookupByLibrary.simpleMessage(
       "仅在发送消息时调用模型，本地策略独立运行",
@@ -180,6 +191,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiGlobalCoding": MessageLookupByLibrary.simpleMessage("全球 Coding 套餐"),
     "aiHighRisk": MessageLookupByLibrary.simpleMessage("此修改会影响网络、配置或隐私，请核对后确认"),
     "aiHistoryLimit": MessageLookupByLibrary.simpleMessage("对话已达到上限，请清空后开始新对话"),
+    "aiHistorySaveFailed": MessageLookupByLibrary.simpleMessage("对话历史保存失败"),
     "aiHostUnavailable": MessageLookupByLibrary.simpleMessage(
       "AI 运行组件不可用，请使用包含该组件的 macOS 安装包",
     ),
@@ -192,6 +204,11 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiKeyRequired": MessageLookupByLibrary.simpleMessage("请输入此端点的 API Key"),
     "aiKeyShow": MessageLookupByLibrary.simpleMessage("显示 Key"),
     "aiKeyStored": MessageLookupByLibrary.simpleMessage("钥匙串已保存；留空可保留"),
+    "aiLinkedChanges": MessageLookupByLibrary.simpleMessage("关联修改"),
+    "aiLinkedChangesHint": MessageLookupByLibrary.simpleMessage(
+      "这里显示原修改日志的实时记录，可查看差异；撤销或恢复仍在修改历史中处理。",
+    ),
+    "aiManageChanges": MessageLookupByLibrary.simpleMessage("打开修改历史"),
     "aiManualModel": MessageLookupByLibrary.simpleMessage("模型 ID（可手动填写）"),
     "aiMaxTokens": MessageLookupByLibrary.simpleMessage("最大输出 Token"),
     "aiModel": MessageLookupByLibrary.simpleMessage("模型 ID"),
@@ -205,6 +222,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiModelsUnsupported": MessageLookupByLibrary.simpleMessage(
       "此服务不支持获取模型，请手动填写模型 ID。",
     ),
+    "aiNewConversation": MessageLookupByLibrary.simpleMessage("新建对话"),
     "aiNoConnection": MessageLookupByLibrary.simpleMessage("先添加连接，再开始对话"),
     "aiNoDifferences": MessageLookupByLibrary.simpleMessage("没有需要修改的内容"),
     "aiPresetDefault": MessageLookupByLibrary.simpleMessage("留空使用预设地址"),
@@ -250,6 +268,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiSend": MessageLookupByLibrary.simpleMessage("发送"),
     "aiServiceCredentials": MessageLookupByLibrary.simpleMessage("服务与凭据"),
     "aiSettingsTitle": MessageLookupByLibrary.simpleMessage("AI 连接与模型"),
+    "aiStartedWithProfile": MessageLookupByLibrary.simpleMessage("发起时配置"),
     "aiStop": MessageLookupByLibrary.simpleMessage("停止生成"),
     "aiTargetChanged": MessageLookupByLibrary.simpleMessage(
       "服务目标已改变，请重新输入该目标的 Key",
@@ -873,7 +892,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyRulesTab": MessageLookupByLibrary.simpleMessage("规则"),
     "policyRuntimeState": MessageLookupByLibrary.simpleMessage("运行状态"),
-    "policySaved": MessageLookupByLibrary.simpleMessage("已保存并应用"),
+    "policySaved": MessageLookupByLibrary.simpleMessage("已保存"),
     "policySavedInactive": MessageLookupByLibrary.simpleMessage("已保存，当前未运行"),
     "policySchedule": MessageLookupByLibrary.simpleMessage("生效时间"),
     "policyScheduleEnabled": MessageLookupByLibrary.simpleMessage("限制生效时间"),
@@ -894,12 +913,12 @@ class MessageLookup extends MessageLookupByLibrary {
       "共享集合修改会影响引用它的规则",
     ),
     "policyShowUnavailable": MessageLookupByLibrary.simpleMessage("查看全部成员"),
-    "policySimulation": MessageLookupByLibrary.simpleMessage("策略模拟"),
+    "policySimulation": MessageLookupByLibrary.simpleMessage("情景模拟"),
     "policySimulationCoreRequired": MessageLookupByLibrary.simpleMessage(
       "模拟需要已启动的代理核心",
     ),
     "policySimulationHint": MessageLookupByLibrary.simpleMessage(
-      "按当前来源、健康和用量预测；可添加场景步骤检查探测、冷却和恢复时序。不发起真实探测，不应用配置。",
+      "独立的冷启动情景。健康标记和用量作为输入假设，不继承当前选点、探测时间、延迟、冷却和恢复进度；结果不代表当前运行预测。不发起真实探测，不应用配置。",
     ),
     "policySimulationSteps": MessageLookupByLibrary.simpleMessage(
       "场景步骤（高级 JSON）",

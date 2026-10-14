@@ -135,6 +135,163 @@ void main() {
     await store.close();
   });
 
+  ApplicationCapabilityService replacement(_Gateway replacementGateway) =>
+      ApplicationCapabilityService(
+        ref: serviceRef,
+        controller: controller,
+        gateway: replacementGateway,
+        tools: AgentTools(
+          controller: controller,
+          approve: (_) async => false,
+          exposeApplication: false,
+          resources: ResourceChangeService(
+            store: store,
+            environment: _Environment(),
+          ),
+          gateway: _AgentGateway(),
+        ),
+      );
+
+  test(
+    'restarted agent must locally approve a pending operation again',
+    () async {
+      final waiting = Completer<bool>();
+      var originalApprovals = 0;
+      final originalApproving = Completer<void>();
+      final original = service.execute(
+        'connection_set',
+        {'running': false},
+        origin: 'agent',
+        approve: (_) {
+          originalApprovals++;
+          originalApproving.complete();
+          return waiting.future;
+        },
+      );
+      final rows = await store.watchChanges().firstWhere(
+        (rows) => rows.any((row) => row.status == 'pending_confirmation'),
+      );
+      final id = rows.single.id;
+      final restartedGateway = _Gateway();
+      final restarted = replacement(restartedGateway);
+      var resumedApprovals = 0;
+      try {
+        await originalApproving.future;
+        expect(originalApprovals, 1);
+        final preview = await restarted.execute('operation_query', {
+          'operationId': id,
+        }, origin: 'agent');
+        final rejected = await restarted.execute(
+          'capability_confirm',
+          {
+            'operationId': id,
+            ...Map<String, Object?>.from(preview['confirmation'] as Map),
+          },
+          origin: 'agent',
+          approve: (_) async {
+            resumedApprovals++;
+            return false;
+          },
+        );
+        expect(rejected['status'], 'cancelled');
+        await restarted.drain();
+        expect(resumedApprovals, 1);
+        expect(restartedGateway.calls, 0);
+        expect((await store.readChange(id))!.status, 'cancelled');
+      } finally {
+        waiting.complete(false);
+        await original;
+        await restarted.drain();
+      }
+    },
+  );
+
+  test(
+    'normal agent approval executes once and repeated confirmation is inert',
+    () async {
+      var approvals = 0;
+      final accepted = await service.execute(
+        'connection_set',
+        {'running': true},
+        origin: 'agent',
+        approve: (_) async {
+          approvals++;
+          return true;
+        },
+      );
+      expect(accepted['status'], 'accepted');
+      await service.drain();
+      final id = accepted['operationId'] as String;
+      final before = policyObject(
+        jsonDecode((await store.readChange(id))!.beforePayload),
+        'before',
+      );
+      final replay = await service.execute(
+        'capability_confirm',
+        {
+          'operationId': id,
+          'digest': before['digest'],
+          'version': before['version'],
+        },
+        origin: 'agent',
+        approve: (_) async {
+          approvals++;
+          return true;
+        },
+      );
+      expect(replay['status'], 'completed');
+      expect(approvals, 1);
+      expect(gateway.calls, 1);
+    },
+  );
+
+  test(
+    'concurrent confirmations can claim a pending operation only once',
+    () async {
+      final draft = await service.execute('connection_set', {
+        'running': true,
+      }, origin: 'agent');
+      final otherGateway = _Gateway();
+      final other = replacement(otherGateway);
+      final bothApproving = Completer<void>();
+      final release = Completer<bool>();
+      var approvals = 0;
+      Future<bool> approve(ConfigurationProposal proposal) {
+        approvals++;
+        if (approvals == 2) bothApproving.complete();
+        return release.future;
+      }
+
+      final params = {
+        'operationId': draft['operationId'],
+        ...Map<String, Object?>.from(draft['confirmation'] as Map),
+      };
+      final confirmations = [
+        service.execute(
+          'capability_confirm',
+          params,
+          origin: 'agent',
+          approve: approve,
+        ),
+        other.execute(
+          'capability_confirm',
+          params,
+          origin: 'agent',
+          approve: approve,
+        ),
+      ];
+      await bothApproving.future;
+      release.complete(true);
+      await Future.wait(confirmations);
+      await Future.wait([service.drain(), other.drain()]);
+      expect(gateway.calls + otherGateway.calls, 1);
+      expect(
+        (await store.readChange(draft['operationId'] as String))!.status,
+        'completed',
+      );
+    },
+  );
+
   test(
     'manifest alias works and malformed inputs never reach actions',
     () async {

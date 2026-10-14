@@ -151,12 +151,22 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiCapabilityHint": MessageLookupByLibrary.simpleMessage(
       "現在の機能一覧から自然言語で操作を依頼できます",
     ),
+    "aiChangeCompleted": MessageLookupByLibrary.simpleMessage("完了"),
+    "aiChangeExpired": MessageLookupByLibrary.simpleMessage("期限切れ"),
+    "aiChangeFailed": MessageLookupByLibrary.simpleMessage("失敗または中断"),
+    "aiChangesUnavailable": MessageLookupByLibrary.simpleMessage(
+      "一部の関連記録は利用できません。",
+    ),
     "aiCheckResult": MessageLookupByLibrary.simpleMessage("確認結果"),
     "aiChinaApi": MessageLookupByLibrary.simpleMessage("中国 API"),
     "aiChinaCoding": MessageLookupByLibrary.simpleMessage("中国 Coding プラン"),
     "aiClearConversation": MessageLookupByLibrary.simpleMessage("会話を消去"),
     "aiCodingPlan": MessageLookupByLibrary.simpleMessage("Coding プラン"),
     "aiConnection": MessageLookupByLibrary.simpleMessage("モデル接続"),
+    "aiConversationHistory": MessageLookupByLibrary.simpleMessage("会話履歴"),
+    "aiConversationHistoryHint": MessageLookupByLibrary.simpleMessage(
+      "この端末に最新20件、各80件までのテキストを保存します。履歴を開いても過去の操作は再実行しません。会話を削除しても変更履歴は残ります。",
+    ),
     "aiCredentialRecoveryFailed": MessageLookupByLibrary.simpleMessage(
       "キーの復元に失敗しました。使用前に再設定してください",
     ),
@@ -176,6 +186,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiEmptyConversation": MessageLookupByLibrary.simpleMessage(
       "現在の設定を確認して、変更をプレビューできます",
     ),
+    "aiEmptyHistory": MessageLookupByLibrary.simpleMessage("会話履歴はありません"),
     "aiEnable": MessageLookupByLibrary.simpleMessage("AI アシスタントを有効化"),
     "aiEnableHint": MessageLookupByLibrary.simpleMessage(
       "送信時のみモデルを呼び出します。ローカルポリシーは独立して動作します",
@@ -192,6 +203,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiHistoryLimit": MessageLookupByLibrary.simpleMessage(
       "会話の上限に達しました。消去して再開してください",
     ),
+    "aiHistorySaveFailed": MessageLookupByLibrary.simpleMessage(
+      "会話履歴を保存できませんでした",
+    ),
     "aiHostUnavailable": MessageLookupByLibrary.simpleMessage(
       "AI 実行コンポーネントがありません。対応する macOS ビルドを使用してください",
     ),
@@ -206,6 +220,11 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "aiKeyShow": MessageLookupByLibrary.simpleMessage("キーを表示"),
     "aiKeyStored": MessageLookupByLibrary.simpleMessage("キーチェーンに保存済み。空欄で保持"),
+    "aiLinkedChanges": MessageLookupByLibrary.simpleMessage("関連する変更"),
+    "aiLinkedChangesHint": MessageLookupByLibrary.simpleMessage(
+      "既存の変更履歴の最新状態と差分を表示します。取り消しや復旧は変更履歴で行います。",
+    ),
+    "aiManageChanges": MessageLookupByLibrary.simpleMessage("変更履歴を開く"),
     "aiManualModel": MessageLookupByLibrary.simpleMessage("モデル ID（手入力可能）"),
     "aiMaxTokens": MessageLookupByLibrary.simpleMessage("最大出力トークン"),
     "aiModel": MessageLookupByLibrary.simpleMessage("モデル ID"),
@@ -219,6 +238,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiModelsUnsupported": MessageLookupByLibrary.simpleMessage(
       "このサービスはモデル取得に対応していません。ID を手入力してください。",
     ),
+    "aiNewConversation": MessageLookupByLibrary.simpleMessage("新しい会話"),
     "aiNoConnection": MessageLookupByLibrary.simpleMessage("接続を追加して会話を開始"),
     "aiNoDifferences": MessageLookupByLibrary.simpleMessage("適用する変更はありません"),
     "aiPresetDefault": MessageLookupByLibrary.simpleMessage("空欄で既定の URL を使用"),
@@ -268,6 +288,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiSend": MessageLookupByLibrary.simpleMessage("送信"),
     "aiServiceCredentials": MessageLookupByLibrary.simpleMessage("サービスと認証情報"),
     "aiSettingsTitle": MessageLookupByLibrary.simpleMessage("AI 接続とモデル"),
+    "aiStartedWithProfile": MessageLookupByLibrary.simpleMessage("開始時のプロファイル"),
     "aiStop": MessageLookupByLibrary.simpleMessage("停止"),
     "aiTargetChanged": MessageLookupByLibrary.simpleMessage(
       "接続先が変更されました。新しい接続先のキーを再入力",
@@ -983,7 +1004,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyRulesTab": MessageLookupByLibrary.simpleMessage("ルール"),
     "policyRuntimeState": MessageLookupByLibrary.simpleMessage("実行状態"),
-    "policySaved": MessageLookupByLibrary.simpleMessage("保存・適用しました"),
+    "policySaved": MessageLookupByLibrary.simpleMessage("保存しました"),
     "policySavedInactive": MessageLookupByLibrary.simpleMessage("保存済み、現在停止中"),
     "policySchedule": MessageLookupByLibrary.simpleMessage("有効時間"),
     "policyScheduleEnabled": MessageLookupByLibrary.simpleMessage("有効時間を制限"),
@@ -1012,12 +1033,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyShowUnavailable": MessageLookupByLibrary.simpleMessage(
       "すべてのメンバーを表示",
     ),
-    "policySimulation": MessageLookupByLibrary.simpleMessage("ポリシーシミュレーション"),
+    "policySimulation": MessageLookupByLibrary.simpleMessage("シナリオシミュレーション"),
     "policySimulationCoreRequired": MessageLookupByLibrary.simpleMessage(
       "シミュレーションには稼働中のプロキシコアが必要です",
     ),
     "policySimulationHint": MessageLookupByLibrary.simpleMessage(
-      "現在のソース、稼働状況、使用量から予測します。シナリオ手順で検査、待機、復旧の時間経過を確認できます。実際の検査や設定変更は行いません。",
+      "独立したコールドスタートのシナリオです。稼働フラグと使用量を入力の仮定として使い、現在の選択、検査時刻、遅延、待機、復旧の進行状態は引き継ぎません。現在の動作予測ではありません。実際の検査や設定変更は行いません。",
     ),
     "policySimulationSteps": MessageLookupByLibrary.simpleMessage(
       "シナリオ手順（高度な JSON）",

@@ -150,6 +150,7 @@ class WorkbenchController {
   late final ConfigurationChangeService changes;
   late final ResourceChangeService resources;
   AgentRuntime? _runtime;
+  final AgentRuntime Function() _runtimeFactory;
   final ConfigurationChangeQueue _targetQueue = ConfigurationChangeQueue();
   int _targetIntent = 0;
 
@@ -157,7 +158,9 @@ class WorkbenchController {
     this.ref, {
     WorkbenchDatabase? store,
     AgentCredentialStore? credentials,
-  }) : store = store ?? ref.read(workbenchDatabaseProvider),
+    AgentRuntime Function()? runtimeFactory,
+  }) : _runtimeFactory = runtimeFactory ?? AgentRuntime.new,
+       store = store ?? ref.read(workbenchDatabaseProvider),
        credentials = credentials ?? const KeychainAgentCredentialStore() {
     profiles = PolicyProfileService(
       loader: PolicySourceLoader(
@@ -178,7 +181,13 @@ class WorkbenchController {
     );
   }
 
-  AgentRuntime get runtime => _runtime ??= AgentRuntime();
+  AgentRuntime get runtime {
+    final current = _runtime;
+    if (current == null || current.isClosed) {
+      return _runtime = _runtimeFactory();
+    }
+    return current;
+  }
 
   Future<void> closeAgent() async {
     final runtime = _runtime;

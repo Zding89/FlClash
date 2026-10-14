@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:drift/drift.dart' show BooleanExpressionOperators, Value;
 import 'package:fl_clash/ai/runtime.dart';
 import 'package:fl_clash/ai/tools.dart';
 import 'package:fl_clash/configuration/changes.dart';
@@ -275,7 +276,13 @@ class ApplicationCapabilityService {
         return {'status': 'cancelled', 'operationId': id};
       }
       if (command == 'capability_confirm') {
-        return _confirm(params, origin, credentialGeneration, isCurrent);
+        return _confirm(
+          params,
+          origin,
+          credentialGeneration,
+          isCurrent,
+          approve: approve ?? _approve,
+        );
       }
       if (capability.mutating) {
         return _prepare(
@@ -666,31 +673,12 @@ class ApplicationCapabilityService {
     );
     await controller.store.changeStatus(id, 'pending_confirmation');
     if (origin != 'cli' && approve != null) {
-      final accepted = await approve(
-        ConfigurationProposal(
-          id: id,
-          summary: capability.description,
-          highRisk: true,
-          expiresAt: now + 600000,
-          differences: [
-            ConfigurationDifference(
-              path: capability.command,
-              before: null,
-              after: redactResource(params),
-            ),
-          ],
-          validation: const {'reversible': false},
-        ),
-      );
-      if (!accepted || !isCurrent()) {
-        await controller.store.changeStatus(id, 'cancelled');
-        return {'status': 'cancelled', 'operationId': id};
-      }
       return _confirm(
         {'operationId': id, 'digest': digest, 'version': version},
         origin,
         credentialGeneration,
         isCurrent,
+        approve: approve,
       );
     }
     return _query(id);
@@ -700,8 +688,9 @@ class ApplicationCapabilityService {
     Map<String, Object?> params,
     String origin,
     int? credentialGeneration,
-    bool Function() isCurrent,
-  ) async {
+    bool Function() isCurrent, {
+    ConfigurationApproval? approve,
+  }) async {
     final id = policyString(params, 'operationId', maximum: 96);
     final row = await controller.store.readChange(id);
     if (row == null || !row.category.startsWith('capability:')) {
@@ -735,7 +724,52 @@ class ApplicationCapabilityService {
         'errorCode': 'capability_queue_full',
       };
     }
-    await controller.store.changeStatus(id, 'queued');
+    if (origin != 'cli') {
+      final accepted = await approve?.call(
+        ConfigurationProposal(
+          id: id,
+          summary: row.summary,
+          highRisk: true,
+          expiresAt: row.expiresAt,
+          differences: [
+            ConfigurationDifference(
+              path: command,
+              before: null,
+              after: redactResource(arguments),
+            ),
+          ],
+          validation: const {'reversible': false},
+        ),
+      );
+      if (accepted != true || !isCurrent()) {
+        await (controller.store.update(controller.store.workbenchChanges)
+              ..where(
+                (change) =>
+                    change.id.equals(id) &
+                    change.status.equals('pending_confirmation'),
+              ))
+            .write(const WorkbenchChangesCompanion(status: Value('cancelled')));
+        return _query(id);
+      }
+    }
+    if (!isCurrent() ||
+        await gateway.version() != before['version'] ||
+        DateTime.now().millisecondsSinceEpoch >= row.expiresAt) {
+      return {
+        'status': 'conflict',
+        'operationId': id,
+        'errorCode': 'confirmation_stale',
+      };
+    }
+    final claimed =
+        await (controller.store.update(controller.store.workbenchChanges)
+              ..where(
+                (change) =>
+                    change.id.equals(id) &
+                    change.status.equals('pending_confirmation'),
+              ))
+            .write(const WorkbenchChangesCompanion(status: Value('queued')));
+    if (claimed != 1) return _query(id);
     final lifecycle = {'connection_set', 'core_restart'}.contains(command);
     final work = lifecycle
         ? _run(

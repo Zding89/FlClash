@@ -755,7 +755,7 @@
   "policyAdvancedJson": "Advanced structured JSON",
   "policyJsonHint": "Only the current schema is accepted; invalid fields or references cannot be applied",
   "policyInvalidData": "Invalid fields, order or references. Check and retry",
-  "policySaved": "Saved and applied",
+  "policySaved": "Saved",
   "policyOperationFailed": "Operation incomplete. Check status or retry later",
   "policyEmptyIntegrations": "No integrations yet",
   "policyEmptyRules": "No local rules yet",
@@ -774,8 +774,8 @@
   "policyCoreStopped": "Core stopped; policies are not running",
   "policyRuntimeState": "Runtime status",
   "policySelectedNode": "Selected node",
-  "policySimulation": "Policy simulation",
-  "policySimulationHint": "Predict from current sources, health and usage; add scenario steps to inspect probe, cooldown and recovery timing. No real probes or configuration writes.",
+  "policySimulation": "Scenario simulation",
+  "policySimulationHint": "Independent cold-start scenario. Health flags and usage are input assumptions; live selection, probe age, latency, cooldown and recovery state are not restored. Results do not predict current runtime behavior. No real probes or configuration writes.",
   "policyAssumeHealthy": "Assume all candidates healthy",
   "policyEligible": "Eligible now",
   "policyExcluded": "Excluded now",
@@ -984,5 +984,18 @@
         "type": "String"
       }
     }
-  }
+  },
+  "aiConversationHistory": "Conversation history",
+  "aiNewConversation": "New conversation",
+  "aiConversationHistoryHint": "Keeps the latest 20 conversations on this device, up to 80 text messages each. Opening one restores text only; old actions are never resumed. Deleting a conversation keeps its change journal.",
+  "aiEmptyHistory": "No saved conversations",
+  "aiStartedWithProfile": "Profile at start",
+  "aiLinkedChanges": "Related changes",
+  "aiLinkedChangesHint": "Live records from the existing change journal. Review differences here; use change history for available undo or recovery.",
+  "aiChangesUnavailable": "Some related records are no longer available.",
+  "aiManageChanges": "Open change history",
+  "aiChangeCompleted": "Completed",
+  "aiChangeFailed": "Failed or interrupted",
+  "aiChangeExpired": "Expired",
+  "aiHistorySaveFailed": "Could not save conversation history"
 }

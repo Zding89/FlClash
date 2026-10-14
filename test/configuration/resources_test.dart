@@ -175,6 +175,41 @@ void main() {
     expect(environment.writes, 0);
   });
 
+  test(
+    'resource recovery cancellation after approval never persists',
+    () async {
+      final failed = await propose();
+      environment.state = {...environment.state, 'file': 'new', 'row': 'new'};
+      await database.changeStatus(failed.id, 'recovery_required');
+      final recovery = await service.proposeRecovery(failed.id);
+      var current = true;
+      await expectLater(
+        service.commit(
+          recovery.id,
+          approve: (_) async {
+            current = false;
+            return true;
+          },
+          isCurrent: () => current,
+        ),
+        throwsA(
+          isA<ConfigurationChangeException>().having(
+            (error) => error.code,
+            'code',
+            'configuration_cancelled',
+          ),
+        ),
+      );
+      expect(environment.writes, 0);
+      expect(environment.activations, 0);
+      expect(
+        (await database.readChange(failed.id))!.status,
+        'recovery_required',
+      );
+      expect((await database.readChange(recovery.id))!.status, 'draft');
+    },
+  );
+
   test('commit awaits persistence and applies the approved artifact', () async {
     final draft = await propose();
     await service.commit(draft.id, approve: (_) async => true);

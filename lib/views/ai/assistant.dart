@@ -2,12 +2,16 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:fl_clash/ai/runtime.dart';
+import 'package:fl_clash/ai/history.dart';
 import 'package:fl_clash/ai/settings.dart';
 import 'package:fl_clash/ai/tools.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/capabilities/service.dart';
+import 'package:fl_clash/capabilities/manifest.dart';
 import 'package:fl_clash/configuration/changes.dart';
 import 'package:fl_clash/providers/config.dart';
+import 'package:fl_clash/providers/ai_history.dart';
+import 'package:fl_clash/providers/state.dart';
 import 'package:fl_clash/providers/workbench.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +22,7 @@ import 'composer_context.dart';
 import 'errors.dart';
 import 'settings.dart';
 import 'presentation.dart';
+import 'history.dart';
 
 class AiAssistantView extends ConsumerStatefulWidget {
   const AiAssistantView({super.key, this.initialPrompt});
@@ -42,6 +47,13 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
   final _scroll = ScrollController();
   final _messages = <_ConversationMessage>[];
   late final WorkbenchController _controller;
+  late final AiHistoryStore _historyStore;
+  String _conversationId = aiConversationId();
+  String? _targetLabel;
+  final _changeIds = <String>{};
+  final _historySecrets = <String>{};
+  Timer? _historyTimer;
+  bool _helpExpanded = false;
   AgentRuntime? _runtime;
   StreamSubscription<AgentRuntimeEvent>? _subscription;
   bool _busy = false;
@@ -56,6 +68,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
   void initState() {
     super.initState();
     _controller = ref.read(workbenchControllerProvider);
+    _historyStore = ref.read(aiHistoryStoreProvider);
     _input.text = widget.initialPrompt ?? '';
     ref.listenManual(aiComposerContextProvider, (_, next) {
       if (next != null) _scheduleComposerContext();
@@ -91,11 +104,114 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     _epoch++;
     _cancelApprovals();
     _runtime?.cancel();
+    _historyTimer?.cancel();
+    unawaited(_persistConversation());
     unawaited(_subscription?.cancel() ?? Future<void>.value());
     unawaited(_controller.closeAgent());
     _input.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  Future<void> _persistConversation() async {
+    _historyTimer?.cancel();
+    final messages = <Map<String, String>>[
+      for (final message in _messages)
+        if (message.role != 'tool' && message.text.isNotEmpty)
+          {
+            'role': message.role,
+            'content': aiHistoryText(message.text, _historySecrets),
+          },
+    ];
+    if (messages.isEmpty) return;
+    final entry = AiConversation(
+      id: _conversationId,
+      updatedAt: DateTime.now().millisecondsSinceEpoch,
+      messages: messages,
+      targetLabel: _targetLabel == null
+          ? null
+          : aiHistoryText(_targetLabel!, _historySecrets),
+      changeIds: _changeIds.toList(),
+    );
+    try {
+      await _historyStore.save(entry);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = context.appLocalizations.aiHistorySaveFailed);
+      }
+    }
+  }
+
+  void _scheduleHistory() {
+    _historyTimer?.cancel();
+    _historyTimer = Timer(const Duration(milliseconds: 500), () {
+      unawaited(_persistConversation());
+    });
+  }
+
+  Future<void> _openHistory() async {
+    if (_busy) return;
+    await _persistConversation();
+    if (!mounted) return;
+    final entry = await Navigator.of(context).push<AiConversation>(
+      MaterialPageRoute(
+        builder: (_) => AiConversationHistoryView(store: _historyStore),
+      ),
+    );
+    if (!mounted) return;
+    if (entry == null) {
+      try {
+        final entries = await _historyStore.list();
+        if (mounted &&
+            _messages.isNotEmpty &&
+            !entries.any((entry) => entry.id == _conversationId)) {
+          await _clear();
+        }
+      } catch (_) {
+        if (mounted) {
+          setState(() => _error = context.appLocalizations.aiHistorySaveFailed);
+        }
+      }
+      return;
+    }
+    await _clear();
+    if (!mounted) return;
+    setState(() {
+      _conversationId = entry.id;
+      _targetLabel = entry.targetLabel;
+      _changeIds.addAll(entry.changeIds);
+      _messages.addAll(
+        entry.messages.map(
+          (message) =>
+              _ConversationMessage(message['role']!, message['content']!),
+        ),
+      );
+    });
+    _followOutput();
+  }
+
+  void _linkResult(AgentToolRequest request, Map<String, Object?> value) {
+    if (request.name == 'changes_status' ||
+        request.name == 'application_operation') {
+      return;
+    }
+    if (request.name == 'application_invoke' &&
+        !applicationCapabilities.any(
+          (capability) =>
+              capability.command == request.arguments['command'] &&
+              capability.mutating,
+        )) {
+      return;
+    }
+    final proposal = aiResultProposal(value);
+    if (proposal != null) _changeIds.add(proposal.id);
+    final operation = value['operationId'];
+    if (operation is String) _changeIds.add(operation);
+    final nested = value['result'];
+    if (nested is Map<String, Object?>) {
+      final nestedProposal = aiResultProposal({'proposal': nested['proposal']});
+      if (nestedProposal != null) _changeIds.add(nestedProposal.id);
+    }
   }
 
   void _cancelApprovals() {
@@ -122,7 +238,14 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
   }
 
   Future<bool> _approve(ConfigurationProposal proposal, int epoch) async {
-    if (!mounted || epoch != _epoch) return false;
+    if (!mounted || epoch != _epoch || !_busy || _runtime?.isClosed != false) {
+      return false;
+    }
+    _changeIds.add(proposal.id);
+    await _persistConversation();
+    if (!mounted || epoch != _epoch || !_busy || _runtime?.isClosed != false) {
+      return false;
+    }
     final message = _ConversationMessage('tool', '')
       ..proposal = proposal
       ..approval = Completer<bool>();
@@ -130,7 +253,10 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     _followOutput();
     final approved = await message.approval!.future;
     if (mounted) setState(() {});
-    return approved && mounted && epoch == _epoch;
+    return approved &&
+        mounted &&
+        epoch == _epoch &&
+        _runtime?.isClosed == false;
   }
 
   void _followOutput() {
@@ -159,6 +285,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
           _status = context.appLocalizations.aiThinking;
         case 'error':
           _error = aiErrorText(context, event.data['code']);
+          _cancelApprovals();
         case 'done':
           if (event.data['cancelled'] == true) {
             _status = context.appLocalizations.aiCancelled;
@@ -168,6 +295,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       }
     });
     _followOutput();
+    _scheduleHistory();
   }
 
   List<Map<String, Object?>> _history() {
@@ -190,7 +318,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     if (_busy || !settings.enabled || connection == null || user.isEmpty) {
       return;
     }
-    if (_messages.length >= 80) {
+    if (_messages.where((message) => message.role != 'tool').length >= 79) {
       setState(() => _error = context.appLocalizations.aiHistoryLimit);
       return;
     }
@@ -208,12 +336,13 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       if (key == null || key.isEmpty) {
         throw const AgentRuntimeException('keyMissing');
       }
+      _historySecrets.add(key);
       final runtime = controller.runtime;
-      if (!identical(runtime, _runtime)) {
-        await _subscription?.cancel();
-        _runtime = runtime;
-        _subscription = runtime.events.listen(_event);
-      }
+      await _subscription?.cancel();
+      _runtime = runtime;
+      _subscription = runtime.events.listen((event) {
+        if (epoch == _epoch) _event(event);
+      });
       if (!mounted || _epoch != epoch) return;
       final tools = AgentTools(
         controller: controller,
@@ -223,12 +352,18 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
         },
       );
       setState(() {
+        _helpExpanded = false;
+        if (_messages.isEmpty) {
+          _targetLabel = ref.read(currentProfileProvider)?.label;
+        }
         _messages.add(_ConversationMessage('user', user));
         _messages.add(_ConversationMessage('assistant', ''));
         _assistantIndex = _messages.length - 1;
         _responseBytes = 0;
         _input.clear();
       });
+      await _persistConversation();
+      if (!mounted || epoch != _epoch) return;
       final mixedPort = ref.read(patchClashConfigProvider).mixedPort;
       await runtime.prompt(
         settings: connection.runtimeSettings(mixedPort: mixedPort),
@@ -242,7 +377,8 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
           }
           setState(() => _status = context.appLocalizations.aiToolWorking);
           final result = await tools.execute(request);
-          if (mounted && _epoch == epoch) {
+          if (mounted && _epoch == epoch && request.isCurrent()) {
+            _linkResult(request, result.value);
             setState(() {
               _status = context.appLocalizations.aiThinking;
               _appendToolMessage(
@@ -253,6 +389,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
               );
             });
             _followOutput();
+            await _persistConversation();
           }
           return result;
         },
@@ -263,12 +400,15 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       }
     } finally {
       if (mounted && _epoch == epoch) {
-        setState(() {
-          _busy = false;
-          _assistantIndex = -1;
-          if (_status != context.appLocalizations.aiCancelled) _status = null;
-        });
-        _scheduleComposerContext();
+        await _persistConversation();
+        if (mounted && _epoch == epoch) {
+          setState(() {
+            _busy = false;
+            _assistantIndex = -1;
+            if (_status != context.appLocalizations.aiCancelled) _status = null;
+          });
+          _scheduleComposerContext();
+        }
       }
     }
   }
@@ -282,6 +422,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     _subscription = null;
     _runtime = null;
     await _controller.closeAgent();
+    await _persistConversation();
     if (mounted && _epoch == epoch) {
       setState(() {
         _busy = false;
@@ -357,8 +498,14 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     final epoch = ++_epoch;
     _cancelApprovals();
     _runtime?.cancel();
+    final saved = _persistConversation();
     setState(() {
       _messages.clear();
+      _input.clear();
+      _conversationId = aiConversationId();
+      _targetLabel = null;
+      _changeIds.clear();
+      _historySecrets.clear();
       _busy = true;
       _error = null;
       _status = null;
@@ -368,6 +515,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     _subscription = null;
     _runtime = null;
     await _controller.closeAgent();
+    await saved;
     if (mounted && _epoch == epoch) {
       setState(() => _busy = false);
       _scheduleComposerContext();
@@ -393,25 +541,14 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       title: strings.aiAssistantTitle,
       actions: [
         IconButton(
-          tooltip: strings.aiCanHelp,
-          icon: const Icon(Icons.help_outline),
-          onPressed: () => showModalBottomSheet<void>(
-            context: context,
-            isScrollControlled: true,
-            builder: (context) => SizedBox(
-              height: MediaQuery.sizeOf(context).height * .75,
-              child: AiCapabilityPanel(
-                catalog: ref
-                    .read(applicationCapabilityServiceProvider)
-                    .manifest,
-              ),
-            ),
-          ),
+          tooltip: strings.aiConversationHistory,
+          icon: const Icon(Icons.history),
+          onPressed: _busy ? null : _openHistory,
         ),
         IconButton(
           onPressed: _busy ? null : _clear,
-          tooltip: strings.aiClearConversation,
-          icon: const Icon(Icons.delete_outline),
+          tooltip: strings.aiNewConversation,
+          icon: const Icon(Icons.add_comment_outlined),
         ),
         IconButton(
           onPressed: _openSettings,
@@ -424,7 +561,6 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
         error: (_, _) => Center(child: Text(strings.aiRequestFailed)),
         data: (settings) => LayoutBuilder(
           builder: (context, constraints) {
-            final wide = constraints.maxWidth >= 760;
             final conversation = Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
@@ -480,6 +616,53 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
                         ],
                       ),
                     ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton.icon(
+                                onPressed: () => setState(
+                                  () => _helpExpanded = !_helpExpanded,
+                                ),
+                                icon: Icon(
+                                  _helpExpanded
+                                      ? Icons.expand_less
+                                      : Icons.expand_more,
+                                ),
+                                label: Text(strings.aiCanHelp),
+                              ),
+                            ),
+                          ),
+                          if (_changeIds.isNotEmpty)
+                            IconButton(
+                              tooltip: strings.aiLinkedChanges,
+                              onPressed: _busy
+                                  ? null
+                                  : () => Navigator.of(context).push<void>(
+                                      MaterialPageRoute(
+                                        builder: (_) => AiLinkedChangesView(
+                                          store: _controller.store,
+                                          ids: _changeIds.toList(),
+                                        ),
+                                      ),
+                                    ),
+                              icon: const Icon(Icons.receipt_long_outlined),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (_helpExpanded)
+                      SizedBox(
+                        height: constraints.maxHeight * .35,
+                        child: AiCapabilityPanel(
+                          catalog: ref
+                              .read(applicationCapabilityServiceProvider)
+                              .manifest,
+                        ),
+                      ),
                     Expanded(
                       child: _messages.isEmpty
                           ? Center(
@@ -591,24 +774,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
                 ),
               ),
             );
-            final catalog = ref
-                .read(applicationCapabilityServiceProvider)
-                .manifest;
-            if (!wide) return conversation;
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(0, 8, 16, 16),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(child: conversation),
-                  const SizedBox(width: 12),
-                  SizedBox(
-                    width: constraints.maxWidth < 1000 ? 220 : 280,
-                    child: AiCapabilityPanel(catalog: catalog),
-                  ),
-                ],
-              ),
-            );
+            return conversation;
           },
         ),
       ),

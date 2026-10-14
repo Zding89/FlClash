@@ -282,7 +282,7 @@ final class AgentTools {
     ),
     _definition(
       'policies_simulate',
-      'Run a read-only hypothetical simulation using explicitly supplied node health and local source usage.',
+      'Run a read-only cold-start scenario using supplied health assumptions and local usage. Existing live selection, probe age, latency, cooldown and recovery state are not restored; this does not predict current runtime behavior.',
       {
         'targetId': _string,
         'health': _object,
@@ -903,6 +903,8 @@ final class AgentTools {
         _current(request);
         return {
           'simulation': true,
+          'mode': 'cold_start',
+          'predictsCurrentRuntime': false,
           'results': simulation.results,
           if (simulation.timeline.isNotEmpty) 'timeline': simulation.timeline,
         };
@@ -961,6 +963,7 @@ final class AgentTools {
               : controller.changes.commitRecovery(
                   await controller.changes.readProposal(id),
                   approve: approve,
+                  isCurrent: request.isCurrent,
                 );
         }
         if (row.category.startsWith('capability:')) {

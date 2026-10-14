@@ -12,9 +12,14 @@ class RecoveryBackend
   int checked = 0;
   int writes = 0;
   int activations = 0;
+  void Function()? onPersist;
+  void Function()? onRead;
   @override
-  Future<Map<String, Object?>> readState() async =>
-      policyObject(jsonDecode(jsonEncode(state)), 'state');
+  Future<Map<String, Object?>> readState() async {
+    onRead?.call();
+    return policyObject(jsonDecode(jsonEncode(state)), 'state');
+  }
+
   @override
   Future<Map<String, Object?>> validate(Map<String, Object?> candidate) async =>
       {'validated': true};
@@ -36,6 +41,7 @@ class RecoveryBackend
   @override
   Future<void> persist(Map<String, Object?> candidate) async {
     writes++;
+    onPersist?.call();
     state = Map.of(candidate);
   }
 
@@ -104,6 +110,86 @@ void main() {
       );
     },
   );
+  test(
+    'cancelled recovery approval never persists or resolves the original',
+    () async {
+      final proposal = await changes.proposeRecovery('failed');
+      var current = true;
+      await expectLater(
+        changes.commitRecovery(
+          proposal,
+          approve: (_) async {
+            current = false;
+            return true;
+          },
+          isCurrent: () => current,
+        ),
+        throwsA(
+          isA<ConfigurationChangeException>().having(
+            (error) => error.code,
+            'code',
+            'configuration_cancelled',
+          ),
+        ),
+      );
+      expect(backend.writes, 0);
+      expect(backend.activations, 0);
+      expect((await store.readChange('failed'))!.status, 'recovery_required');
+      expect((await store.readChange(proposal.id))!.status, 'draft');
+    },
+  );
+
+  test(
+    'recovery rechecks cancellation after its final asynchronous read',
+    () async {
+      final proposal = await changes.proposeRecovery('failed');
+      var current = true;
+      var readsAfterApproval = 0;
+      await expectLater(
+        changes.commitRecovery(
+          proposal,
+          approve: (_) async {
+            backend.onRead = () {
+              readsAfterApproval++;
+              if (readsAfterApproval == 3) current = false;
+            };
+            return true;
+          },
+          isCurrent: () => current,
+        ),
+        throwsA(
+          isA<ConfigurationChangeException>().having(
+            (error) => error.code,
+            'code',
+            'configuration_cancelled',
+          ),
+        ),
+      );
+      expect(readsAfterApproval, 3);
+      expect(backend.writes, 0);
+      expect(backend.activations, 0);
+      expect((await store.readChange('failed'))!.status, 'recovery_required');
+    },
+  );
+
+  test(
+    'recovery finishes and resolves after persistence has started',
+    () async {
+      final proposal = await changes.proposeRecovery('failed');
+      var current = true;
+      backend.onPersist = () => current = false;
+      final result = await changes.commitRecovery(
+        proposal,
+        approve: (_) async => true,
+        isCurrent: () => current,
+      );
+      expect(result['status'], 'applied');
+      expect(backend.writes, 1);
+      expect(backend.activations, 1);
+      expect((await store.readChange('failed'))!.status, 'resolved');
+    },
+  );
+
   test(
     'keep current must check and activate even when settings have no differences',
     () async {

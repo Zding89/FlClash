@@ -755,7 +755,7 @@
   "policyAdvancedJson": "高级结构化 JSON",
   "policyJsonHint": "只接受当前 schema；未知字段或非法引用不能提交",
   "policyInvalidData": "字段、节点顺序或引用无效，请检查后重试",
-  "policySaved": "已保存并应用",
+  "policySaved": "已保存",
   "policyOperationFailed": "操作未完成，请检查状态或稍后重试",
   "policyEmptyIntegrations": "还没有整合配置",
   "policyEmptyRules": "还没有本地规则",
@@ -774,8 +774,8 @@
   "policyCoreStopped": "Core 未运行，策略暂不执行",
   "policyRuntimeState": "运行状态",
   "policySelectedNode": "当前节点",
-  "policySimulation": "策略模拟",
-  "policySimulationHint": "按当前来源、健康和用量预测；可添加场景步骤检查探测、冷却和恢复时序。不发起真实探测，不应用配置。",
+  "policySimulation": "情景模拟",
+  "policySimulationHint": "独立的冷启动情景。健康标记和用量作为输入假设，不继承当前选点、探测时间、延迟、冷却和恢复进度；结果不代表当前运行预测。不发起真实探测，不应用配置。",
   "policyAssumeHealthy": "假设候选都健康",
   "policyEligible": "符合当前条件",
   "policyExcluded": "不符合当前条件",
@@ -970,5 +970,18 @@
         "type": "String"
       }
     }
-  }
+  },
+  "aiConversationHistory": "对话历史",
+  "aiNewConversation": "新建对话",
+  "aiConversationHistoryHint": "仅在本机保留最近 20 个对话，每个最多 80 条文字。打开历史只恢复上下文，不续跑旧操作；删除对话不会删除修改记录。",
+  "aiEmptyHistory": "暂无对话历史",
+  "aiStartedWithProfile": "发起时配置",
+  "aiLinkedChanges": "关联修改",
+  "aiLinkedChangesHint": "这里显示原修改日志的实时记录，可查看差异；撤销或恢复仍在修改历史中处理。",
+  "aiChangesUnavailable": "部分关联记录已清理或不可用。",
+  "aiManageChanges": "打开修改历史",
+  "aiChangeCompleted": "已完成",
+  "aiChangeFailed": "失败或中断",
+  "aiChangeExpired": "已过期",
+  "aiHistorySaveFailed": "对话历史保存失败"
 }

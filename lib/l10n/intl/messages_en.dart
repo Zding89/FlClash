@@ -177,6 +177,14 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiCapabilityHint": MessageLookupByLibrary.simpleMessage(
       "Request an action in natural language using the current capability catalog",
     ),
+    "aiChangeCompleted": MessageLookupByLibrary.simpleMessage("Completed"),
+    "aiChangeExpired": MessageLookupByLibrary.simpleMessage("Expired"),
+    "aiChangeFailed": MessageLookupByLibrary.simpleMessage(
+      "Failed or interrupted",
+    ),
+    "aiChangesUnavailable": MessageLookupByLibrary.simpleMessage(
+      "Some related records are no longer available.",
+    ),
     "aiCheckResult": MessageLookupByLibrary.simpleMessage("Check result"),
     "aiChinaApi": MessageLookupByLibrary.simpleMessage("China API"),
     "aiChinaCoding": MessageLookupByLibrary.simpleMessage("China coding plan"),
@@ -185,6 +193,12 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "aiCodingPlan": MessageLookupByLibrary.simpleMessage("Coding plan"),
     "aiConnection": MessageLookupByLibrary.simpleMessage("Connection"),
+    "aiConversationHistory": MessageLookupByLibrary.simpleMessage(
+      "Conversation history",
+    ),
+    "aiConversationHistoryHint": MessageLookupByLibrary.simpleMessage(
+      "Keeps the latest 20 conversations on this device, up to 80 text messages each. Opening one restores text only; old actions are never resumed. Deleting a conversation keeps its change journal.",
+    ),
     "aiCredentialRecoveryFailed": MessageLookupByLibrary.simpleMessage(
       "Key recovery failed. Configure the key again before use",
     ),
@@ -212,6 +226,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiEmptyConversation": MessageLookupByLibrary.simpleMessage(
       "Inspect the current configuration, then preview changes",
     ),
+    "aiEmptyHistory": MessageLookupByLibrary.simpleMessage(
+      "No saved conversations",
+    ),
     "aiEnable": MessageLookupByLibrary.simpleMessage("Enable AI assistant"),
     "aiEnableHint": MessageLookupByLibrary.simpleMessage(
       "Models run only when you send a message; local policies run independently",
@@ -229,6 +246,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "aiHistoryLimit": MessageLookupByLibrary.simpleMessage(
       "Conversation limit reached. Clear it to start again",
+    ),
+    "aiHistorySaveFailed": MessageLookupByLibrary.simpleMessage(
+      "Could not save conversation history",
     ),
     "aiHostUnavailable": MessageLookupByLibrary.simpleMessage(
       "AI runtime is unavailable. Use a macOS build containing it",
@@ -248,6 +268,13 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiKeyStored": MessageLookupByLibrary.simpleMessage(
       "Stored in Keychain; leave blank to keep",
     ),
+    "aiLinkedChanges": MessageLookupByLibrary.simpleMessage("Related changes"),
+    "aiLinkedChangesHint": MessageLookupByLibrary.simpleMessage(
+      "Live records from the existing change journal. Review differences here; use change history for available undo or recovery.",
+    ),
+    "aiManageChanges": MessageLookupByLibrary.simpleMessage(
+      "Open change history",
+    ),
     "aiManualModel": MessageLookupByLibrary.simpleMessage(
       "Model ID (manual entry available)",
     ),
@@ -264,6 +291,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiModelsFetched": m0,
     "aiModelsUnsupported": MessageLookupByLibrary.simpleMessage(
       "This service does not support model discovery. Enter a model ID manually.",
+    ),
+    "aiNewConversation": MessageLookupByLibrary.simpleMessage(
+      "New conversation",
     ),
     "aiNoConnection": MessageLookupByLibrary.simpleMessage(
       "Add a connection to start chatting",
@@ -326,6 +356,9 @@ class MessageLookup extends MessageLookupByLibrary {
       "Service and credentials",
     ),
     "aiSettingsTitle": MessageLookupByLibrary.simpleMessage("AI connections"),
+    "aiStartedWithProfile": MessageLookupByLibrary.simpleMessage(
+      "Profile at start",
+    ),
     "aiStop": MessageLookupByLibrary.simpleMessage("Stop"),
     "aiTargetChanged": MessageLookupByLibrary.simpleMessage(
       "Endpoint changed. Re-enter the key for this destination",
@@ -1331,7 +1364,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyRuntimeState": MessageLookupByLibrary.simpleMessage(
       "Runtime status",
     ),
-    "policySaved": MessageLookupByLibrary.simpleMessage("Saved and applied"),
+    "policySaved": MessageLookupByLibrary.simpleMessage("Saved"),
     "policySavedInactive": MessageLookupByLibrary.simpleMessage(
       "Saved; not currently running",
     ),
@@ -1369,13 +1402,13 @@ class MessageLookup extends MessageLookupByLibrary {
       "Show all members",
     ),
     "policySimulation": MessageLookupByLibrary.simpleMessage(
-      "Policy simulation",
+      "Scenario simulation",
     ),
     "policySimulationCoreRequired": MessageLookupByLibrary.simpleMessage(
       "Simulation requires a running proxy core",
     ),
     "policySimulationHint": MessageLookupByLibrary.simpleMessage(
-      "Predict from current sources, health and usage; add scenario steps to inspect probe, cooldown and recovery timing. No real probes or configuration writes.",
+      "Independent cold-start scenario. Health flags and usage are input assumptions; live selection, probe age, latency, cooldown and recovery state are not restored. Results do not predict current runtime behavior. No real probes or configuration writes.",
     ),
     "policySimulationSteps": MessageLookupByLibrary.simpleMessage(
       "Scenario steps (advanced JSON)",
