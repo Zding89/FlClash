@@ -182,7 +182,7 @@ func validateLocalNodeSets(c *LocalPolicyConfig) error {
 		}
 	}
 	for _, set := range c.NodeSets {
-		if !validLocalSetPreferences(set, sources) || set.ID == "" || len(set.ID) > 128 || sets[set.ID].ID != "" || len(set.SourceIDs) == 0 || len(set.SourceIDs) > 20 || len(set.Regions) > 250 || set.MaxMultiplier != nil && (math.IsNaN(*set.MaxMultiplier) || math.IsInf(*set.MaxMultiplier, 0) || *set.MaxMultiplier <= 0 || *set.MaxMultiplier > 1000) || set.UnknownMultiplier != "" && set.UnknownMultiplier != "exclude" && set.UnknownMultiplier != "allow" && set.UnknownMultiplier != "assumeOne" || set.Strategy != "" && set.Strategy != "stable" && set.Strategy != "latency" && set.Strategy != "multiplier" || set.ImprovementPercent < 1 || set.ImprovementPercent > 100 || set.RecoverySeconds < 0 || set.RecoverySeconds > 86400 || set.CooldownSeconds < 0 || set.CooldownSeconds > 3600 {
+		if !validLocalSetPreferences(set, sources) || set.ID == "" || len(set.ID) > 128 || sets[set.ID].ID != "" || len(set.SourceIDs) == 0 && c.SchemaVersion < 3 || len(set.SourceIDs) > 20 || len(set.Regions) > 250 || set.MaxMultiplier != nil && (math.IsNaN(*set.MaxMultiplier) || math.IsInf(*set.MaxMultiplier, 0) || *set.MaxMultiplier <= 0 || *set.MaxMultiplier > 1000) || set.UnknownMultiplier != "" && set.UnknownMultiplier != "exclude" && set.UnknownMultiplier != "allow" && set.UnknownMultiplier != "assumeOne" || set.Strategy != "" && set.Strategy != "stable" && set.Strategy != "latency" && set.Strategy != "multiplier" || set.ImprovementPercent < 1 || set.ImprovementPercent > 100 || set.RecoverySeconds < 0 || set.RecoverySeconds > 86400 || set.CooldownSeconds < 0 || set.CooldownSeconds > 3600 {
 			return fail()
 		}
 		seen := map[string]bool{}

@@ -124,5 +124,49 @@ void main() {
       normalizePolicyYaml(loadYaml(file.readAsStringSync())),
       generated.config,
     );
+    for (final ids in [
+      [1],
+      <int>[],
+    ]) {
+      final subset = LocalPolicyDocument.fromJson({
+        ...document.toJson(),
+        'integrations': [
+          {
+            ...document.localProfile.toJson(),
+            'sourceProfileIds': ids.map((id) => '$id').toList(),
+          },
+        ],
+        'nodeSets': [
+          {
+            ...document.nodeSets.single.toJson(),
+            'sourceIds': ['2'],
+            'excludedSourceIds': ['2'],
+          },
+        ],
+      });
+      final compiled = const LocalPolicyCompiler().compile(
+        document: subset,
+        profileId: null,
+        baseConfig: {'mode': 'rule'},
+        sources: sources
+            .where((source) => ids.contains(int.parse(source.id)))
+            .toList(),
+      );
+      final core = compiled.config['flclash-local-policy'] as Map;
+      final set = (core['nodeSets'] as List).single as Map;
+      expect(set['sourceIds'], isEmpty);
+      expect(set['excludedSourceIds'], isEmpty);
+      expect(subset.nodeSets.single.sourceIds, ['2']);
+      expect(subset.nodeSets.single.excludedSourceIds, ['2']);
+      final name = ids.isEmpty ? 'empty' : 'subset';
+      final subsetFile = File('core/testdata/local_policy_v3_$name.yaml');
+      if (const bool.fromEnvironment('UPDATE_POLICY_WIRE_FIXTURE')) {
+        subsetFile.writeAsStringSync(writer.yaml.encode(compiled.config));
+      }
+      expect(
+        normalizePolicyYaml(loadYaml(subsetFile.readAsStringSync())),
+        compiled.config,
+      );
+    }
   });
 }

@@ -1,0 +1,192 @@
+mode: "rule"
+proxies:
+  - name: "Source 1 · Japan 1 1x [cac1b509a563]"
+    type: "ss"
+    server: "127.0.0.1"
+    port: 1
+    cipher: "aes-128-gcm"
+    password: "fixture-1"
+proxy-groups:
+  - name: "fl-policy-de5f2cbf4c10a0d1"
+    type: "select"
+    proxies:
+      - "REJECT"
+  - name: "fl-policy-38e452b56a63d9b5"
+    type: "select"
+    proxies:
+      - "REJECT"
+  - name: "fl-policy-aea417d7da77838a"
+    type: "select"
+    proxies:
+      - "REJECT"
+rules:
+  - "DOMAIN-SUFFIX,example.test,fl-policy-de5f2cbf4c10a0d1"
+  - "DOMAIN-SUFFIX,example.test,fl-policy-38e452b56a63d9b5"
+  - "MATCH,fl-policy-aea417d7da77838a"
+  - "MATCH,REJECT"
+profile:
+  store-selected: false
+flclash-local-policy:
+  schemaVersion: 3
+  targetId: "integration:flclash_local"
+  nodeSets:
+    - id: "pool"
+      label: "Pool"
+      sourceIds: []
+      regions: []
+      excludedSourceIds: []
+      excludedRegions: []
+      nameIncludes: []
+      nameExcludes: []
+      preferences:
+        - type: "expiry"
+          direction: "ascending"
+        - type: "latency"
+          direction: "ascending"
+      selectionMode: "loadBalance"
+      balanceStrategy: "roundRobin"
+      schedule:
+        timeZone: "Asia/Shanghai"
+        windows:
+          - weekdays:
+              - 1
+              - 2
+              - 3
+              - 4
+              - 5
+            startMinute: 1320
+            endMinute: 60
+      maxMultiplier: null
+      unknownMultiplier: "assumeOne"
+      allowUnknownRegion: false
+      strategy: "stable"
+      probe:
+        url: "https://www.gstatic.com/generate_204"
+        intervalSeconds: 60
+        timeoutSeconds: 5
+        failureThreshold: 3
+        successThreshold: 3
+        expectedStatus: "204"
+        method: "GET"
+        automatic: true
+        retrySeconds: 180
+        validitySeconds: 600
+      recoverySeconds: 300
+      cooldownSeconds: 60
+      improvementPercent: 20
+  revision: 0
+  enabled: true
+  sources:
+    - id: "1"
+      label: "Source 1"
+  nodes:
+    - id: "1:dc35ae8e56a9dd8c6576dba879ea9a9945544688cda681ed8a8e1c808b094325"
+      sourceId: "1"
+      proxyName: "Source 1 · Japan 1 1x [cac1b509a563]"
+      label: "Japan 1 1x"
+      region: "JP"
+      multiplier: 1.0
+      regionBasis: "name"
+      multiplierBasis: "name"
+  policies:
+    - id: "first"
+      label: "First"
+      enabled: true
+      action: "proxy"
+      candidateNodeIds: []
+      choices:
+        - type: "nodeSet"
+          id: "pool"
+      probe:
+        url: "https://www.gstatic.com/generate_204"
+        intervalSeconds: 30
+        timeoutSeconds: 5
+        failureThreshold: 3
+        successThreshold: 3
+        expectedStatus: "200-399"
+        method: "HEAD"
+        automatic: true
+        retrySeconds: 180
+        validitySeconds: 600
+      guard:
+        expiryMarginSeconds: 0
+        minRemainingBytes: 0
+        metadataMaxAgeSeconds: 86400
+        unknownBehavior: "exclude"
+      schedule:
+        timeZone: "Asia/Shanghai"
+        windows: []
+      recoverySeconds: 300
+      cooldownSeconds: 60
+      autoRecover: true
+      terminateConnectionsOnExclusion: false
+      skipUnavailable: true
+      groupName: "fl-policy-de5f2cbf4c10a0d1"
+    - id: "second"
+      label: "Second"
+      enabled: true
+      action: "direct"
+      candidateNodeIds: []
+      choices: []
+      probe:
+        url: "https://www.gstatic.com/generate_204"
+        intervalSeconds: 30
+        timeoutSeconds: 5
+        failureThreshold: 3
+        successThreshold: 3
+        expectedStatus: "200-399"
+        method: "HEAD"
+        automatic: true
+        retrySeconds: 180
+        validitySeconds: 600
+      guard:
+        expiryMarginSeconds: 0
+        minRemainingBytes: 0
+        metadataMaxAgeSeconds: 86400
+        unknownBehavior: "exclude"
+      schedule:
+        timeZone: "Asia/Shanghai"
+        windows: []
+      recoverySeconds: 300
+      cooldownSeconds: 60
+      autoRecover: true
+      terminateConnectionsOnExclusion: false
+      skipUnavailable: true
+      groupName: "fl-policy-38e452b56a63d9b5"
+    - id: "last"
+      label: "Last"
+      enabled: true
+      action: "reject"
+      candidateNodeIds: []
+      choices: []
+      probe:
+        url: "https://www.gstatic.com/generate_204"
+        intervalSeconds: 30
+        timeoutSeconds: 5
+        failureThreshold: 3
+        successThreshold: 3
+        expectedStatus: "200-399"
+        method: "HEAD"
+        automatic: true
+        retrySeconds: 180
+        validitySeconds: 600
+      guard:
+        expiryMarginSeconds: 0
+        minRemainingBytes: 0
+        metadataMaxAgeSeconds: 86400
+        unknownBehavior: "exclude"
+      schedule:
+        timeZone: "Asia/Shanghai"
+        windows: []
+      recoverySeconds: 300
+      cooldownSeconds: 60
+      autoRecover: true
+      terminateConnectionsOnExclusion: false
+      skipUnavailable: true
+      groupName: "fl-policy-aea417d7da77838a"
+  budgets:
+    - sourceId: "1"
+      limitBytes: 1073741824
+      resetDay: 1
+      timeZone: "Asia/Shanghai"
+  overrides: []

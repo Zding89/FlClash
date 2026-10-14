@@ -502,7 +502,18 @@ final class LocalPolicyCompiler {
       raw['flclash-local-policy'] = {
         'schemaVersion': 3,
         'targetId': targetId,
-        'nodeSets': sets.map((s) => s.toCoreJson()).toList(),
+        'nodeSets': sets.map((set) {
+          final value = set.toCoreJson();
+          if (document.isStandalone) {
+            value['sourceIds'] = set.sourceIds
+                .where(usedSourceIds.contains)
+                .toList();
+            value['excludedSourceIds'] = set.excludedSourceIds
+                .where(usedSourceIds.contains)
+                .toList();
+          }
+          return value;
+        }).toList(),
         'revision': document.revision,
         'enabled': true,
         'sources': selectedSources
