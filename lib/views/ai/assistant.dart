@@ -15,6 +15,7 @@ import 'package:fl_clash/providers/state.dart';
 import 'package:fl_clash/providers/workbench.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'approval.dart';
@@ -338,11 +339,13 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       }
       _historySecrets.add(key);
       final runtime = controller.runtime;
-      await _subscription?.cancel();
-      _runtime = runtime;
-      _subscription = runtime.events.listen((event) {
-        if (epoch == _epoch) _event(event);
-      });
+      if (!identical(_runtime, runtime)) {
+        await _subscription?.cancel();
+        _runtime = runtime;
+        _subscription = runtime.events.listen((event) {
+          if (identical(_runtime, runtime)) _event(event);
+        });
+      }
       if (!mounted || _epoch != epoch) return;
       final tools = AgentTools(
         controller: controller,
@@ -415,12 +418,13 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
 
   Future<void> _stop() async {
     final epoch = ++_epoch;
+    final runtime = _runtime;
+    _runtime = null;
     _cancelApprovals();
-    _runtime?.cancel();
+    runtime?.cancel();
     setState(() => _status = context.appLocalizations.aiCancelled);
     await _subscription?.cancel();
     _subscription = null;
-    _runtime = null;
     await _controller.closeAgent();
     await _persistConversation();
     if (mounted && _epoch == epoch) {
@@ -434,11 +438,12 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
 
   Future<void> _openSettings() async {
     _epoch++;
+    final runtime = _runtime;
+    _runtime = null;
     _cancelApprovals();
-    _runtime?.cancel();
+    runtime?.cancel();
     await _subscription?.cancel();
     _subscription = null;
-    _runtime = null;
     await _controller.closeAgent();
     if (!mounted) return;
     setState(() {
@@ -496,8 +501,10 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
 
   Future<void> _clear() async {
     final epoch = ++_epoch;
+    final runtime = _runtime;
+    _runtime = null;
     _cancelApprovals();
-    _runtime?.cancel();
+    runtime?.cancel();
     final saved = _persistConversation();
     setState(() {
       _messages.clear();
@@ -513,7 +520,6 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     });
     await _subscription?.cancel();
     _subscription = null;
-    _runtime = null;
     await _controller.closeAgent();
     await saved;
     if (mounted && _epoch == epoch) {
@@ -730,21 +736,46 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Expanded(
-                            child: TextField(
-                              key: const ValueKey('ai-prompt'),
-                              controller: _input,
-                              enabled:
-                                  settings.enabled &&
-                                  settings.selected != null &&
-                                  !_busy,
-                              onChanged: (_) => setState(() {}),
-                              minLines: 1,
-                              maxLines: 4,
-                              maxLength: 16384,
-                              decoration: InputDecoration(
-                                hintText: strings.aiPromptHint,
-                                counterText: '',
-                                border: const OutlineInputBorder(),
+                            child: Focus(
+                              canRequestFocus: false,
+                              onKeyEvent: (_, event) {
+                                final platform = Theme.of(context).platform;
+                                final composing = _input.value.composing;
+                                if (![
+                                      TargetPlatform.macOS,
+                                      TargetPlatform.windows,
+                                      TargetPlatform.linux,
+                                    ].contains(platform) ||
+                                    (event.logicalKey !=
+                                            LogicalKeyboardKey.enter &&
+                                        event.logicalKey !=
+                                            LogicalKeyboardKey.numpadEnter) ||
+                                    HardwareKeyboard.instance.isShiftPressed ||
+                                    (composing.isValid &&
+                                        !composing.isCollapsed)) {
+                                  return KeyEventResult.ignored;
+                                }
+                                if (event is KeyDownEvent) _send(settings);
+                                return KeyEventResult.handled;
+                              },
+                              child: TextField(
+                                key: const ValueKey('ai-prompt'),
+                                controller: _input,
+                                enabled:
+                                    settings.enabled &&
+                                    settings.selected != null &&
+                                    !_busy,
+                                onChanged: (_) => setState(() {}),
+                                minLines: 1,
+                                maxLines: 4,
+                                keyboardType: TextInputType.multiline,
+                                textInputAction: TextInputAction.newline,
+                                maxLength: 16384,
+                                decoration: InputDecoration(
+                                  hintText: strings.aiPromptHint,
+                                  counterText: '',
+                                  border: const OutlineInputBorder(),
+                                ),
                               ),
                             ),
                           ),

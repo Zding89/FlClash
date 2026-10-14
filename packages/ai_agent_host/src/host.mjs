@@ -115,13 +115,20 @@ export class AgentHost {
       if (event.type === 'message_end' && event.message.role === 'assistant' && event.message.stopReason === 'error') { providerFailed = true; this.emit(run, 'error', { code: providerErrorCode(event.message.errorMessage) }); }
     });
     const timer = setTimeout(() => { this.emit(run, 'error', { code: 'timeout' }); this.cancel(); }, settings.timeoutSeconds * 1000 * 3);
+    let failed = false;
     try {
       const messages = (frame.data.messages ?? []).map(m => m.role === 'user' ? { role: 'user', content: m.content, timestamp: Date.now() } : { role: 'assistant', content: [{ type: 'text', text: m.content }], api: settings.model.api, provider: settings.model.provider, model: settings.model.id, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }, stopReason: 'stop', timestamp: Date.now() });
       await agent.prompt([...messages, { role: 'user', content: frame.data.user, timestamp: Date.now() }]);
       if (run.limited) this.emit(run, 'error', { code: 'turnLimit' });
-      this.emit(run, 'done', { cancelled: run.cancelled, failed: providerFailed });
-    } catch { this.emit(run, 'error', { code: run.cancelled ? 'cancelled' : 'agentFailed' }); this.emit(run, 'done', { cancelled: run.cancelled, failed: true }); }
-    finally { clearTimeout(timer); await network.close(); run.key = ''; run.pending.forEach(p => p.reject()); run.pending.clear(); if (this.run === run) this.run = null; }
+      failed = providerFailed;
+    } catch { failed = true; this.emit(run, 'error', { code: run.cancelled ? 'cancelled' : 'agentFailed' }); }
+    finally {
+      clearTimeout(timer);
+      run.key = ''; run.pending.forEach(p => p.reject()); run.pending.clear();
+      try { await network.close(); } catch { failed = true; this.emit(run, 'error', { code: 'networkUnavailable' }); }
+      this.emit(run, 'done', { cancelled: run.cancelled, failed });
+      if (this.run === run) this.run = null;
+    }
   }
   cancel() { const run = this.run; if (!run) return; run.cancelled = true; run.agent?.abort(); run.abort?.abort(); run.pending.forEach(p => p.reject()); run.pending.clear(); }
   close() { this.cancel(); this.closed = true; }

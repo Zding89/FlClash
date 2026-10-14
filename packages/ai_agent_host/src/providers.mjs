@@ -33,7 +33,8 @@ export function resolveSettings(settings, { requireModel = true } = {}) {
     if (!['http:', 'https:'].includes(proxy.protocol) || !['localhost', '127.0.0.1', '[::1]'].includes(proxy.hostname) || proxy.username || proxy.password || proxy.search || proxy.hash || proxy.pathname !== '/') throw new Error('invalidProxy');
     proxyUrl = proxy.href;
   }
-  const model = { id: settings.model, name: settings.model, provider: settings.provider, api, baseUrl, reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 131072, maxTokens };
+  const reasoning = api === 'openai-completions' && (settings.provider === 'deepseek' || url.hostname === 'api.deepseek.com');
+  const model = { id: settings.model, name: settings.model, provider: settings.provider, api, baseUrl, reasoning, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 131072, maxTokens };
   return { model, timeoutSeconds, maxTokens, proxyUrl };
 }
 export function providerStream(model, context, options) {

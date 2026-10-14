@@ -24,6 +24,7 @@ import 'package:fl_clash/configuration/changes.dart';
 
 import '../support/ai_visual_capture.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -100,6 +101,28 @@ class _Transport implements AgentTransport {
     exited.complete(0);
     unawaited(outgoing.close());
     unawaited(diagnostic.close());
+  }
+}
+
+class _MultiTurnTransport extends _Transport {
+  _MultiTurnTransport({this.failFirst = false});
+  final bool failFirst;
+  final prompts = <Map<String, dynamic>>[];
+
+  @override
+  Future<void> write(List<int> bytes) async {
+    final frame = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+    if (frame['type'] != 'prompt') return;
+    promptCalls++;
+    prompt = frame;
+    prompts.add(frame);
+    if (failFirst && promptCalls == 1) {
+      event('error', {'code': 'rateLimited'});
+      event('done', {'cancelled': false, 'failed': true});
+      return;
+    }
+    event('text', {'text': 'answer $promptCalls'});
+    event('done', {'cancelled': false, 'failed': false});
   }
 }
 
@@ -243,6 +266,8 @@ Future<ProviderContainer> _mount(
   String? initialPrompt,
   String? offeredContext,
   _CapabilityService? capabilities,
+  AgentSettings settings = _settings,
+  TargetPlatform? platform,
 }) async {
   final container = ProviderContainer(
     overrides: [
@@ -250,7 +275,7 @@ Future<ProviderContainer> _mount(
         controller.ref = ref;
         return controller;
       }),
-      agentSettingsProvider.overrideWith((_) => Stream.value(_settings)),
+      agentSettingsProvider.overrideWith((_) => Stream.value(settings)),
       currentProfileProvider.overrideWith((_) => null),
       if (capabilities != null)
         applicationCapabilityServiceProvider.overrideWithValue(capabilities),
@@ -266,6 +291,7 @@ Future<ProviderContainer> _mount(
       child: MaterialApp(
         locale: aiVisualCapture ? const Locale('zh', 'CN') : null,
         theme: ThemeData(
+          platform: platform,
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
           fontFamily: aiVisualCapture ? 'AiVisualLatin' : null,
           fontFamilyFallback: aiVisualCapture ? const ['AiVisualCjk'] : null,
@@ -324,6 +350,318 @@ Future<void> _tapAi(WidgetTester tester, Finder target) async {
 }
 
 void main() {
+  testWidgets('same runtime sends three arrow turns with accumulated history', (
+    tester,
+  ) async {
+    final transport = _MultiTurnTransport();
+    var launches = 0;
+    final runtime = AgentRuntime(
+      launcher: () async {
+        launches++;
+        return transport;
+      },
+    );
+    final container = await _mount(
+      tester,
+      _Controller(runtime, _Credentials()),
+    );
+    addTearDown(container.dispose);
+    final prompt = find.byKey(const ValueKey('ai-prompt'));
+    final history = <Map<String, String>>[];
+    for (var turn = 1; turn <= 3; turn++) {
+      final question = 'question $turn';
+      await tester.enterText(prompt, question);
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+      await waitAiCondition(
+        tester,
+        () => find.byKey(const ValueKey('ai-send')).evaluate().isNotEmpty,
+        'Each turn must finish and restore the send button',
+      );
+      expect(
+        transport.promptCalls,
+        turn,
+        reason:
+            'turn $turn; generic error visible: ${find.text(AppLocalizations.current.aiRequestFailed).evaluate().isNotEmpty}; composer: ${tester.widget<TextField>(prompt).controller!.text}',
+      );
+      expect(transport.prompts.last['data']['messages'], history);
+      expect(transport.prompts.last['data']['user'], question);
+      expect(tester.widget<TextField>(prompt).controller!.text, isEmpty);
+      expect(find.text(AppLocalizations.current.aiRequestFailed), findsNothing);
+      history.addAll([
+        {'role': 'user', 'content': question},
+        {'role': 'assistant', 'content': 'answer $turn'},
+      ]);
+    }
+    expect(launches, 1);
+    expect(transport.promptCalls, 3);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('same runtime recovers after model error and failed done', (
+    tester,
+  ) async {
+    final transport = _MultiTurnTransport(failFirst: true);
+    var launches = 0;
+    final runtime = AgentRuntime(
+      launcher: () async {
+        launches++;
+        return transport;
+      },
+    );
+    final container = await _mount(
+      tester,
+      _Controller(runtime, _Credentials()),
+    );
+    addTearDown(container.dispose);
+    final prompt = find.byKey(const ValueKey('ai-prompt'));
+    await tester.enterText(prompt, 'first failed question');
+    await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+    await waitAiCondition(
+      tester,
+      () => find.byKey(const ValueKey('ai-send')).evaluate().isNotEmpty,
+      'Each turn must finish and restore the send button',
+    );
+    expect(transport.promptCalls, 1);
+    expect(find.text(AppLocalizations.current.aiRateLimited), findsOneWidget);
+    expect(runtime.isClosed, false);
+    await tester.enterText(prompt, 'retry question');
+    await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+    await waitAiCondition(
+      tester,
+      () => find.byKey(const ValueKey('ai-send')).evaluate().isNotEmpty,
+      'Each turn must finish and restore the send button',
+    );
+    expect(
+      transport.promptCalls,
+      2,
+      reason:
+          'retry; generic error visible: ${find.text(AppLocalizations.current.aiRequestFailed).evaluate().isNotEmpty}; composer: ${tester.widget<TextField>(prompt).controller!.text}',
+    );
+    expect(launches, 1);
+    expect(transport.prompts.last['data']['messages'], [
+      {'role': 'user', 'content': 'first failed question'},
+    ]);
+    expect(transport.prompts.last['data']['user'], 'retry question');
+    expect(find.text('answer 2'), findsOneWidget);
+    expect(find.text(AppLocalizations.current.aiRateLimited), findsNothing);
+    expect(find.text(AppLocalizations.current.aiRequestFailed), findsNothing);
+    expect(tester.widget<TextField>(prompt).controller!.text, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final platform in [
+    TargetPlatform.macOS,
+    TargetPlatform.windows,
+    TargetPlatform.linux,
+  ]) {
+    testWidgets('desktop Enter sends once including held key on $platform', (
+      tester,
+    ) async {
+      final transport = _Transport();
+      final container = await _mount(
+        tester,
+        _Controller(
+          AgentRuntime(launcher: () async => transport),
+          _Credentials(),
+        ),
+        platform: platform,
+      );
+      addTearDown(container.dispose);
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-prompt')),
+        'keyboard question',
+      );
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyRepeatEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(transport.promptCalls, 1);
+      expect(transport.prompt!['data']['user'], 'keyboard question');
+      expect(find.text('streamed answer'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('desktop Shift Enter retains multiline editing without sending', (
+    tester,
+  ) async {
+    const platform = TargetPlatform.macOS;
+    final transport = _Transport();
+    final container = await _mount(
+      tester,
+      _Controller(
+        AgentRuntime(launcher: () async => transport),
+        _Credentials(),
+      ),
+      platform: platform,
+    );
+    addTearDown(container.dispose);
+    final prompt = find.byKey(const ValueKey('ai-prompt'));
+    await tester.enterText(prompt, 'first line');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+    expect(transport.promptCalls, 0);
+    final field = tester.widget<TextField>(prompt);
+    expect(field.keyboardType, TextInputType.multiline);
+    expect(field.textInputAction, TextInputAction.newline);
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'first line\nsecond line',
+        selection: TextSelection.collapsed(offset: 22),
+      ),
+    );
+    await tester.pump();
+    expect(field.controller!.text, 'first line\nsecond line');
+    await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+    await tester.pumpAndSettle();
+    expect(transport.prompt!['data']['user'], 'first line\nsecond line');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'composing Enter waits for committed Chinese text before sending',
+    (tester) async {
+      const platform = TargetPlatform.macOS;
+      final transport = _Transport();
+      final container = await _mount(
+        tester,
+        _Controller(
+          AgentRuntime(launcher: () async => transport),
+          _Credentials(),
+        ),
+        platform: platform,
+      );
+      addTearDown(container.dispose);
+      await tester.enterText(find.byKey(const ValueKey('ai-prompt')), 'ni');
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'ni',
+          selection: TextSelection.collapsed(offset: 2),
+          composing: TextRange(start: 0, end: 2),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(transport.promptCalls, 0);
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '你好',
+          selection: TextSelection.collapsed(offset: 2),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(transport.promptCalls, 1);
+      expect(transport.prompt!['data']['user'], '你好');
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
+    testWidgets(
+      'mobile Enter keeps multiline input and click sends on $platform',
+      (tester) async {
+        final transport = _Transport();
+        final container = await _mount(
+          tester,
+          _Controller(
+            AgentRuntime(launcher: () async => transport),
+            _Credentials(),
+          ),
+          platform: platform,
+        );
+        addTearDown(container.dispose);
+        final prompt = find.byKey(const ValueKey('ai-prompt'));
+        await tester.enterText(prompt, 'mobile question');
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.testTextInput.receiveAction(TextInputAction.newline);
+        await tester.pump();
+        expect(transport.promptCalls, 0);
+        expect(tester.widget<TextField>(prompt).maxLines, 4);
+        expect(
+          tester.widget<TextField>(prompt).textInputAction,
+          TextInputAction.newline,
+        );
+        await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+        await tester.pumpAndSettle();
+        expect(transport.promptCalls, 1);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'Enter while credential read is busy does not queue another send',
+    (tester) async {
+      const platform = TargetPlatform.macOS;
+      final pending = Completer<String?>();
+      final transport = _Transport();
+      final container = await _mount(
+        tester,
+        _Controller(
+          AgentRuntime(launcher: () async => transport),
+          _Credentials(pending: pending),
+        ),
+        platform: platform,
+      );
+      addTearDown(container.dispose);
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-prompt')),
+        'one request',
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(transport.promptCalls, 0);
+      pending.complete('test-secret');
+      await tester.pumpAndSettle();
+      expect(transport.promptCalls, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final settings in [
+    _settings,
+    const AgentSettings(),
+    const AgentSettings(enabled: true),
+  ]) {
+    testWidgets(
+      'empty or unavailable composer ignores Enter for ${settings.enabled}/${settings.selectedConnectionId}',
+      (tester) async {
+        const platform = TargetPlatform.macOS;
+        final transport = _Transport();
+        final container = await _mount(
+          tester,
+          _Controller(
+            AgentRuntime(launcher: () async => transport),
+            _Credentials(),
+          ),
+          settings: settings,
+          initialPrompt: settings == _settings ? '  ' : 'unavailable question',
+          platform: platform,
+        );
+        addTearDown(container.dispose);
+        final prompt = find.byKey(const ValueKey('ai-prompt'));
+        if (settings == _settings) await tester.tap(prompt);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        expect(transport.promptCalls, 0);
+        expect(
+          tester
+              .widget<IconButton>(find.byKey(const ValueKey('ai-send')))
+              .onPressed,
+          isNull,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     'saved text restores without replaying approval or calling model',
     (tester) async {

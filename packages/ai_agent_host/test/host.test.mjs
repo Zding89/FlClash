@@ -127,3 +127,43 @@ test('large repeated tool results hit a bounded context budget', async () => {
   assert.ok(events.some(e => e.data.code === 'contextLimit'));
   assert.ok(events.filter(e => e.type === 'toolRequest').length < 10);
 });
+
+test('completion waits for request cleanup before accepting the next prompt', async () => {
+  const events = [];
+  let release;
+  const closing = new Promise(resolve => { release = resolve; });
+  let closed = 0;
+  const host = new AgentHost(event => events.push(event), fakeStream([]), () => ({ fetch: () => { throw new Error('network-forbidden'); }, close: async () => { await closing; closed++; } }));
+  try {
+    host.receive(frame());
+    await waitFor(() => events.some(e => e.type === 'text'));
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.ok(!events.some(e => e.type === 'done'));
+    release();
+    await waitFor(() => events.some(e => e.type === 'done'));
+    assert.equal(closed, 1);
+    assert.equal(host.run, null);
+    host.receive(frame('prompt', 2, 'prompt-2'));
+    await waitFor(() => events.some(e => e.generation === 2 && e.type === 'done'));
+    assert.equal(closed, 2);
+    assert.equal(host.run, null);
+  } finally { release(); host.close(); }
+});
+
+test('cleanup errors settle the turn and allow the next prompt', async () => {
+  const events = [];
+  let closes = 0;
+  const host = new AgentHost(event => events.push(event), fakeStream([]), () => ({ fetch: () => { throw new Error('network-forbidden'); }, close: async () => { if (++closes === 1) throw new Error('fixture-cleanup-failure'); } }));
+  try {
+    host.receive(frame());
+    await waitFor(() => events.some(e => e.type === 'done'));
+    assert.equal(events.find(e => e.type === 'error').data.code, 'networkUnavailable');
+    assert.equal(events.find(e => e.type === 'done').data.failed, true);
+    assert.equal(host.run, null);
+    host.receive(frame('prompt', 2, 'prompt-2'));
+    await waitFor(() => events.some(e => e.generation === 2 && e.type === 'done'));
+    assert.ok(!events.some(e => e.generation === 2 && e.type === 'error'));
+    assert.equal(events.find(e => e.generation === 2 && e.type === 'done').data.failed, false);
+    assert.equal(closes, 2);
+  } finally { host.close(); }
+});
