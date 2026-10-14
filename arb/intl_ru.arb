@@ -987,7 +987,7 @@
   "policyAdvancedTab": "Дополнительно",
   "policyNoProfilesHint": "Перед созданием правил и групп узлов добавьте подписку или локальный профиль в разделе «Профили»",
   "policyTargetHint": "Действует при использовании этого профиля; выбор здесь не переключает работающий профиль",
-  "policyNodeSetTarget": "Профиль с этими узлами",
+  "policyNodeSetTarget": "Профиль для этой группы",
   "policyNodeSetStrategy": "Выбор узла",
   "policyNodeSetHint": "Фильтруйте по провайдеру, региону, имени и множителю, затем выбирайте по приоритету или распределяйте подключения.",
   "policyNodeSetStrategyHint": "Стабильность сохраняет текущий узел; низкая задержка использует результаты проверок; низкий множитель учитывает коэффициент тарификации провайдера",
@@ -1072,5 +1072,25 @@
   "policyRegionID": "Индонезия",
   "policyRegionMO": "Макао",
   "policyContinueNextRule": "Перейти к следующему правилу",
-  "policyBalanceHint": "Режим приоритета следует порядку выше; балансировка распределяет соединения между всеми подходящими узлами."
+  "policyBalanceHint": "Режим приоритета следует порядку выше; балансировка распределяет соединения между всеми подходящими узлами.",
+  "profilesUpdateAll": "Обновить все",
+  "profilesUpdateSubscription": "Обновить подписку",
+  "profilesSourceCount": "Источники: {count}",
+  "profilesRuleCount": "Правила: {count}",
+  "@profilesSourceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@profilesRuleCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "policyAnyRegion": "Любой регион",
+  "policyAnyMultiplier": "Любой множитель"
 }

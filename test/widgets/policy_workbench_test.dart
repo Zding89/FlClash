@@ -224,6 +224,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text(AppLocalizations.current.policyRulesTab));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byType(Switch).last);
+      await tester.pumpAndSettle();
       await tester.tap(find.byType(Switch).last);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
@@ -326,6 +328,50 @@ void main() {
     expect(controller.selectedTargets, isEmpty);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'node group summary uses friendly regions and explicit unrestricted filters',
+    (tester) async {
+      final controller = _Controller(
+        const LocalPolicyDocument(
+          nodeSets: [
+            PolicyNodeSet(
+              id: 'filtered',
+              label: 'Filtered',
+              targetId: 'profile:2',
+              sourceIds: ['1'],
+              regions: ['JP', 'HK'],
+              maxMultiplier: 1,
+            ),
+            PolicyNodeSet(
+              id: 'unrestricted',
+              label: 'Unrestricted',
+              targetId: 'profile:2',
+              sourceIds: ['1'],
+            ),
+          ],
+        ),
+      );
+      await _mountWorkbench(tester, controller: controller, initialTab: 1);
+      final strings = AppLocalizations.current;
+      expect(find.text(strings.policyNodeSetTarget), findsOneWidget);
+      expect(
+        find.textContaining(
+          '${strings.policyRegionJP} · ${strings.policyRegionHK}',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(
+          '${strings.policyAnyRegion} · ${strings.policyAnyMultiplier}',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('—×'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   testWidgets(
     'editing target and filtering keep the running profile unchanged',

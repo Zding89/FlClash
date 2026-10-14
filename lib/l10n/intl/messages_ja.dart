@@ -83,13 +83,17 @@ class MessageLookup extends MessageLookupByLibrary {
 
   static String m28(label) => "${label} は 1024 から 49151 の間でなければなりません";
 
-  static String m29(count) => "${count} 秒";
+  static String m29(count) => "ルール ${count}";
 
-  static String m30(count) => "${count} 項目が選択されています";
+  static String m30(count) => "ソース ${count}";
 
-  static String m31(label) => "${label}はURLである必要があります";
+  static String m31(count) => "${count} 秒";
 
-  static String m32(count) => "${count}年前";
+  static String m32(count) => "${count} 項目が選択されています";
+
+  static String m33(label) => "${label}はURLである必要があります";
+
+  static String m34(count) => "${count}年前";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
   static Map<String, Function> _notInlinedMessages(_) => <String, Function>{
@@ -832,6 +836,8 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyAiOptimizationRequest": m23,
     "policyAiOptimizeRule": MessageLookupByLibrary.simpleMessage("AIでルールを最適化"),
     "policyAiOrigin": MessageLookupByLibrary.simpleMessage("AI 生成"),
+    "policyAnyMultiplier": MessageLookupByLibrary.simpleMessage("倍率の制限なし"),
+    "policyAnyRegion": MessageLookupByLibrary.simpleMessage("地域の制限なし"),
     "policyApplication": MessageLookupByLibrary.simpleMessage("アプリ"),
     "policyAppliedStatus": MessageLookupByLibrary.simpleMessage("適用済み"),
     "policyAppsFailed": MessageLookupByLibrary.simpleMessage(
@@ -1040,7 +1046,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyNodeSetStrategyHint": MessageLookupByLibrary.simpleMessage(
       "安定優先は現在のノードを維持し、低遅延優先は検査の遅延で選び、低倍率優先は事業者の通信量課金倍率で選びます",
     ),
-    "policyNodeSetTarget": MessageLookupByLibrary.simpleMessage("ノードの所属プロファイル"),
+    "policyNodeSetTarget": MessageLookupByLibrary.simpleMessage(
+      "このグループを使うプロファイル",
+    ),
     "policyNodeSets": MessageLookupByLibrary.simpleMessage("ノードグループ"),
     "policyNodes": MessageLookupByLibrary.simpleMessage("ノード"),
     "policyNotCollected": MessageLookupByLibrary.simpleMessage("未収集"),
@@ -1288,7 +1296,11 @@ class MessageLookup extends MessageLookupByLibrary {
       "プロファイルURLを入力してください",
     ),
     "profiles": MessageLookupByLibrary.simpleMessage("プロファイル一覧"),
+    "profilesRuleCount": m29,
     "profilesSort": MessageLookupByLibrary.simpleMessage("プロファイルの並び替え"),
+    "profilesSourceCount": m30,
+    "profilesUpdateAll": MessageLookupByLibrary.simpleMessage("すべて更新"),
+    "profilesUpdateSubscription": MessageLookupByLibrary.simpleMessage("購読を更新"),
     "project": MessageLookupByLibrary.simpleMessage("プロジェクト"),
     "providers": MessageLookupByLibrary.simpleMessage("プロバイダー"),
     "proxies": MessageLookupByLibrary.simpleMessage("プロキシ"),
@@ -1485,7 +1497,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "search": MessageLookupByLibrary.simpleMessage("検索"),
     "seconds": MessageLookupByLibrary.simpleMessage("秒"),
-    "secondsCount": m29,
+    "secondsCount": m31,
     "selectAll": MessageLookupByLibrary.simpleMessage("すべて選択"),
     "selectProxies": MessageLookupByLibrary.simpleMessage("プロキシを選択"),
     "selectProxyProviders": MessageLookupByLibrary.simpleMessage(
@@ -1497,7 +1509,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "selectSubRule": MessageLookupByLibrary.simpleMessage("サブルールを選択してください"),
     "selected": MessageLookupByLibrary.simpleMessage("選択済み"),
-    "selectedCountTitle": m30,
+    "selectedCountTitle": m32,
     "settings": MessageLookupByLibrary.simpleMessage("設定"),
     "show": MessageLookupByLibrary.simpleMessage("表示"),
     "shrink": MessageLookupByLibrary.simpleMessage("縮小"),
@@ -1593,7 +1605,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "upload": MessageLookupByLibrary.simpleMessage("アップロード"),
     "url": MessageLookupByLibrary.simpleMessage("URL"),
     "urlDesc": MessageLookupByLibrary.simpleMessage("URL経由でプロファイルを取得"),
-    "urlTip": m31,
+    "urlTip": m33,
     "usage": MessageLookupByLibrary.simpleMessage("使用量"),
     "usageApplications": MessageLookupByLibrary.simpleMessage("アプリ"),
     "usageConnections": MessageLookupByLibrary.simpleMessage("接続数"),
@@ -1644,7 +1656,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "vpnTip": MessageLookupByLibrary.simpleMessage("変更はVPN再起動後に有効"),
     "webDAVConfiguration": MessageLookupByLibrary.simpleMessage("WebDAV設定"),
     "whitelistMode": MessageLookupByLibrary.simpleMessage("ホワイトリストモード"),
-    "yearsAgo": m32,
+    "yearsAgo": m34,
     "zh_CN": MessageLookupByLibrary.simpleMessage("簡体字中国語"),
   };
 }

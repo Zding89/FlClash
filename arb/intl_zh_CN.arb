@@ -987,7 +987,7 @@
   "policyAdvancedTab": "高级",
   "policyNoProfilesHint": "先在“配置”页面添加订阅或本地配置，再创建规则和节点组",
   "policyTargetHint": "只在这份配置被使用时生效；切换此处不会切换当前代理配置",
-  "policyNodeSetTarget": "节点所属配置",
+  "policyNodeSetTarget": "用于哪份配置",
   "policyNodeSetStrategy": "选点方式",
   "policyNodeSetHint": "按机场、地区、名字和倍率筛选，再按优先顺序选择或负载均衡分配连接",
   "policyNodeSetStrategyHint": "稳定优先会尽量保持当前节点；低延迟优先按探测延迟选择；低倍率优先按机场计费倍率选择",
@@ -1072,5 +1072,25 @@
   "policyRegionID": "印度尼西亚",
   "policyRegionMO": "澳门",
   "policyContinueNextRule": "继续下一条规则",
-  "policyBalanceHint": "优先模式按上述顺序选节点；负载均衡在所有合格节点间分配连接。"
+  "policyBalanceHint": "优先模式按上述顺序选节点；负载均衡在所有合格节点间分配连接。",
+  "profilesUpdateAll": "更新全部",
+  "profilesUpdateSubscription": "更新订阅",
+  "profilesSourceCount": "来源 {count}",
+  "profilesRuleCount": "规则 {count}",
+  "@profilesSourceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@profilesRuleCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "policyAnyRegion": "不限地区",
+  "policyAnyMultiplier": "不限倍率"
 }

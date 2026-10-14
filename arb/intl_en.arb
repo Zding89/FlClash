@@ -1001,7 +1001,7 @@
   "policyAdvancedTab": "Advanced",
   "policyNoProfilesHint": "Add a subscription or local profile in Profiles before creating rules and node groups",
   "policyTargetHint": "Applies while this profile is active; changing this field does not switch the running profile",
-  "policyNodeSetTarget": "Profile containing these nodes",
+  "policyNodeSetTarget": "Profile that uses this group",
   "policyNodeSetStrategy": "Node selection",
   "policyNodeSetHint": "Filter by provider, region, name and multiplier, then select by priority or distribute connections with load balancing.",
   "policyNodeSetStrategyHint": "Stable keeps the current node when possible; low latency uses probe delay; low multiplier uses the provider’s traffic charging multiplier",
@@ -1086,5 +1086,25 @@
   "policyRegionID": "Indonesia",
   "policyRegionMO": "Macao",
   "policyContinueNextRule": "Continue with the next rule",
-  "policyBalanceHint": "Priority mode follows the ranking above; load balancing distributes connections across all eligible nodes."
+  "policyBalanceHint": "Priority mode follows the ranking above; load balancing distributes connections across all eligible nodes.",
+  "profilesUpdateAll": "Update all",
+  "profilesUpdateSubscription": "Update subscription",
+  "profilesSourceCount": "Sources {count}",
+  "profilesRuleCount": "Rules {count}",
+  "@profilesSourceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@profilesRuleCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "policyAnyRegion": "Any region",
+  "policyAnyMultiplier": "Any multiplier"
 }

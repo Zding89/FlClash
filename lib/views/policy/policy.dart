@@ -21,6 +21,7 @@ import 'editors.dart';
 import 'rule_editor.dart';
 import 'simulation.dart';
 import 'widgets.dart';
+import 'selection_fields.dart';
 import 'node_set_editor.dart';
 import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/core/controller.dart';
@@ -386,7 +387,7 @@ class _LocalPolicyWorkbenchViewState
           child: ListTile(
             title: Text(set.label),
             subtitle: Text(
-              '${targets[set.targetId] ?? set.targetId} · ${set.regions.join(' · ')} · ${set.maxMultiplier ?? '—'}×',
+              '${targets[set.targetId] ?? set.targetId} · ${set.regions.isEmpty ? strings.policyAnyRegion : set.regions.map((region) => policyRegionOptions(context, set.regions)[region] ?? region).join(' · ')} · ${set.maxMultiplier == null ? strings.policyAnyMultiplier : '${set.maxMultiplier}×'}',
             ),
             onTap: _busy
                 ? null
@@ -1007,6 +1008,54 @@ class _LocalPolicyWorkbenchViewState
       if (ref.watch(profilesProvider).isEmpty)
         Text(strings.policyNoProfilesHint),
       Text(strings.policyRuleOrderHint),
+      const SizedBox(height: 12),
+      Wrap(
+        spacing: 12,
+        children: [
+          FilledButton.tonalIcon(
+            onPressed:
+                _busy ||
+                    ref.watch(profilesProvider).isEmpty ||
+                    document.policies.length >= 100
+                ? null
+                : () => _rule(document, targets, null),
+            icon: const Icon(Icons.add),
+            label: Text(strings.policyAddRule),
+          ),
+          OutlinedButton.icon(
+            onPressed: _busy || selected == null
+                ? null
+                : () {
+                    final navigator = Navigator.of(context);
+                    ref
+                        .read(aiComposerContextProvider.notifier)
+                        .offer(strings.policyAiOptimizationRequest(selected));
+                    ref
+                        .read(currentPageLabelProvider.notifier)
+                        .toPage(PageLabel.aiAssistant);
+                    if (navigator.canPop()) navigator.pop();
+                  },
+            icon: const Icon(Icons.auto_awesome_outlined),
+            label: Text(strings.policyAiOptimizeRule),
+          ),
+          OutlinedButton.icon(
+            onPressed: targets.isEmpty
+                ? null
+                : () => showDialog<void>(
+                    context: context,
+                    builder: (_) => PolicySimulationDialog(
+                      document: document,
+                      targets: targets,
+                      snapshot: snapshot,
+                      controller: _controller,
+                    ),
+                  ),
+            icon: const Icon(Icons.science_outlined),
+            label: Text(strings.policySimulation),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
       if (!document.policiesEnabled)
         SwitchListTile(
           title: Text(strings.policyEnableRules),
@@ -1056,52 +1105,6 @@ class _LocalPolicyWorkbenchViewState
               row(groups[i], i, draggable: false),
           ],
         ),
-      Wrap(
-        spacing: 12,
-        children: [
-          FilledButton.tonalIcon(
-            onPressed:
-                _busy ||
-                    ref.watch(profilesProvider).isEmpty ||
-                    document.policies.length >= 100
-                ? null
-                : () => _rule(document, targets, null),
-            icon: const Icon(Icons.add),
-            label: Text(strings.policyAddRule),
-          ),
-          OutlinedButton.icon(
-            onPressed: _busy || selected == null
-                ? null
-                : () {
-                    final navigator = Navigator.of(context);
-                    ref
-                        .read(aiComposerContextProvider.notifier)
-                        .offer(strings.policyAiOptimizationRequest(selected));
-                    ref
-                        .read(currentPageLabelProvider.notifier)
-                        .toPage(PageLabel.aiAssistant);
-                    if (navigator.canPop()) navigator.pop();
-                  },
-            icon: const Icon(Icons.auto_awesome_outlined),
-            label: Text(strings.policyAiOptimizeRule),
-          ),
-          OutlinedButton.icon(
-            onPressed: targets.isEmpty
-                ? null
-                : () => showDialog<void>(
-                    context: context,
-                    builder: (_) => PolicySimulationDialog(
-                      document: document,
-                      targets: targets,
-                      snapshot: snapshot,
-                      controller: _controller,
-                    ),
-                  ),
-            icon: const Icon(Icons.science_outlined),
-            label: Text(strings.policySimulation),
-          ),
-        ],
-      ),
     ]);
   }
 

@@ -987,7 +987,7 @@
   "policyAdvancedTab": "詳細",
   "policyNoProfilesHint": "ルールやノードグループを作る前に、「プロファイル」で購読またはローカル設定を追加してください",
   "policyTargetHint": "このプロファイルを使用中に適用されます。ここで選択しても使用中のプロファイルは切り替わりません",
-  "policyNodeSetTarget": "ノードの所属プロファイル",
+  "policyNodeSetTarget": "このグループを使うプロファイル",
   "policyNodeSetStrategy": "ノード選択方法",
   "policyNodeSetHint": "プロバイダー、地域、名前、倍率で絞り込み、優先順位または負荷分散で接続します",
   "policyNodeSetStrategyHint": "安定優先は現在のノードを維持し、低遅延優先は検査の遅延で選び、低倍率優先は事業者の通信量課金倍率で選びます",
@@ -1072,5 +1072,25 @@
   "policyRegionID": "インドネシア",
   "policyRegionMO": "マカオ",
   "policyContinueNextRule": "次のルールに進む",
-  "policyBalanceHint": "優先モードは上の順位で選択し、負荷分散は条件を満たすすべてのノードへ接続を分散します。"
+  "policyBalanceHint": "優先モードは上の順位で選択し、負荷分散は条件を満たすすべてのノードへ接続を分散します。",
+  "profilesUpdateAll": "すべて更新",
+  "profilesUpdateSubscription": "購読を更新",
+  "profilesSourceCount": "ソース {count}",
+  "profilesRuleCount": "ルール {count}",
+  "@profilesSourceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@profilesRuleCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "policyAnyRegion": "地域の制限なし",
+  "policyAnyMultiplier": "倍率の制限なし"
 }

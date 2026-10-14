@@ -120,30 +120,40 @@ class _ProfilesViewState extends State<ProfilesView> {
   void _editCollection() =>
       showExtend(context, builder: (_) => const LocalPolicyWorkbenchView());
 
-  List<Widget> _buildActions(List<Profile> profiles) {
-    return profiles.isNotEmpty
-        ? [
-            IconButton(
-              onPressed: () {
-                _updateProfiles(profiles);
-              },
-              icon: const Icon(Icons.sync),
-            ),
-            IconButton(
-              onPressed: () {
-                showSheet(
-                  context: context,
-                  builder: (_) {
-                    return ReorderableProfilesSheet(profiles: profiles);
-                  },
-                );
-              },
-              icon: const Icon(Icons.sort),
-              iconSize: 26,
-            ),
-          ]
-        : [];
-  }
+  List<Widget> _buildActions(List<Profile> profiles, bool desktop) => [
+    if (profiles.isNotEmpty) ...[
+      if (desktop)
+        OutlinedButton.icon(
+          onPressed: () => _updateProfiles(profiles),
+          icon: const Icon(Icons.sync),
+          label: Text(context.appLocalizations.profilesUpdateAll),
+        )
+      else
+        IconButton(
+          onPressed: () => _updateProfiles(profiles),
+          tooltip: context.appLocalizations.profilesUpdateAll,
+          icon: const Icon(Icons.sync),
+        ),
+      IconButton(
+        onPressed: () => showSheet(
+          context: context,
+          builder: (_) => ReorderableProfilesSheet(profiles: profiles),
+        ),
+        tooltip: context.appLocalizations.profilesSort,
+        icon: const Icon(Icons.sort),
+        iconSize: 26,
+      ),
+    ],
+    if (desktop)
+      Padding(
+        padding: const EdgeInsets.only(right: 16),
+        child: FilledButton.icon(
+          onPressed: _handleShowAddExtendPage,
+          icon: const Icon(Icons.add),
+          label: Text(context.appLocalizations.addProfile),
+        ),
+      ),
+  ];
 
   Widget _buildFAB() {
     return CommonFloatingActionButton(
@@ -173,13 +183,15 @@ class _ProfilesViewState extends State<ProfilesView> {
         final collectionInUse =
             runtime?['targetId'] == document?.activeIntegration?.targetId &&
             runtime?['documentRevision'] == document?.revision;
+        final desktop = MediaQuery.sizeOf(context).width >= 800;
         return CommonScaffold(
           isLoading: isLoading,
           title: appLocalizations.profiles,
-          floatingActionButton: _buildFAB(),
-          actions: _buildActions(state.profiles),
+          floatingActionButton: desktop ? null : _buildFAB(),
+          actions: _buildActions(state.profiles, desktop),
           body: LayoutBuilder(
             builder: (_, constraints) {
+              final wide = constraints.maxWidth >= 800;
               const horizontalPadding = 16.0;
               return Align(
                 alignment: Alignment.topCenter,
@@ -196,14 +208,30 @@ class _ProfilesViewState extends State<ProfilesView> {
                     crossAxisSpacing: 14,
                     crossAxisCount: 1,
                     children: [
-                      if (document?.moduleEnabled == true)
+                      if (document != null && document.moduleEnabled)
                         GridItem(
-                          child: Card(
-                            child: ListTile(
-                              leading: RadioGroup<String>(
-                                groupValue: integrated ? 'local' : null,
-                                onChanged: (_) {
-                                  if (document!.activeIntegration == null) {
+                          child: CommonCard(
+                            key: const ValueKey('profiles-local-collection'),
+                            isSelected: integrated,
+                            onPressed: () {
+                              if (document.activeIntegration == null) {
+                                _editCollection();
+                              } else {
+                                _select(
+                                  ref,
+                                  integrationId: document.activeIntegrationId,
+                                );
+                              }
+                            },
+                            child: ListItem(
+                              minVerticalPadding: 20,
+                              horizontalTitleGap: wide ? 24 : 12,
+                              leading: _ProfileSelectionLeading(
+                                selected: integrated,
+                                icon: Icons.layers_outlined,
+                                desktop: wide,
+                                onSelect: () {
+                                  if (document.activeIntegration == null) {
                                     _editCollection();
                                   } else {
                                     _select(
@@ -213,35 +241,107 @@ class _ProfilesViewState extends State<ProfilesView> {
                                     );
                                   }
                                 },
-                                child: const Radio<String>(value: 'local'),
                               ),
-                              title: Text(
-                                appLocalizations.policyLocalCollection,
+                              title: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    appLocalizations.policyLocalCollection,
+                                    style: context.textTheme.titleMedium,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  if (document.activeIntegration == null)
+                                    Text(
+                                      appLocalizations.policyCollectionPending,
+                                    )
+                                  else ...[
+                                    Text(
+                                      document.activeIntegration!.label,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 6,
+                                      children: [
+                                        Chip(
+                                          label: Text(
+                                            appLocalizations
+                                                .profilesSourceCount(
+                                                  document
+                                                      .activeIntegration!
+                                                      .sourceProfileIds
+                                                      .length,
+                                                ),
+                                          ),
+                                        ),
+                                        Chip(
+                                          label: Text(
+                                            appLocalizations.profilesRuleCount(
+                                              document.policies
+                                                  .where(
+                                                    (p) =>
+                                                        p.targetId ==
+                                                        document
+                                                            .activeIntegration!
+                                                            .targetId,
+                                                  )
+                                                  .length,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    integrated
+                                        ? collectionInUse
+                                              ? appLocalizations
+                                                    .policyAppliedStatus
+                                              : appLocalizations
+                                                    .policySelectedOffline
+                                        : appLocalizations
+                                              .policySelectCollection,
+                                    style:
+                                        context.textTheme.labelMedium?.toLight,
+                                  ),
+                                ],
                               ),
-                              subtitle: Text(
-                                document!.activeIntegration == null
-                                    ? appLocalizations.policyCollectionPending
-                                    : '${document.activeIntegration!.label} · ${document.activeIntegration!.sourceProfileIds.length} · ${document.policies.where((p) => p.targetId == document.activeIntegration!.targetId).length}\n${integrated
-                                          ? collectionInUse
-                                                ? appLocalizations.policyAppliedStatus
-                                                : appLocalizations.policySelectedOffline
-                                          : appLocalizations.policySelectCollection}',
-                              ),
-                              onTap: () {
-                                if (document.activeIntegration == null) {
-                                  _editCollection();
-                                } else {
-                                  _select(
-                                    ref,
-                                    integrationId: document.activeIntegrationId,
-                                  );
-                                }
-                              },
-                              trailing: IconButton(
-                                onPressed: _editCollection,
-                                tooltip: appLocalizations.edit,
-                                icon: const Icon(Icons.edit_outlined),
-                              ),
+                              trailing: wide
+                                  ? Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        OutlinedButton.icon(
+                                          onPressed: _editCollection,
+                                          icon: const Icon(Icons.edit_outlined),
+                                          label: Text(appLocalizations.edit),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        CommonPopupBox(
+                                          popup: CommonPopupMenu(
+                                            items: [
+                                              PopupMenuItemData(
+                                                icon: Icons.edit_outlined,
+                                                label: appLocalizations.edit,
+                                                onPressed: _editCollection,
+                                              ),
+                                            ],
+                                          ),
+                                          targetBuilder: (open) => IconButton(
+                                            onPressed: open,
+                                            tooltip: appLocalizations.more,
+                                            icon: const Icon(Icons.more_vert),
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : IconButton(
+                                      onPressed: _editCollection,
+                                      tooltip: appLocalizations.edit,
+                                      icon: const Icon(Icons.edit_outlined),
+                                    ),
                             ),
                           ),
                         ),
@@ -268,15 +368,20 @@ class _ProfilesViewState extends State<ProfilesView> {
                         ),
                       if (system.isMacOS)
                         GridItem(
-                          child: SwitchListTile(
-                            title: Text(appLocalizations.policyModule),
-                            subtitle: Text(
-                              appLocalizations.policyModuleOffHint,
+                          child: Card(
+                            key: const ValueKey('profiles-module-card'),
+                            child: SwitchListTile(
+                              secondary: const Icon(Icons.rule_outlined),
+                              title: Text(appLocalizations.policyModule),
+                              subtitle: Text(
+                                appLocalizations.policyModuleOffHint,
+                              ),
+                              value: document?.moduleEnabled ?? false,
+                              onChanged: document == null
+                                  ? null
+                                  : (value) =>
+                                        _select(ref, moduleEnabled: value),
                             ),
-                            value: document?.moduleEnabled ?? false,
-                            onChanged: document == null
-                                ? null
-                                : (value) => _select(ref, moduleEnabled: value),
                           ),
                         ),
                     ],
@@ -349,7 +454,10 @@ class ProfileItem extends StatelessWidget {
     return [
       const SizedBox(height: 8),
       if (subscriptionInfo != null)
-        SubscriptionInfoView(subscriptionInfo: subscriptionInfo),
+        SubscriptionInfoView(
+          subscriptionInfo: subscriptionInfo,
+          updatedAt: profile.lastUpdateDate,
+        ),
       LastUpdateTimeText(
         lastUpdateDate: profile.lastUpdateDate,
         style: context.textTheme.labelMedium?.toLighter,
@@ -397,143 +505,243 @@ class ProfileItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appLocalizations = context.appLocalizations;
-    return CommonCard(
-      enterActionsOnRight: true,
-      isSelected: profile.id == groupValue,
-      onPressed: () {
-        onChanged(profile.id);
-      },
-      child: ListItem(
-        key: Key(profile.id.toString()),
-        horizontalTitleGap: 16,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        trailing: SizedBox(
-          height: 40,
-          width: 40,
-          child: Consumer(
-            builder: (_, ref, _) {
-              final isUpdating = ref.watch(
-                isUpdatingProvider(profile.updatingKey),
-              );
-              return FadeThroughBox(
-                child: isUpdating
-                    ? const Padding(
-                        key: ValueKey('loading'),
-                        padding: EdgeInsets.all(8),
-                        child: CommonCircleLoading(),
-                      )
-                    : CommonPopupBox(
-                        key: const ValueKey('menu'),
-                        popup: CommonPopupMenu(
-                          items: [
-                            PopupMenuItemData(
-                              icon: Icons.edit_outlined,
-                              label: appLocalizations.edit,
-                              onPressed: () {
-                                _handleShowEditExtendPage(context);
-                              },
-                            ),
-                            PopupMenuItemData(
-                              icon: Icons.visibility_outlined,
-                              label: appLocalizations.preview,
-                              onPressed: () {
-                                _handlePreview(context);
-                              },
-                            ),
-                            if (profile.type == ProfileType.url) ...[
-                              PopupMenuItemData(
-                                icon: Icons.sync_alt_sharp,
-                                label: appLocalizations.sync,
-                                onPressed: () {
-                                  updateProfile();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final desktop = constraints.maxWidth >= 800;
+        return CommonCard(
+          key: ValueKey('profile-card-${profile.id}'),
+          enterActionsOnRight: true,
+          isSelected: profile.id == groupValue,
+          onPressed: () {
+            onChanged(profile.id);
+          },
+          child: ListItem(
+            key: Key(profile.id.toString()),
+            horizontalTitleGap: desktop ? 24 : 12,
+            minVerticalPadding: 20,
+            leading: _ProfileSelectionLeading(
+              selected: profile.id == groupValue,
+              icon: profile.type == ProfileType.url
+                  ? Icons.cloud_outlined
+                  : Icons.description_outlined,
+              desktop: desktop,
+              onSelect: () => onChanged(profile.id),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (desktop) ...[
+                  if (profile.type == ProfileType.url)
+                    Consumer(
+                      builder: (_, ref, _) {
+                        final updating = ref.watch(
+                          isUpdatingProvider(profile.updatingKey),
+                        );
+                        return OutlinedButton.icon(
+                          key: ValueKey('profile-update-${profile.id}'),
+                          onPressed: updating ? null : updateProfile,
+                          icon: updating
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CommonCircleLoading(),
+                                )
+                              : const Icon(Icons.sync),
+                          label: Text(
+                            appLocalizations.profilesUpdateSubscription,
+                          ),
+                        );
+                      },
+                    ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    key: ValueKey('profile-edit-${profile.id}'),
+                    onPressed: () => _handleShowEditExtendPage(context),
+                    icon: const Icon(Icons.edit_outlined),
+                    label: Text(appLocalizations.edit),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                SizedBox(
+                  height: 40,
+                  width: 40,
+                  child: Consumer(
+                    builder: (_, ref, _) {
+                      final isUpdating = ref.watch(
+                        isUpdatingProvider(profile.updatingKey),
+                      );
+                      return FadeThroughBox(
+                        child: isUpdating
+                            ? const Padding(
+                                key: ValueKey('loading'),
+                                padding: EdgeInsets.all(8),
+                                child: CommonCircleLoading(),
+                              )
+                            : CommonPopupBox(
+                                key: const ValueKey('menu'),
+                                popup: CommonPopupMenu(
+                                  items: [
+                                    PopupMenuItemData(
+                                      icon: Icons.edit_outlined,
+                                      label: appLocalizations.edit,
+                                      onPressed: () {
+                                        _handleShowEditExtendPage(context);
+                                      },
+                                    ),
+                                    PopupMenuItemData(
+                                      icon: Icons.visibility_outlined,
+                                      label: appLocalizations.preview,
+                                      onPressed: () {
+                                        _handlePreview(context);
+                                      },
+                                    ),
+                                    if (profile.type == ProfileType.url) ...[
+                                      PopupMenuItemData(
+                                        icon: Icons.sync_alt_sharp,
+                                        label: appLocalizations.sync,
+                                        onPressed: () {
+                                          updateProfile();
+                                        },
+                                      ),
+                                    ],
+                                    PopupMenuItemData(
+                                      icon: Icons.emergency_outlined,
+                                      label: appLocalizations.more,
+                                      subItems: [
+                                        PopupMenuItemData(
+                                          icon: Icons.extension_outlined,
+                                          label: appLocalizations.override,
+                                          onPressed: () {
+                                            _handlePushGenProfilePage(
+                                              context,
+                                              profile.id,
+                                            );
+                                          },
+                                        ),
+                                        if (profile.type ==
+                                            ProfileType.url) ...[
+                                          PopupMenuItemData(
+                                            icon: Icons.copy,
+                                            label: appLocalizations.copyLink,
+                                            onPressed: () {
+                                              _handleCopyLink(context);
+                                            },
+                                          ),
+                                        ],
+                                        PopupMenuItemData(
+                                          icon: Icons.file_copy_outlined,
+                                          label: appLocalizations.exportFile,
+                                          onPressed: () {
+                                            _handleExportFile(context);
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                    PopupMenuItemData(
+                                      danger: true,
+                                      icon: Icons.delete_outlined,
+                                      label: appLocalizations.delete,
+                                      onPressed: () {
+                                        _handleDeleteProfile(context);
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                targetBuilder: (open) {
+                                  return IconButton(
+                                    onPressed: () {
+                                      open();
+                                    },
+                                    icon: const Icon(Icons.more_vert),
+                                  );
                                 },
                               ),
-                            ],
-                            PopupMenuItemData(
-                              icon: Icons.emergency_outlined,
-                              label: appLocalizations.more,
-                              subItems: [
-                                PopupMenuItemData(
-                                  icon: Icons.extension_outlined,
-                                  label: appLocalizations.override,
-                                  onPressed: () {
-                                    _handlePushGenProfilePage(
-                                      context,
-                                      profile.id,
-                                    );
-                                  },
-                                ),
-                                if (profile.type == ProfileType.url) ...[
-                                  PopupMenuItemData(
-                                    icon: Icons.copy,
-                                    label: appLocalizations.copyLink,
-                                    onPressed: () {
-                                      _handleCopyLink(context);
-                                    },
-                                  ),
-                                ],
-                                PopupMenuItemData(
-                                  icon: Icons.file_copy_outlined,
-                                  label: appLocalizations.exportFile,
-                                  onPressed: () {
-                                    _handleExportFile(context);
-                                  },
-                                ),
-                              ],
-                            ),
-                            PopupMenuItemData(
-                              danger: true,
-                              icon: Icons.delete_outlined,
-                              label: appLocalizations.delete,
-                              onPressed: () {
-                                _handleDeleteProfile(context);
-                              },
-                            ),
-                          ],
-                        ),
-                        targetBuilder: (open) {
-                          return IconButton(
-                            onPressed: () {
-                              open();
-                            },
-                            icon: const Icon(Icons.more_vert),
-                          );
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            title: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      profile.realLabel,
+                      style: context.textTheme.titleMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ...switch (profile.type) {
+                          ProfileType.file => _buildFileProfileInfo(context),
+                          ProfileType.url => _buildUrlProfileInfo(context),
                         },
-                      ),
-              );
-            },
-          ),
-        ),
-        title: Container(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                profile.realLabel,
-                style: context.textTheme.titleMedium,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ...switch (profile.type) {
-                    ProfileType.file => _buildFileProfileInfo(context),
-                    ProfileType.url => _buildUrlProfileInfo(context),
-                  },
-                ],
-              ),
-            ],
+            ),
+            tileTitleAlignment: ListTileTitleAlignment.titleHeight,
           ),
-        ),
-        tileTitleAlignment: ListTileTitleAlignment.titleHeight,
-      ),
+        );
+      },
     );
   }
+}
+
+class _ProfileSelectionLeading extends StatelessWidget {
+  const _ProfileSelectionLeading({
+    required this.selected,
+    required this.icon,
+    required this.desktop,
+    required this.onSelect,
+  });
+  final bool selected;
+  final IconData icon;
+  final bool desktop;
+  final VoidCallback onSelect;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      ExcludeFocus(
+        child: RadioGroup<bool>(
+          groupValue: selected,
+          onChanged: (_) => onSelect(),
+          child: const Radio<bool>(value: true),
+        ),
+      ),
+      if (desktop) ...[
+        const SizedBox(width: 12),
+        Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: context.colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(
+            icon,
+            size: 30,
+            color: context.colorScheme.onPrimaryContainer,
+          ),
+        ),
+      ],
+    ],
+  );
 }
 
 class LastUpdateTimeText extends StatelessWidget {

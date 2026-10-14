@@ -8229,10 +8229,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Profile containing these nodes`
+  /// `Profile that uses this group`
   String get policyNodeSetTarget {
     return Intl.message(
-      'Profile containing these nodes',
+      'Profile that uses this group',
       name: 'policyNodeSetTarget',
       desc: '',
       args: [],
@@ -8984,6 +8984,66 @@ class AppLocalizations {
     return Intl.message(
       'Priority mode follows the ranking above; load balancing distributes connections across all eligible nodes.',
       name: 'policyBalanceHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Update all`
+  String get profilesUpdateAll {
+    return Intl.message(
+      'Update all',
+      name: 'profilesUpdateAll',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Update subscription`
+  String get profilesUpdateSubscription {
+    return Intl.message(
+      'Update subscription',
+      name: 'profilesUpdateSubscription',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Sources {count}`
+  String profilesSourceCount(int count) {
+    return Intl.message(
+      'Sources $count',
+      name: 'profilesSourceCount',
+      desc: '',
+      args: [count],
+    );
+  }
+
+  /// `Rules {count}`
+  String profilesRuleCount(int count) {
+    return Intl.message(
+      'Rules $count',
+      name: 'profilesRuleCount',
+      desc: '',
+      args: [count],
+    );
+  }
+
+  /// `Any region`
+  String get policyAnyRegion {
+    return Intl.message(
+      'Any region',
+      name: 'policyAnyRegion',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Any multiplier`
+  String get policyAnyMultiplier {
+    return Intl.message(
+      'Any multiplier',
+      name: 'policyAnyMultiplier',
       desc: '',
       args: [],
     );

@@ -81,13 +81,17 @@ class MessageLookup extends MessageLookupByLibrary {
 
   static String m28(label) => "${label} 必须在 1024 到 49151 之间";
 
-  static String m29(count) => "${count} 秒";
+  static String m29(count) => "规则 ${count}";
 
-  static String m30(count) => "已选择 ${count} 项";
+  static String m30(count) => "来源 ${count}";
 
-  static String m31(label) => "${label}必须为URL";
+  static String m31(count) => "${count} 秒";
 
-  static String m32(count) => "${count} 年前";
+  static String m32(count) => "已选择 ${count} 项";
+
+  static String m33(label) => "${label}必须为URL";
+
+  static String m34(count) => "${count} 年前";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
   static Map<String, Function> _notInlinedMessages(_) => <String, Function>{
@@ -734,6 +738,8 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyAiOptimizationRequest": m23,
     "policyAiOptimizeRule": MessageLookupByLibrary.simpleMessage("AI优化规则"),
     "policyAiOrigin": MessageLookupByLibrary.simpleMessage("AI 生成"),
+    "policyAnyMultiplier": MessageLookupByLibrary.simpleMessage("不限倍率"),
+    "policyAnyRegion": MessageLookupByLibrary.simpleMessage("不限地区"),
     "policyApplication": MessageLookupByLibrary.simpleMessage("应用"),
     "policyAppliedStatus": MessageLookupByLibrary.simpleMessage("已应用"),
     "policyAppsFailed": MessageLookupByLibrary.simpleMessage("读取软件列表失败，请刷新重试"),
@@ -912,7 +918,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyNodeSetStrategyHint": MessageLookupByLibrary.simpleMessage(
       "稳定优先会尽量保持当前节点；低延迟优先按探测延迟选择；低倍率优先按机场计费倍率选择",
     ),
-    "policyNodeSetTarget": MessageLookupByLibrary.simpleMessage("节点所属配置"),
+    "policyNodeSetTarget": MessageLookupByLibrary.simpleMessage("用于哪份配置"),
     "policyNodeSets": MessageLookupByLibrary.simpleMessage("节点组"),
     "policyNodes": MessageLookupByLibrary.simpleMessage("节点"),
     "policyNotCollected": MessageLookupByLibrary.simpleMessage("尚未采集"),
@@ -1136,7 +1142,11 @@ class MessageLookup extends MessageLookupByLibrary {
       "请输入配置URL",
     ),
     "profiles": MessageLookupByLibrary.simpleMessage("配置"),
+    "profilesRuleCount": m29,
     "profilesSort": MessageLookupByLibrary.simpleMessage("配置排序"),
+    "profilesSourceCount": m30,
+    "profilesUpdateAll": MessageLookupByLibrary.simpleMessage("更新全部"),
+    "profilesUpdateSubscription": MessageLookupByLibrary.simpleMessage("更新订阅"),
     "project": MessageLookupByLibrary.simpleMessage("项目"),
     "providers": MessageLookupByLibrary.simpleMessage("提供者"),
     "proxies": MessageLookupByLibrary.simpleMessage("代理"),
@@ -1301,7 +1311,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "search": MessageLookupByLibrary.simpleMessage("搜索"),
     "seconds": MessageLookupByLibrary.simpleMessage("秒"),
-    "secondsCount": m29,
+    "secondsCount": m31,
     "selectAll": MessageLookupByLibrary.simpleMessage("全选"),
     "selectProxies": MessageLookupByLibrary.simpleMessage("选择代理"),
     "selectProxyProviders": MessageLookupByLibrary.simpleMessage("选择代理集"),
@@ -1309,7 +1319,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "selectSplitStrategy": MessageLookupByLibrary.simpleMessage("请选择分流策略"),
     "selectSubRule": MessageLookupByLibrary.simpleMessage("请选择子规则"),
     "selected": MessageLookupByLibrary.simpleMessage("已选择"),
-    "selectedCountTitle": m30,
+    "selectedCountTitle": m32,
     "settings": MessageLookupByLibrary.simpleMessage("设置"),
     "show": MessageLookupByLibrary.simpleMessage("显示"),
     "shrink": MessageLookupByLibrary.simpleMessage("紧凑"),
@@ -1399,7 +1409,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "upload": MessageLookupByLibrary.simpleMessage("上传"),
     "url": MessageLookupByLibrary.simpleMessage("URL"),
     "urlDesc": MessageLookupByLibrary.simpleMessage("通过URL获取配置文件"),
-    "urlTip": m31,
+    "urlTip": m33,
     "usage": MessageLookupByLibrary.simpleMessage("用量"),
     "usageApplications": MessageLookupByLibrary.simpleMessage("应用"),
     "usageConnections": MessageLookupByLibrary.simpleMessage("连接数"),
@@ -1446,7 +1456,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "vpnTip": MessageLookupByLibrary.simpleMessage("重启VPN后改变生效"),
     "webDAVConfiguration": MessageLookupByLibrary.simpleMessage("WebDAV配置"),
     "whitelistMode": MessageLookupByLibrary.simpleMessage("白名单模式"),
-    "yearsAgo": m32,
+    "yearsAgo": m34,
     "zh_CN": MessageLookupByLibrary.simpleMessage("中文简体"),
   };
 }

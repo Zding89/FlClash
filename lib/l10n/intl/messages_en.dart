@@ -90,13 +90,17 @@ class MessageLookup extends MessageLookupByLibrary {
 
   static String m28(label) => "${label} must be between 1024 and 49151";
 
-  static String m29(count) => "${count} seconds";
+  static String m29(count) => "Rules ${count}";
 
-  static String m30(count) => "${count} items have been selected";
+  static String m30(count) => "Sources ${count}";
 
-  static String m31(label) => "${label} must be a url";
+  static String m31(count) => "${count} seconds";
 
-  static String m32(count) =>
+  static String m32(count) => "${count} items have been selected";
+
+  static String m33(label) => "${label} must be a url";
+
+  static String m34(count) =>
       "${Intl.plural(count, one: '1 year ago', other: '${count} years ago')}";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
@@ -1058,6 +1062,10 @@ class MessageLookup extends MessageLookupByLibrary {
       "Optimize rules with AI",
     ),
     "policyAiOrigin": MessageLookupByLibrary.simpleMessage("AI generated"),
+    "policyAnyMultiplier": MessageLookupByLibrary.simpleMessage(
+      "Any multiplier",
+    ),
+    "policyAnyRegion": MessageLookupByLibrary.simpleMessage("Any region"),
     "policyApplication": MessageLookupByLibrary.simpleMessage("Application"),
     "policyAppliedStatus": MessageLookupByLibrary.simpleMessage("Applied"),
     "policyAppsFailed": MessageLookupByLibrary.simpleMessage(
@@ -1379,7 +1387,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Stable keeps the current node when possible; low latency uses probe delay; low multiplier uses the provider’s traffic charging multiplier",
     ),
     "policyNodeSetTarget": MessageLookupByLibrary.simpleMessage(
-      "Profile containing these nodes",
+      "Profile that uses this group",
     ),
     "policyNodeSets": MessageLookupByLibrary.simpleMessage("Node groups"),
     "policyNodes": MessageLookupByLibrary.simpleMessage("Nodes"),
@@ -1742,7 +1750,13 @@ class MessageLookup extends MessageLookupByLibrary {
       "Please input the profile URL",
     ),
     "profiles": MessageLookupByLibrary.simpleMessage("Profiles"),
+    "profilesRuleCount": m29,
     "profilesSort": MessageLookupByLibrary.simpleMessage("Profiles sort"),
+    "profilesSourceCount": m30,
+    "profilesUpdateAll": MessageLookupByLibrary.simpleMessage("Update all"),
+    "profilesUpdateSubscription": MessageLookupByLibrary.simpleMessage(
+      "Update subscription",
+    ),
     "project": MessageLookupByLibrary.simpleMessage("Project"),
     "providers": MessageLookupByLibrary.simpleMessage("Providers"),
     "proxies": MessageLookupByLibrary.simpleMessage("Proxies"),
@@ -1971,7 +1985,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "search": MessageLookupByLibrary.simpleMessage("Search"),
     "seconds": MessageLookupByLibrary.simpleMessage("Seconds"),
-    "secondsCount": m29,
+    "secondsCount": m31,
     "selectAll": MessageLookupByLibrary.simpleMessage("Select all"),
     "selectProxies": MessageLookupByLibrary.simpleMessage("Select proxies"),
     "selectProxyProviders": MessageLookupByLibrary.simpleMessage(
@@ -1987,7 +2001,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Please select sub rule",
     ),
     "selected": MessageLookupByLibrary.simpleMessage("Selected"),
-    "selectedCountTitle": m30,
+    "selectedCountTitle": m32,
     "settings": MessageLookupByLibrary.simpleMessage("Settings"),
     "show": MessageLookupByLibrary.simpleMessage("Show"),
     "shrink": MessageLookupByLibrary.simpleMessage("Shrink"),
@@ -2107,7 +2121,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "urlDesc": MessageLookupByLibrary.simpleMessage(
       "Obtain profile through URL",
     ),
-    "urlTip": m31,
+    "urlTip": m33,
     "usage": MessageLookupByLibrary.simpleMessage("Usage"),
     "usageApplications": MessageLookupByLibrary.simpleMessage("Apps"),
     "usageConnections": MessageLookupByLibrary.simpleMessage("Connections"),
@@ -2164,7 +2178,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "WebDAV configuration",
     ),
     "whitelistMode": MessageLookupByLibrary.simpleMessage("Whitelist mode"),
-    "yearsAgo": m32,
+    "yearsAgo": m34,
     "zh_CN": MessageLookupByLibrary.simpleMessage("Simplified Chinese"),
   };
 }

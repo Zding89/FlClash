@@ -90,13 +90,17 @@ class MessageLookup extends MessageLookupByLibrary {
 
   static String m28(label) => "${label} должен быть числом от 1024 до 49151";
 
-  static String m29(count) => "${count} секунд";
+  static String m29(count) => "Правила: ${count}";
 
-  static String m30(count) => "Выбрано ${count} элементов";
+  static String m30(count) => "Источники: ${count}";
 
-  static String m31(label) => "${label} должен быть URL";
+  static String m31(count) => "${count} секунд";
 
-  static String m32(count) =>
+  static String m32(count) => "Выбрано ${count} элементов";
+
+  static String m33(label) => "${label} должен быть URL";
+
+  static String m34(count) =>
       "${Intl.plural(count, one: '${count} год назад', few: '${count} года назад', many: '${count} лет назад', other: '${count} года назад')}";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
@@ -1098,6 +1102,10 @@ class MessageLookup extends MessageLookupByLibrary {
       "Оптимизировать правила с ИИ",
     ),
     "policyAiOrigin": MessageLookupByLibrary.simpleMessage("Создано ИИ"),
+    "policyAnyMultiplier": MessageLookupByLibrary.simpleMessage(
+      "Любой множитель",
+    ),
+    "policyAnyRegion": MessageLookupByLibrary.simpleMessage("Любой регион"),
     "policyApplication": MessageLookupByLibrary.simpleMessage("Приложение"),
     "policyAppliedStatus": MessageLookupByLibrary.simpleMessage("Применено"),
     "policyAppsFailed": MessageLookupByLibrary.simpleMessage(
@@ -1425,7 +1433,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Стабильность сохраняет текущий узел; низкая задержка использует результаты проверок; низкий множитель учитывает коэффициент тарификации провайдера",
     ),
     "policyNodeSetTarget": MessageLookupByLibrary.simpleMessage(
-      "Профиль с этими узлами",
+      "Профиль для этой группы",
     ),
     "policyNodeSets": MessageLookupByLibrary.simpleMessage("Группы узлов"),
     "policyNodes": MessageLookupByLibrary.simpleMessage("Узлы"),
@@ -1796,7 +1804,13 @@ class MessageLookup extends MessageLookupByLibrary {
       "Пожалуйста, введите URL профиля",
     ),
     "profiles": MessageLookupByLibrary.simpleMessage("Профили"),
+    "profilesRuleCount": m29,
     "profilesSort": MessageLookupByLibrary.simpleMessage("Сортировка профилей"),
+    "profilesSourceCount": m30,
+    "profilesUpdateAll": MessageLookupByLibrary.simpleMessage("Обновить все"),
+    "profilesUpdateSubscription": MessageLookupByLibrary.simpleMessage(
+      "Обновить подписку",
+    ),
     "project": MessageLookupByLibrary.simpleMessage("Проект"),
     "providers": MessageLookupByLibrary.simpleMessage("Провайдеры"),
     "proxies": MessageLookupByLibrary.simpleMessage("Прокси"),
@@ -2035,7 +2049,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "search": MessageLookupByLibrary.simpleMessage("Поиск"),
     "seconds": MessageLookupByLibrary.simpleMessage("Секунд"),
-    "secondsCount": m29,
+    "secondsCount": m31,
     "selectAll": MessageLookupByLibrary.simpleMessage("Выбрать все"),
     "selectProxies": MessageLookupByLibrary.simpleMessage("Выбрать прокси"),
     "selectProxyProviders": MessageLookupByLibrary.simpleMessage(
@@ -2051,7 +2065,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Пожалуйста, выберите подправило",
     ),
     "selected": MessageLookupByLibrary.simpleMessage("Выбрано"),
-    "selectedCountTitle": m30,
+    "selectedCountTitle": m32,
     "settings": MessageLookupByLibrary.simpleMessage("Настройки"),
     "show": MessageLookupByLibrary.simpleMessage("Показать"),
     "shrink": MessageLookupByLibrary.simpleMessage("Сжать"),
@@ -2191,7 +2205,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "urlDesc": MessageLookupByLibrary.simpleMessage(
       "Получить профиль через URL",
     ),
-    "urlTip": m31,
+    "urlTip": m33,
     "usage": MessageLookupByLibrary.simpleMessage("Расход"),
     "usageApplications": MessageLookupByLibrary.simpleMessage("Приложения"),
     "usageConnections": MessageLookupByLibrary.simpleMessage("Соединения"),
@@ -2254,7 +2268,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "whitelistMode": MessageLookupByLibrary.simpleMessage(
       "Режим белого списка",
     ),
-    "yearsAgo": m32,
+    "yearsAgo": m34,
     "zh_CN": MessageLookupByLibrary.simpleMessage("Упрощенный китайский"),
   };
 }

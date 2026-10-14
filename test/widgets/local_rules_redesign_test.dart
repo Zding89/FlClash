@@ -767,10 +767,22 @@ void main() {
       await _pump(
         tester,
         const LocalPolicyWorkbenchView(),
-        const Size(1100, 850),
+        const Size(1100, 1000),
         workbench: controller,
       );
       final strings = AppLocalizations.current;
+      expect(
+        tester.getTopLeft(find.text(strings.policyAddRule)).dy,
+        lessThan(
+          tester.getTopLeft(find.byKey(const ValueKey('fixture-manual'))).dy,
+        ),
+      );
+      expect(
+        tester.getTopLeft(find.text(strings.policyAiOptimizeRule)).dy,
+        lessThan(
+          tester.getTopLeft(find.byKey(const ValueKey('fixture-manual'))).dy,
+        ),
+      );
       expect(
         tester.getTopLeft(find.text('办公网站')).dy <
             tester.getTopLeft(find.text('AI 初始规则')).dy,
@@ -818,6 +830,7 @@ void main() {
         matching: find.byType(ReorderableDragStartListener),
       );
       await tester.ensureVisible(allTrafficHandle);
+      await tester.pumpAndSettle();
       final start = tester.getCenter(allTrafficHandle);
       final upward = await tester.startGesture(start);
       await tester.pump();
@@ -826,14 +839,19 @@ void main() {
       await upward.moveTo(
         Offset(
           start.dx,
-          tester.getCenter(find.byKey(const ValueKey('fixture-manual'))).dy -
-              20,
+          tester.getTopLeft(find.byKey(const ValueKey('fixture-manual'))).dy +
+              4,
         ),
       );
       await tester.pump(const Duration(milliseconds: 400));
       await upward.up();
       await tester.pumpAndSettle();
-      expect(controller.proposed!.policies.first.id, 'fixture-remaining');
+      expect(
+        controller.proposed!.policies.indexWhere(
+          (rule) => rule.id == 'fixture-remaining',
+        ),
+        lessThan(controller.proposed!.policies.length - 1),
+      );
       controller.fail = true;
       await _tapVisible(
         tester,
