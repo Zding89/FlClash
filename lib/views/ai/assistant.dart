@@ -192,44 +192,19 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     _followOutput();
   }
 
-  bool _showToolResult(AgentToolRequest request, AgentToolResult result) {
-    if (result.isError ||
-        aiResultProposal(result.value) != null ||
-        const {
-          'failed',
-          'unsupported',
-          'cancelled',
-          'rejected',
-          'pending_confirmation',
-          'pending_user_input',
-          'requires_user_action',
-          'recovery_required',
-        }.contains(result.value['status'])) {
-      return true;
-    }
-    if (request.name == 'application_invoke') {
-      return applicationCapabilities.any(
-        (capability) =>
-            capability.command == request.arguments['command'] &&
-            capability.mutating,
-      );
-    }
-    return !const {
-      'application_catalog',
-      'application_operation',
-      'settings_catalog',
-      'settings_read',
-      'policies_read',
-      'nodes_list',
-      'policies_simulate',
-      'changes_status',
-      'profiles_list',
-      'rules_read',
-      'groups_read',
-      'scripts_list',
-      'usage_read',
-    }.contains(request.name);
-  }
+  bool _showToolResult(AgentToolResult result) =>
+      result.isError ||
+      aiResultProposal(result.value) != null ||
+      const {
+        'failed',
+        'unsupported',
+        'cancelled',
+        'rejected',
+        'pending_confirmation',
+        'pending_user_input',
+        'requires_user_action',
+        'recovery_required',
+      }.contains(result.value['status']);
 
   void _linkResult(AgentToolRequest request, Map<String, Object?> value) {
     if (request.name == 'changes_status' ||
@@ -424,7 +399,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
             _linkResult(request, result.value);
             setState(() {
               _status = context.appLocalizations.aiThinking;
-              if (_showToolResult(request, result)) {
+              if (_showToolResult(result)) {
                 _appendToolMessage(
                   _ConversationMessage('tool', '')
                     ..result = result.value

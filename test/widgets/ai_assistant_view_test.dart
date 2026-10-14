@@ -147,12 +147,14 @@ class _RequestTransport extends _Transport {
   _RequestTransport(this.name, this.arguments);
   final String name;
   final Map<String, Object?> arguments;
+  Map<String, dynamic>? returnedToolFrame;
 
   @override
   Future<void> write(List<int> bytes) async {
     final frame = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
     if (frame['type'] == 'toolResult') {
       toolResults++;
+      returnedToolFrame = frame;
       event('done', {'cancelled': false, 'failed': false});
     } else if (frame['type'] == 'prompt') {
       promptCalls++;
@@ -227,6 +229,7 @@ class _CapabilityService extends Mock implements ApplicationCapabilityService {
   bool? approved;
   Completer<Map<String, Object?>>? readPending;
   Map<String, Object?>? runtimeReadResult;
+  Map<String, Object?>? mutationResult;
   final pending = Completer<void>();
   @override
   List<Map<String, Object?>> get manifest =>
@@ -241,6 +244,9 @@ class _CapabilityService extends Mock implements ApplicationCapabilityService {
     bool Function()? isCurrent,
     ConfigurationApproval? approve,
   }) async {
+    if (command == 'proxy_select' && mutationResult != null) {
+      return mutationResult!;
+    }
     if (command == 'capabilities') {
       return {
         'status': 'completed',
@@ -375,6 +381,58 @@ Future<void> _tapAi(WidgetTester tester, Finder target) async {
 }
 
 void main() {
+  testWidgets(
+    'successful mutation receipt stays hidden while result and link persist',
+    (tester) async {
+      const result = {
+        'status': 'applied',
+        'operationId': 'successful-mutation',
+        'summary': 'raw mutation receipt',
+      };
+      final transport = _RequestTransport('application_invoke', {
+        'command': 'proxy_select',
+        'params': {'group': 'Proxy', 'node': 'Node A'},
+      });
+      final capabilities = _CapabilityService()..mutationResult = result;
+      final container = await _mount(
+        tester,
+        _Controller(
+          AgentRuntime(launcher: () async => transport),
+          _Credentials(),
+        ),
+        capabilities: capabilities,
+      );
+      addTearDown(container.dispose);
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-prompt')),
+        'select a proxy',
+      );
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+      await waitAiCondition(
+        tester,
+        () =>
+            transport.toolResults == 1 &&
+            find.byKey(const ValueKey('ai-send')).evaluate().isNotEmpty,
+        'Mutation result must return to the model and finish',
+      );
+      expect(transport.returnedToolFrame!['data']['value'], result);
+      expect(transport.returnedToolFrame!['data']['isError'], false);
+      expect(find.byType(AiToolResultCard), findsNothing);
+      expect(find.text('raw mutation receipt'), findsNothing);
+      expect(
+        find.text(AppLocalizations.current.policyAppliedStatus),
+        findsNothing,
+      );
+      expect(
+        find.byTooltip(AppLocalizations.current.aiLinkedChanges),
+        findsOneWidget,
+      );
+      final entries = await container.read(aiHistoryStoreProvider).list();
+      expect(entries.single.changeIds, ['successful-mutation']);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final tool in ['application_catalog', 'application_invoke']) {
     testWidgets('successful $tool read data stays out of the conversation', (
       tester,
@@ -1476,7 +1534,7 @@ void main() {
     },
   );
 
-  testWidgets('approved decision is separate from actual applied tool result', (
+  testWidgets('approved decision stays visible without a successful receipt', (
     tester,
   ) async {
     final transport = _Transport(tools: true);
@@ -1508,10 +1566,12 @@ void main() {
     await _tapAi(tester, find.text(AppLocalizations.current.aiApprove).last);
     await tester.pumpAndSettle();
     expect(capabilities.approved, true);
+    expect(transport.toolResults, 2);
+    expect(find.byType(AiToolResultCard), findsOneWidget);
     expect(find.text(AppLocalizations.current.aiApproved), findsOneWidget);
     expect(
       find.text(AppLocalizations.current.policyAppliedStatus),
-      findsOneWidget,
+      findsNothing,
     );
     expect(
       find.text(AppLocalizations.current.aiAwaitingApproval),
