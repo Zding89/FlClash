@@ -851,6 +851,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyAutoCheck": MessageLookupByLibrary.simpleMessage("自動チェック"),
     "policyAutoRecover": MessageLookupByLibrary.simpleMessage("優先ノードへ自動復帰"),
     "policyAvailableMembers": MessageLookupByLibrary.simpleMessage("利用可能なメンバー"),
+    "policyBalanceHint": MessageLookupByLibrary.simpleMessage(
+      "優先モードは上の順位で選択し、負荷分散は条件を満たすすべてのノードへ接続を分散します。",
+    ),
     "policyBalanceMode": MessageLookupByLibrary.simpleMessage("負荷分散"),
     "policyBudgetGiB": MessageLookupByLibrary.simpleMessage(
       "この端末の月間通信量上限（GiB）",
@@ -1131,7 +1134,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyScheduleAllDay": MessageLookupByLibrary.simpleMessage("終日"),
     "policyScheduleEnabled": MessageLookupByLibrary.simpleMessage("有効時間を制限"),
     "policyScheduleHint": MessageLookupByLibrary.simpleMessage(
-      "北京時間を使用。日をまたぐ時間帯は分割してください",
+      "選択したタイムゾーンで動作します。終了が開始より早い場合は翌日まで有効で、曜日は開始日を基準にします。",
     ),
     "policyScheduleSkip": MessageLookupByLibrary.simpleMessage(
       "時間外はスキップして次のルールを確認",

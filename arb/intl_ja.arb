@@ -739,7 +739,7 @@
   "policyRecoverySeconds": "復旧確認時間（秒）",
   "policyCooldownSeconds": "切替間隔（秒）",
   "policySchedule": "有効時間",
-  "policyScheduleHint": "北京時間を使用。日をまたぐ時間帯は分割してください",
+  "policyScheduleHint": "選択したタイムゾーンで動作します。終了が開始より早い場合は翌日まで有効で、曜日は開始日を基準にします。",
   "policyScheduleEnabled": "有効時間を制限",
   "policyWeekdays": "曜日（1=月、7=日）",
   "policyStartTime": "開始時刻（HH:mm）",
@@ -1071,5 +1071,6 @@
   "policyRegionPH": "フィリピン",
   "policyRegionID": "インドネシア",
   "policyRegionMO": "マカオ",
-  "policyContinueNextRule": "次のルールに進む"
+  "policyContinueNextRule": "次のルールに進む",
+  "policyBalanceHint": "優先モードは上の順位で選択し、負荷分散は条件を満たすすべてのノードへ接続を分散します。"
 }

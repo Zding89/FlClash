@@ -739,7 +739,7 @@
   "policyRecoverySeconds": "Recovery observation (seconds)",
   "policyCooldownSeconds": "Switch cooldown (seconds)",
   "policySchedule": "Schedule",
-  "policyScheduleHint": "Use Beijing time; split overnight periods into two windows",
+  "policyScheduleHint": "Uses the selected time zone. An earlier end crosses midnight; weekdays refer to the starting day.",
   "policyScheduleEnabled": "Restrict active hours",
   "policyWeekdays": "Weekdays (1=Monday, 7=Sunday)",
   "policyStartTime": "Start time (HH:mm)",
@@ -1085,5 +1085,6 @@
   "policyRegionPH": "Philippines",
   "policyRegionID": "Indonesia",
   "policyRegionMO": "Macao",
-  "policyContinueNextRule": "Continue with the next rule"
+  "policyContinueNextRule": "Continue with the next rule",
+  "policyBalanceHint": "Priority mode follows the ranking above; load balancing distributes connections across all eligible nodes."
 }

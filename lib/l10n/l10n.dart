@@ -6149,10 +6149,10 @@ class AppLocalizations {
     return Intl.message('Schedule', name: 'policySchedule', desc: '', args: []);
   }
 
-  /// `Use Beijing time; split overnight periods into two windows`
+  /// `Uses the selected time zone. An earlier end crosses midnight; weekdays refer to the starting day.`
   String get policyScheduleHint {
     return Intl.message(
-      'Use Beijing time; split overnight periods into two windows',
+      'Uses the selected time zone. An earlier end crosses midnight; weekdays refer to the starting day.',
       name: 'policyScheduleHint',
       desc: '',
       args: [],
@@ -8974,6 +8974,16 @@ class AppLocalizations {
     return Intl.message(
       'Continue with the next rule',
       name: 'policyContinueNextRule',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Priority mode follows the ranking above; load balancing distributes connections across all eligible nodes.`
+  String get policyBalanceHint {
+    return Intl.message(
+      'Priority mode follows the ranking above; load balancing distributes connections across all eligible nodes.',
+      name: 'policyBalanceHint',
       desc: '',
       args: [],
     );

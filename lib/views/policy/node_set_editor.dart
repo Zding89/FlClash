@@ -815,6 +815,14 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
               setState(() => _selectionMode = values.single),
         ),
         if (_selectionMode == NodeSelectionMode.loadBalance)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              strings.policyBalanceHint,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        if (_selectionMode == NodeSelectionMode.loadBalance)
           DropdownButtonFormField<NodeBalanceStrategy>(
             initialValue: _balanceStrategy,
             isExpanded: true,

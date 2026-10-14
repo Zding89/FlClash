@@ -749,6 +749,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyAutoCheck": MessageLookupByLibrary.simpleMessage("自动检查"),
     "policyAutoRecover": MessageLookupByLibrary.simpleMessage("自动回到更优先节点"),
     "policyAvailableMembers": MessageLookupByLibrary.simpleMessage("可用成员"),
+    "policyBalanceHint": MessageLookupByLibrary.simpleMessage(
+      "优先模式按上述顺序选节点；负载均衡在所有合格节点间分配连接。",
+    ),
     "policyBalanceMode": MessageLookupByLibrary.simpleMessage("负载均衡"),
     "policyBudgetGiB": MessageLookupByLibrary.simpleMessage("每月本机流量上限（GiB）"),
     "policyBudgetHint": MessageLookupByLibrary.simpleMessage(
@@ -997,7 +1000,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyScheduleAllDay": MessageLookupByLibrary.simpleMessage("全天"),
     "policyScheduleEnabled": MessageLookupByLibrary.simpleMessage("限制生效时间"),
     "policyScheduleHint": MessageLookupByLibrary.simpleMessage(
-      "按北京时间填写；跨午夜拆成两个时段",
+      "按所选时区生效；结束早于开始表示跨午夜，星期按开始日计算",
     ),
     "policyScheduleSkip": MessageLookupByLibrary.simpleMessage("时段外跳过，继续后续规则"),
     "policyScheduleTimezone": MessageLookupByLibrary.simpleMessage("时区"),

@@ -739,7 +739,7 @@
   "policyRecoverySeconds": "恢复观察时间（秒）",
   "policyCooldownSeconds": "切换冷却时间（秒）",
   "policySchedule": "生效时间",
-  "policyScheduleHint": "按北京时间填写；跨午夜拆成两个时段",
+  "policyScheduleHint": "按所选时区生效；结束早于开始表示跨午夜，星期按开始日计算",
   "policyScheduleEnabled": "限制生效时间",
   "policyWeekdays": "星期（1=周一，7=周日）",
   "policyStartTime": "开始时间（HH:mm）",
@@ -1071,5 +1071,6 @@
   "policyRegionPH": "菲律宾",
   "policyRegionID": "印度尼西亚",
   "policyRegionMO": "澳门",
-  "policyContinueNextRule": "继续下一条规则"
+  "policyContinueNextRule": "继续下一条规则",
+  "policyBalanceHint": "优先模式按上述顺序选节点；负载均衡在所有合格节点间分配连接。"
 }

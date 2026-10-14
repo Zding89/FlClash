@@ -1083,6 +1083,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyAvailableMembers": MessageLookupByLibrary.simpleMessage(
       "Available members",
     ),
+    "policyBalanceHint": MessageLookupByLibrary.simpleMessage(
+      "Priority mode follows the ranking above; load balancing distributes connections across all eligible nodes.",
+    ),
     "policyBalanceMode": MessageLookupByLibrary.simpleMessage("Load balancing"),
     "policyBudgetGiB": MessageLookupByLibrary.simpleMessage(
       "Monthly traffic limit on this device (GiB)",
@@ -1521,7 +1524,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Restrict active hours",
     ),
     "policyScheduleHint": MessageLookupByLibrary.simpleMessage(
-      "Use Beijing time; split overnight periods into two windows",
+      "Uses the selected time zone. An earlier end crosses midnight; weekdays refer to the starting day.",
     ),
     "policyScheduleSkip": MessageLookupByLibrary.simpleMessage(
       "Outside the schedule, skip to subsequent rules",

@@ -1125,6 +1125,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyAvailableMembers": MessageLookupByLibrary.simpleMessage(
       "Доступные участники",
     ),
+    "policyBalanceHint": MessageLookupByLibrary.simpleMessage(
+      "Режим приоритета следует порядку выше; балансировка распределяет соединения между всеми подходящими узлами.",
+    ),
     "policyBalanceMode": MessageLookupByLibrary.simpleMessage(
       "Балансировка нагрузки",
     ),
@@ -1569,7 +1572,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Ограничить часы работы",
     ),
     "policyScheduleHint": MessageLookupByLibrary.simpleMessage(
-      "Используйте время Пекина; ночной период разделите на два окна",
+      "Используется выбранный часовой пояс. Конец раньше начала означает переход через полночь; день недели относится к началу.",
     ),
     "policyScheduleSkip": MessageLookupByLibrary.simpleMessage(
       "Вне расписания перейти к следующим правилам",
