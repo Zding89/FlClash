@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:drift/native.dart';
 import 'package:dio/dio.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:fl_clash/common/javascript.dart';
 import 'package:fl_clash/common/request.dart';
 import 'package:fl_clash/common/snowflake.dart';
@@ -104,6 +105,29 @@ class _AppliedJournalFailure extends WorkbenchDatabase {
       throw StateError('journal write fixture failure');
     }
     return super.changeStatus(id, status, error: error);
+  }
+}
+
+class _ObservedBodyStream extends Stream<Uint8List> {
+  _ObservedBodyStream(this.source, this.onListen);
+
+  final Stream<Uint8List> source;
+  final void Function() onListen;
+
+  @override
+  StreamSubscription<Uint8List> listen(
+    void Function(Uint8List)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) {
+    onListen();
+    return source.listen(
+      onData,
+      onError: onError,
+      onDone: onDone,
+      cancelOnError: cancelOnError,
+    );
   }
 }
 
@@ -724,23 +748,63 @@ void main() {
     );
 
     test('silent source times out and cancels its stream', () async {
+      final clock = FakeAsync();
+      var listening = false;
       var closed = false;
-      final stream = StreamController<Uint8List>(onCancel: () => closed = true);
-      final adapter = _DownloadAdapter(stream.stream);
-      final client = Dio()..httpClientAdapter = adapter;
+      var completed = false;
+      Object? failure;
+      late StreamController<Uint8List> stream;
+      late _DownloadAdapter adapter;
+      late Dio client;
       try {
-        await expectLater(
-          Request(profileClient: client).getBoundedFileResponse(
-            'https://example.invalid/source',
-            timeout: const Duration(milliseconds: 20),
-          ),
-          throwsA(isA<TimeoutException>()),
-        );
-        expect(closed, true);
-        expect(adapter.cancelled, true);
+        clock.run((_) {
+          stream = StreamController<Uint8List>(onCancel: () => closed = true);
+          adapter = _DownloadAdapter(stream.stream);
+          client = Dio()..httpClientAdapter = adapter;
+          client.interceptors.add(
+            InterceptorsWrapper(
+              onResponse: (response, handler) {
+                final body = response.data as ResponseBody;
+                body.stream = _ObservedBodyStream(
+                  body.stream,
+                  () => listening = true,
+                );
+                handler.next(response);
+              },
+            ),
+          );
+          unawaited(
+            Request(profileClient: client)
+                .getBoundedFileResponse(
+                  'https://example.invalid/source',
+                  timeout: const Duration(milliseconds: 20),
+                )
+                .then<void>(
+                  (_) => completed = true,
+                  onError: (Object error) {
+                    failure = error;
+                    completed = true;
+                  },
+                ),
+          );
+          clock.elapse(Duration.zero);
+          expect(listening, true);
+          clock.elapse(const Duration(milliseconds: 20));
+          clock.flushMicrotasks();
+          expect(closed, true);
+          expect(adapter.cancelled, true);
+        });
+        for (var turn = 0; turn < 3 && !completed; turn++) {
+          await Future<void>.delayed(Duration.zero);
+          clock.flushMicrotasks();
+        }
+        expect(completed, true);
+        expect(failure, isA<TimeoutException>());
       } finally {
-        await stream.close();
+        final closing = stream.close();
         client.close(force: true);
+        clock.flushMicrotasks();
+        if (listening) await closing;
       }
     });
   });
