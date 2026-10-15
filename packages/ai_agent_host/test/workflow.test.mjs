@@ -247,3 +247,73 @@ test('chat cannot conceal an unfinished write task', async () => {
   f.host.receive(input()); await f.done();
   assert.equal(f.events.at(-1).data.taskStatus, 'draft_ready');
 });
+
+test('draft completion automatically binds provider call IDs and summarizes only once', async () => {
+  for (const withText of [false, true]) {
+    const summary = '草稿已生成，可以审阅。';
+    const f = fixture([[call('provider-assigned-unseen-id', 'policies_propose', { patch: { policies: [] } })], [...(withText ? [text(summary)] : []), call('finish', 'task_finish', { status: 'draft_ready', summary })]], { policies_propose: () => ({ value: { proposal: { id: 'auto-draft' } } }) });
+    f.host.receive(input()); await f.done();
+    assert.equal(f.events.at(-1).data.taskStatus, 'draft_ready');
+    assert.equal(f.contexts.length, 2);
+    assert.equal(f.events.filter(event => event.type === 'text').map(event => event.data.text).join(''), summary);
+    assert.ok(!JSON.stringify(f.events).includes('completionEvidenceRequired'));
+    const transcript = f.events.find(event => event.type === 'context').data.messages;
+    const finish = transcript.find(message => message.role === 'assistant' && message.content.some(part => part.type === 'toolCall' && part.name === 'task_finish'));
+    assert.equal(finish.content.find(part => part.type === 'toolCall').arguments.evidenceToolCallIds, undefined);
+  }
+});
+
+test('automatic evidence cannot reuse a success before a later failed write', async () => {
+  let writes = 0;
+  const f = fixture([[call('old', 'changes_commit')], [call('failed', 'changes_commit')], [call('auto-finish', 'task_finish', { status: 'completed', summary: '不该完成' })], context => {
+    assert.equal(context.messages.find(message => message.role === 'toolResult' && message.toolCallId === 'auto-finish').isError, true);
+    return [call('finish', 'task_finish', { status: 'failed', summary: '后续写入冲突', reason: '需先检查实际状态' })];
+  }], { changes_commit: () => ++writes === 1 ? { value: { id: 'draft', status: 'applied' } } : { isError: true, value: { code: 'configuration_conflict' } } });
+  f.host.receive(input()); await f.done();
+  assert.equal(f.events.at(-1).data.taskStatus, 'failed');
+  assert.equal(writes, 2);
+});
+
+test('visible proposal and operation IDs select genuine evidence without internal IDs', async () => {
+  const draft = fixture([[call('write', 'policies_propose')], [call('wrong', 'task_finish', { status: 'draft_ready', summary: '不能用错误资源', proposalId: 'missing' })], [call('finish', 'task_finish', { status: 'draft_ready', summary: '草稿可审阅', proposalId: 'visible-draft' })]], { policies_propose: () => ({ value: { status: 'pending_confirmation', operationId: 'visible-draft', result: { proposal: { id: 'visible-draft' } } } }) });
+  draft.host.receive(input()); await draft.done();
+  assert.equal(draft.events.at(-1).data.taskStatus, 'draft_ready');
+  const applied = fixture([[call('commit', 'changes_commit')], [call('query', 'changes_status')], [call('finish', 'task_finish', { status: 'completed', summary: '操作已完成', operationId: 'visible-operation' })]], { changes_commit: () => ({ value: { status: 'accepted', operationId: 'visible-operation' } }), changes_status: () => ({ value: { operationId: 'visible-operation', status: 'completed' } }) });
+  applied.host.receive(input()); await applied.done();
+  assert.equal(applied.events.at(-1).data.taskStatus, 'completed');
+});
+
+test('rename and node-set revisions send only requested fields and retain original priority', async () => {
+  const original = { id: 'rule-1', label: '原规则', priority: 1, choices: [{ kind: 'nodeSet', id: 'US' }] };
+  let draft = structuredClone(original), edits = 0;
+  const f = fixture([
+    [call('guide', 'builtin_workflow_read', { topic: 'local_rules' })],
+    context => {
+      const system = context.messages.find(message => message.role === 'system').content;
+      assert.ok(system.includes('所有对用户输出都使用自然、简洁的中文'));
+      assert.ok(system.includes('不使用英文开场'));
+      assert.ok(!system.includes('必须提供本次真实工具返回的 evidenceToolCallIds'));
+      const guide = context.messages.find(message => message.role === 'toolResult' && message.toolName === 'builtin_workflow_read').content[0].text;
+      for (const contract of ['3–5 条简单分流规则', '未请求时不添加广告屏蔽', '改名只传 id/label', '换节点组只传 id/choices', '只有用户明确改顺序时才传 priority', '不能为保持原序而补传 priority: 0']) assert.ok(guide.includes(contract), contract);
+      return [call('read', 'policies_draft_read', { id: 'revision-draft' })];
+    },
+    [call('node-edit', 'policies_propose', { draftId: 'revision-draft', patch: { policies: [{ id: 'rule-1', choices: [{ kind: 'nodeSet', id: 'low' }] }] } })],
+    [call('rename', 'policies_propose', { draftId: 'revision-draft', patch: { policies: [{ id: 'rule-1', label: '新名称' }] } })],
+    [call('finish', 'task_finish', { status: 'draft_ready', summary: '节点组和名称已更新，规则顺序保持原样。' })],
+  ], {
+    policies_draft_read: () => ({ value: { id: 'revision-draft', status: 'draft', document: { policies: [draft] } } }),
+    policies_propose: request => {
+      const patch = request.arguments.patch.policies[0];
+      assert.deepEqual(Object.keys(patch).sort(), ++edits === 1 ? ['choices', 'id'] : ['id', 'label']);
+      draft = { ...draft, ...patch };
+      return { value: { proposal: { id: 'revision-draft', differences: Object.keys(patch).filter(key => key !== 'id').map(path => ({ path })) } } };
+    },
+  });
+  f.host.receive(input({ user: '先把节点组US换成low，再只修改名称' })); await f.done();
+  assert.equal(f.events.at(-1).data.taskStatus, 'draft_ready');
+  assert.equal(draft.priority, 1);
+  assert.equal(draft.label, '新名称');
+  assert.deepEqual(draft.choices, [{ kind: 'nodeSet', id: 'low' }]);
+  assert.equal(edits, 2);
+  assert.equal(f.events.filter(event => event.type === 'text').length, 1);
+});

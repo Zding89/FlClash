@@ -120,25 +120,34 @@ function mutationResult(result) {
 function confirmed(value) {
   return ['completed', 'applied', 'saved', 'restored', 'rolled_back'].includes(resultStatus(value));
 }
+function resourceId(value, kind) {
+  if (kind === 'proposal') {
+    if (object(value.proposal) && value.proposal.id !== undefined) return String(value.proposal.id);
+    if (['draft', 'draft_ready'].includes(resultStatus(value)) && (value.draftId !== undefined || value.id !== undefined)) return String(value.draftId ?? value.id);
+  } else if (value.operationId !== undefined || value.id !== undefined) return String(value.operationId ?? value.id);
+  return object(value.result) ? resourceId(value.result, kind) : undefined;
+}
 function finishTool(run) {
   return {
-    name: 'task_finish', label: 'task_finish', description: '根据真实工具证据声明任务终点；草稿可审阅即为draft_ready，无需提交。completed必须已实际完成。needs_input/failed需具体reason。',
-    parameters: { type: 'object', properties: { status: { type: 'string', enum: ['draft_ready', 'completed', 'needs_input', 'failed', 'chat'] }, summary: { type: 'string', minLength: 1, maxLength: 4096 }, evidenceToolCallIds: { type: 'array', items: { type: 'string', maxLength: 200 }, maxItems: 32 }, reason: { type: 'string', maxLength: 4096 } }, required: ['status', 'summary'], additionalProperties: false },
+    name: 'task_finish', label: 'task_finish', description: '根据SDK自动绑定的最新真实结果结束任务。草稿可审阅用draft_ready；已实际完成用completed。可选proposalId/operationId填写工具返回的资源ID，无需填写内部工具调用ID。needs_input/failed需具体reason，summary为最终中文答复，只总结一次。',
+    parameters: { type: 'object', properties: { status: { type: 'string', enum: ['draft_ready', 'completed', 'needs_input', 'failed', 'chat'] }, summary: { type: 'string', minLength: 1, maxLength: 4096 }, proposalId: { type: 'string', minLength: 1, maxLength: 200 }, operationId: { type: 'string', minLength: 1, maxLength: 200 }, evidenceToolCallIds: { type: 'array', items: { type: 'string', maxLength: 200 }, maxItems: 32 }, reason: { type: 'string', maxLength: 4096 } }, required: ['status', 'summary'], additionalProperties: false },
     replay: 'never', executionMode: 'sequential',
     execute: async (_, args) => {
       if (run.finished) return { ...toolContent({ code: 'taskAlreadyFinished' }), isError: true };
-      const ids = args.evidenceToolCallIds ?? [];
       const entries = [...run.results.entries()];
-      const evidence = ids.map(id => run.results.get(id));
       const lastMutation = entries.findLastIndex(([, result]) => mutationResult(result));
-      const fresh = result => entries.findIndex(([id, candidate]) => candidate === result && ids.includes(id)) >= lastMutation;
-      let valid = evidence.every(Boolean);
+      const matchesResource = result => (args.proposalId === undefined || resourceId(result.value, 'proposal') === args.proposalId) && (args.operationId === undefined || resourceId(result.value, 'operation') === args.operationId);
+      const usable = (result, index) => index >= lastMutation && !result.isError && matchesResource(result) && (args.status === 'draft_ready' ? hasDraft(result.value) : confirmed(result.value));
+      const suppliedIds = args.evidenceToolCallIds ?? [];
+      const selected = suppliedIds.length > 0 ? suppliedIds.map(id => entries.findIndex(([candidate]) => candidate === id)) : ['draft_ready', 'completed'].includes(args.status) ? [entries.findLastIndex(([, result], index) => usable(result, index))] : [];
+      const evidence = selected.map(index => entries[index]?.[1]);
+      let valid = selected.every(index => index >= 0);
       if (args.status === 'chat') valid &&= lastMutation < 0;
-      if (args.status === 'draft_ready') valid &&= evidence.some(result => !result.isError && fresh(result) && hasDraft(result.value));
-      if (args.status === 'completed') valid &&= evidence.some(result => !result.isError && fresh(result) && confirmed(result.value)) && evidence.every(result => !result.isError && !['accepted', 'queued', 'running', 'pending', 'pending_confirmation', 'requires_user_action', 'failed', 'conflict', 'cancelled', 'unsupported'].includes(resultStatus(result.value)));
+      if (args.status === 'draft_ready') valid &&= selected.some(index => index >= 0 && usable(entries[index][1], index));
+      if (args.status === 'completed') valid &&= selected.some(index => index >= 0 && usable(entries[index][1], index)) && evidence.every(result => !result.isError && !['accepted', 'queued', 'running', 'pending', 'pending_confirmation', 'requires_user_action', 'failed', 'conflict', 'cancelled', 'unsupported'].includes(resultStatus(result.value)));
       if (['needs_input', 'failed'].includes(args.status)) valid &&= typeof args.reason === 'string' && args.reason.trim().length > 0;
       if (!valid) return { ...toolContent({ code: 'completionEvidenceRequired', status: args.status }), isError: true };
-      run.finished = args;
+      run.finished = { ...args, evidenceToolCallIds: selected.map(index => entries[index][0]) };
       return { ...toolContent({ status: args.status, summary: args.summary, ...(args.reason ? { reason: args.reason } : {}) }), terminate: true };
     },
   };
