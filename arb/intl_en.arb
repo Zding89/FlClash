@@ -1137,5 +1137,8 @@
   "policySourceChangeNodeTotal": "Total nodes",
   "policySourceChangeRemaining": "Remaining quota",
   "policySourceChangePartiallyUnknown": "Partially unknown",
-  "policySourceChangeUnresolvedNodes": "Sources with unresolved nodes"
+  "policySourceChangeUnresolvedNodes": "Sources with unresolved nodes",
+  "policySourceChangeTitle": "Confirm subscription sources",
+  "policySourceChangeNodesUnavailable": "Nodes not parsed",
+  "policySourceChangeIncomplete": "Some data is missing from the totals"
 }

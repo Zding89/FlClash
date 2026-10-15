@@ -1702,8 +1702,14 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySourceChangeAdded": MessageLookupByLibrary.simpleMessage(
       "Добавленные подписки",
     ),
+    "policySourceChangeIncomplete": MessageLookupByLibrary.simpleMessage(
+      "Часть данных не учтена в итогах",
+    ),
     "policySourceChangeNodeTotal": MessageLookupByLibrary.simpleMessage(
       "Всего узлов",
+    ),
+    "policySourceChangeNodesUnavailable": MessageLookupByLibrary.simpleMessage(
+      "Узлы не разобраны",
     ),
     "policySourceChangePartiallyUnknown": MessageLookupByLibrary.simpleMessage(
       "Частично неизвестно",
@@ -1713,6 +1719,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policySourceChangeRemoved": MessageLookupByLibrary.simpleMessage(
       "Удалённые подписки",
+    ),
+    "policySourceChangeTitle": MessageLookupByLibrary.simpleMessage(
+      "Подтверждение источников подписок",
     ),
     "policySourceChangeUnresolvedNodes": MessageLookupByLibrary.simpleMessage(
       "Подписки с неразобранными узлами",

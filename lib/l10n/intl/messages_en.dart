@@ -1644,8 +1644,14 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySourceChangeAdded": MessageLookupByLibrary.simpleMessage(
       "Added subscriptions",
     ),
+    "policySourceChangeIncomplete": MessageLookupByLibrary.simpleMessage(
+      "Some data is missing from the totals",
+    ),
     "policySourceChangeNodeTotal": MessageLookupByLibrary.simpleMessage(
       "Total nodes",
+    ),
+    "policySourceChangeNodesUnavailable": MessageLookupByLibrary.simpleMessage(
+      "Nodes not parsed",
     ),
     "policySourceChangePartiallyUnknown": MessageLookupByLibrary.simpleMessage(
       "Partially unknown",
@@ -1655,6 +1661,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policySourceChangeRemoved": MessageLookupByLibrary.simpleMessage(
       "Removed subscriptions",
+    ),
+    "policySourceChangeTitle": MessageLookupByLibrary.simpleMessage(
+      "Confirm subscription sources",
     ),
     "policySourceChangeUnresolvedNodes": MessageLookupByLibrary.simpleMessage(
       "Sources with unresolved nodes",

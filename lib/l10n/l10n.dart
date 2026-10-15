@@ -9353,6 +9353,36 @@ class AppLocalizations {
       args: [],
     );
   }
+
+  /// `Confirm subscription sources`
+  String get policySourceChangeTitle {
+    return Intl.message(
+      'Confirm subscription sources',
+      name: 'policySourceChangeTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Nodes not parsed`
+  String get policySourceChangeNodesUnavailable {
+    return Intl.message(
+      'Nodes not parsed',
+      name: 'policySourceChangeNodesUnavailable',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Some data is missing from the totals`
+  String get policySourceChangeIncomplete {
+    return Intl.message(
+      'Some data is missing from the totals',
+      name: 'policySourceChangeIncomplete',
+      desc: '',
+      args: [],
+    );
+  }
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<AppLocalizations> {

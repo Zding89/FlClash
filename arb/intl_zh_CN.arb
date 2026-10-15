@@ -1123,5 +1123,8 @@
   "policySourceChangeNodeTotal": "节点总数",
   "policySourceChangeRemaining": "剩余额度",
   "policySourceChangePartiallyUnknown": "部分未知",
-  "policySourceChangeUnresolvedNodes": "节点未解析的机场"
+  "policySourceChangeUnresolvedNodes": "节点未解析的机场",
+  "policySourceChangeTitle": "确认订阅来源",
+  "policySourceChangeNodesUnavailable": "节点未解析",
+  "policySourceChangeIncomplete": "部分数据未计入统计"
 }

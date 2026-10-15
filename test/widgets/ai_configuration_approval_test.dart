@@ -13,10 +13,19 @@ Future<void> _openApproval(
   WidgetTester tester,
   ConfigurationProposal proposal, {
   ValueChanged<bool>? onChoice,
+  ThemeData? theme,
+  double textScale = 1,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
       locale: const Locale('zh', 'CN'),
+      theme: theme,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -42,6 +51,32 @@ Future<void> _openApproval(
   );
   await tester.tap(find.text('open'));
   await tester.pumpAndSettle();
+}
+
+Finder _metricCard(String title) =>
+    find.ancestor(of: find.text(title), matching: find.byType(Card));
+
+void _expectMetricValues(String title, String before, String after) {
+  final card = _metricCard(title);
+  expect(card, findsOneWidget);
+  expect(
+    find.descendant(
+      of: card,
+      matching: find.byWidgetPredicate(
+        (widget) => widget is Text && widget.data == before,
+      ),
+    ),
+    findsOneWidget,
+  );
+  expect(
+    find.descendant(
+      of: card,
+      matching: find.byWidgetPredicate(
+        (widget) => widget is Text && widget.data == after,
+      ),
+    ),
+    findsOneWidget,
+  );
 }
 
 Map<String, Object?> _totals({
@@ -147,6 +182,7 @@ void main() {
       );
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
+      expect(find.text(AppLocalizations.current.aiHighRisk), findsOneWidget);
       expect(find.text('config.mode'), findsOneWidget);
       expect(find.text('"rule"'), findsOneWidget);
       expect(find.text('"global"'), findsOneWidget);
@@ -180,12 +216,20 @@ void main() {
     expect(find.text(strings.policySourceChangeAdded), findsOneWidget);
     expect(find.text(strings.policySourceChangeRemoved), findsOneWidget);
     expect(find.text(strings.policySourceChangeNodeTotal), findsOneWidget);
-    expect(find.text('12 → 30'), findsOneWidget);
     expect(
-      find.text('${1073741824.traffic.show} → ${2147483648.traffic.show}'),
-      findsOneWidget,
+      find.descendant(
+        of: find.byType(LocalSourceChangeSummaryView),
+        matching: find.byType(Card),
+      ),
+      findsNWidgets(2),
     );
-    expect(find.text(strings.aiHighRisk), findsOneWidget);
+    _expectMetricValues(strings.policySourceChangeNodeTotal, '12', '30');
+    _expectMetricValues(
+      strings.policySourceChangeRemaining,
+      1073741824.traffic.show,
+      2147483648.traffic.show,
+    );
+    expect(find.text(strings.aiHighRisk), findsNothing);
     await tester.tap(find.text(strings.aiReject));
     await tester.pumpAndSettle();
     expect(approval, false);
@@ -209,12 +253,25 @@ void main() {
     );
     final strings = AppLocalizations.current;
     final partial = strings.policySourceChangePartiallyUnknown;
-    expect(find.text('12 → 8 ($partial)'), findsOneWidget);
+    _expectMetricValues(strings.policySourceChangeNodeTotal, '12', '8');
+    _expectMetricValues(
+      strings.policySourceChangeRemaining,
+      1073741824.traffic.show,
+      0.traffic.show,
+    );
     expect(
-      find.text(
-        '${1073741824.traffic.show} ($partial) → ${0.traffic.show} ($partial)',
+      find.descendant(
+        of: _metricCard(strings.policySourceChangeNodeTotal),
+        matching: find.textContaining(partial),
       ),
-      findsOneWidget,
+      findsWidgets,
+    );
+    expect(
+      find.descendant(
+        of: _metricCard(strings.policySourceChangeRemaining),
+        matching: find.textContaining(partial),
+      ),
+      findsWidgets,
     );
     expect(find.text('Old quota unknown'), findsOneWidget);
     expect(find.text('New nodes unresolved'), findsOneWidget);
@@ -225,7 +282,7 @@ void main() {
     );
     expect(
       find.text(
-        '${strings.aiAfter} · ${strings.policySourceChangeUnresolvedNodes}',
+        '${strings.aiAfter} · ${strings.policySourceChangeNodesUnavailable}',
       ),
       findsOneWidget,
     );
@@ -246,11 +303,76 @@ void main() {
         ),
       ),
     );
-    final unknown = AppLocalizations.current.policyUnknownAttribute;
-    expect(find.text('12 → $unknown'), findsOneWidget);
-    expect(find.text('${1073741824.traffic.show} → $unknown'), findsOneWidget);
-    expect(find.text('12 → 0'), findsNothing);
+    final strings = AppLocalizations.current;
+    final unknown = strings.policyUnknownAttribute;
+    _expectMetricValues(strings.policySourceChangeNodeTotal, '12', unknown);
+    _expectMetricValues(
+      strings.policySourceChangeRemaining,
+      1073741824.traffic.show,
+      unknown,
+    );
+    expect(find.text('0'), findsNothing);
+    expect(find.text(0.traffic.show), findsNothing);
   });
+
+  testWidgets('unchanged missing details merge both metrics and both sides', (
+    tester,
+  ) async {
+    final unknownTotals = _totals(
+      sources: 1,
+      nodes: 0,
+      remaining: 0,
+      unresolvedNodes: ['AfeiCloud'],
+      unknownQuota: ['AfeiCloud'],
+    );
+    await _openApproval(
+      tester,
+      _sourceProposal(
+        added: [],
+        removed: [],
+        before: unknownTotals,
+        after: unknownTotals,
+      ),
+    );
+    final strings = AppLocalizations.current;
+    final reasons = [
+      strings.policySourceChangeNodesUnavailable,
+      strings.policyQuotaUnknown,
+    ].join(' · ');
+    expect(find.text('AfeiCloud'), findsOneWidget);
+    expect(find.textContaining('AfeiCloud'), findsOneWidget);
+    expect(find.text(reasons), findsOneWidget);
+    expect(find.text('${strings.aiBefore} · $reasons'), findsNothing);
+    expect(find.text('${strings.aiAfter} · $reasons'), findsNothing);
+    expect(find.text(strings.policyUnknownAttribute), findsNWidgets(4));
+    expect(find.text('0'), findsNothing);
+    expect(find.text(0.traffic.show), findsNothing);
+  });
+
+  testWidgets(
+    'changed missing reasons keep their before and after attribution',
+    (tester) async {
+      await _openApproval(
+        tester,
+        _sourceProposal(
+          before: _totals(sources: 2, unresolvedNodes: ['AfeiCloud']),
+          after: _totals(sources: 2, unknownQuota: ['AfeiCloud']),
+        ),
+      );
+      final strings = AppLocalizations.current;
+      expect(find.text('AfeiCloud'), findsOneWidget);
+      expect(
+        find.text(
+          '${strings.aiBefore} · ${strings.policySourceChangeNodesUnavailable}',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text('${strings.aiAfter} · ${strings.policyQuotaUnknown}'),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('empty source selection has explicit zero totals', (
     tester,
@@ -262,11 +384,14 @@ void main() {
         after: _totals(sources: 0, nodes: 0, remaining: 0),
       ),
     );
-    expect(find.text('12 → 0'), findsOneWidget);
-    expect(
-      find.text('${1073741824.traffic.show} → ${0.traffic.show}'),
-      findsOneWidget,
+    final strings = AppLocalizations.current;
+    _expectMetricValues(strings.policySourceChangeNodeTotal, '12', '0');
+    _expectMetricValues(
+      strings.policySourceChangeRemaining,
+      1073741824.traffic.show,
+      0.traffic.show,
     );
+    expect(find.text(strings.policyUnknownAttribute), findsNothing);
     expect(
       find.textContaining(
         AppLocalizations.current.policySourceChangePartiallyUnknown,
@@ -281,6 +406,7 @@ void main() {
     await _openApproval(
       tester,
       _sourceProposal(
+        highRisk: true,
         extraDifferences: const [
           ConfigurationDifference(
             path: 'config.mode',
@@ -295,6 +421,7 @@ void main() {
     expect(find.text('"rule"'), findsOneWidget);
     expect(find.text('"global"'), findsOneWidget);
     expect(find.text('policies.integrations'), findsOneWidget);
+    expect(find.text(AppLocalizations.current.aiHighRisk), findsOneWidget);
   });
 
   testWidgets('script execution approval retains original confirmation', (
@@ -303,13 +430,14 @@ void main() {
     bool? approval;
     await _openApproval(
       tester,
-      _sourceProposal(validation: {'executionOnly': true}),
+      _sourceProposal(highRisk: true, validation: {'executionOnly': true}),
       onChoice: (value) => approval = value,
     );
     final strings = AppLocalizations.current;
     expect(find.byType(LocalSourceChangeSummaryView), findsNothing);
     expect(find.text('policies.integrations'), findsOneWidget);
     expect(find.text(strings.aiScriptExecutionOnly), findsOneWidget);
+    expect(find.text(strings.aiHighRisk), findsOneWidget);
     await tester.tap(find.text(strings.aiApproveScriptExecution));
     await tester.pumpAndSettle();
     expect(approval, true);
@@ -321,6 +449,7 @@ void main() {
     await _openApproval(
       tester,
       _sourceProposal(
+        highRisk: true,
         validation: {
           'finalConfigDifferences': [
             {'path': 'dns.enable', 'before': false, 'after': true},
@@ -333,35 +462,43 @@ void main() {
     expect(find.text('dns.enable'), findsOneWidget);
     expect(find.text('false'), findsOneWidget);
     expect(find.text('true'), findsOneWidget);
+    expect(find.text(AppLocalizations.current.aiHighRisk), findsOneWidget);
   });
 
-  testWidgets(
-    'long source names scroll on a narrow screen and allow approval',
-    (tester) async {
-      await tester.binding.setSurfaceSize(const Size(320, 568));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      bool? approval;
-      final longName = List.filled(8, 'Long subscription name').join(' ');
-      await _openApproval(
-        tester,
-        _sourceProposal(
-          added: [longName],
-          after: _totals(unresolvedNodes: [longName], unknownQuota: [longName]),
-        ),
-        onChoice: (value) => approval = value,
-      );
-      expect(tester.takeException(), isNull);
-      await tester.drag(
-        find.byType(SingleChildScrollView).first,
-        const Offset(0, -800),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(AppLocalizations.current.aiApprove));
-      await tester.pumpAndSettle();
-      expect(approval, true);
-      expect(tester.takeException(), isNull);
-    },
-  );
+  for (final largeDark in [false, true]) {
+    testWidgets(
+      'long source names scroll and allow approval at 320px, large dark: $largeDark',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(320, 568));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        bool? approval;
+        final longName = List.filled(8, 'Long subscription name').join(' ');
+        await _openApproval(
+          tester,
+          _sourceProposal(
+            added: [longName],
+            after: _totals(
+              unresolvedNodes: [longName],
+              unknownQuota: [longName],
+            ),
+          ),
+          theme: largeDark ? ThemeData.dark(useMaterial3: true) : null,
+          textScale: largeDark ? 1.3 : 1,
+          onChoice: (value) => approval = value,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.drag(
+          find.byType(SingleChildScrollView).first,
+          const Offset(0, -800),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(AppLocalizations.current.aiApprove));
+        await tester.pumpAndSettle();
+        expect(approval, true);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   test('nested credentials and URL secrets are hidden from approval display', () {
     final text = aiDisplayValue({

@@ -1123,5 +1123,8 @@
   "policySourceChangeNodeTotal": "ノード総数",
   "policySourceChangeRemaining": "残りの通信量",
   "policySourceChangePartiallyUnknown": "一部不明",
-  "policySourceChangeUnresolvedNodes": "ノードを解析できないサブスクリプション"
+  "policySourceChangeUnresolvedNodes": "ノードを解析できないサブスクリプション",
+  "policySourceChangeTitle": "サブスクリプション元の確認",
+  "policySourceChangeNodesUnavailable": "ノード未解析",
+  "policySourceChangeIncomplete": "一部のデータが合計に含まれていません"
 }

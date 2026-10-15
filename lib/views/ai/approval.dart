@@ -100,7 +100,13 @@ class AiConfigurationApprovalDialog extends StatelessWidget {
           )
         : null;
     return AlertDialog(
-      title: Text(executionOnly ? strings.confirm : strings.aiApprovalTitle),
+      title: Text(
+        sourceChange != null
+            ? strings.policySourceChangeTitle
+            : executionOnly
+            ? strings.confirm
+            : strings.aiApprovalTitle,
+      ),
       content: SizedBox(
         width: 520,
         child: SingleChildScrollView(
@@ -116,11 +122,11 @@ class AiConfigurationApprovalDialog extends StatelessWidget {
                   style: TextStyle(color: colors.error),
                 ),
               ],
-              if (proposal.highRisk) ...[
+              if (proposal.highRisk && sourceChange == null) ...[
                 const SizedBox(height: 12),
                 Text(strings.aiHighRisk, style: TextStyle(color: colors.error)),
               ],
-              const SizedBox(height: 16),
+              if (sourceChange == null) const SizedBox(height: 16),
               if (sourceChange != null)
                 LocalSourceChangeSummaryView(summary: sourceChange),
               if (sourceChange == null && proposal.differences.isEmpty)

@@ -1123,5 +1123,8 @@
   "policySourceChangeNodeTotal": "Всего узлов",
   "policySourceChangeRemaining": "Оставшаяся квота",
   "policySourceChangePartiallyUnknown": "Частично неизвестно",
-  "policySourceChangeUnresolvedNodes": "Подписки с неразобранными узлами"
+  "policySourceChangeUnresolvedNodes": "Подписки с неразобранными узлами",
+  "policySourceChangeTitle": "Подтверждение источников подписок",
+  "policySourceChangeNodesUnavailable": "Узлы не разобраны",
+  "policySourceChangeIncomplete": "Часть данных не учтена в итогах"
 }

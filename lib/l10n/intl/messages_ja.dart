@@ -1230,8 +1230,14 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySourceChangeAdded": MessageLookupByLibrary.simpleMessage(
       "追加するサブスクリプション",
     ),
+    "policySourceChangeIncomplete": MessageLookupByLibrary.simpleMessage(
+      "一部のデータが合計に含まれていません",
+    ),
     "policySourceChangeNodeTotal": MessageLookupByLibrary.simpleMessage(
       "ノード総数",
+    ),
+    "policySourceChangeNodesUnavailable": MessageLookupByLibrary.simpleMessage(
+      "ノード未解析",
     ),
     "policySourceChangePartiallyUnknown": MessageLookupByLibrary.simpleMessage(
       "一部不明",
@@ -1241,6 +1247,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policySourceChangeRemoved": MessageLookupByLibrary.simpleMessage(
       "削除するサブスクリプション",
+    ),
+    "policySourceChangeTitle": MessageLookupByLibrary.simpleMessage(
+      "サブスクリプション元の確認",
     ),
     "policySourceChangeUnresolvedNodes": MessageLookupByLibrary.simpleMessage(
       "ノードを解析できないサブスクリプション",

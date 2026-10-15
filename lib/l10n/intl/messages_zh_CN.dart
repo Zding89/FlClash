@@ -1082,12 +1082,19 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policySimulationTimeline": MessageLookupByLibrary.simpleMessage("候选切换时间线"),
     "policySourceChangeAdded": MessageLookupByLibrary.simpleMessage("新增机场"),
+    "policySourceChangeIncomplete": MessageLookupByLibrary.simpleMessage(
+      "部分数据未计入统计",
+    ),
     "policySourceChangeNodeTotal": MessageLookupByLibrary.simpleMessage("节点总数"),
+    "policySourceChangeNodesUnavailable": MessageLookupByLibrary.simpleMessage(
+      "节点未解析",
+    ),
     "policySourceChangePartiallyUnknown": MessageLookupByLibrary.simpleMessage(
       "部分未知",
     ),
     "policySourceChangeRemaining": MessageLookupByLibrary.simpleMessage("剩余额度"),
     "policySourceChangeRemoved": MessageLookupByLibrary.simpleMessage("移除机场"),
+    "policySourceChangeTitle": MessageLookupByLibrary.simpleMessage("确认订阅来源"),
     "policySourceChangeUnresolvedNodes": MessageLookupByLibrary.simpleMessage(
       "节点未解析的机场",
     ),
