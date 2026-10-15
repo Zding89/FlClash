@@ -340,6 +340,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiNoDifferences": MessageLookupByLibrary.simpleMessage(
       "Нет изменений для применения",
     ),
+    "aiPolicyEffectiveVerified": MessageLookupByLibrary.simpleMessage(
+      "Сохранено, действие проверено",
+    ),
     "aiPolicyPlanChanges": m1,
     "aiPolicyPlanCounts": m2,
     "aiPolicyPlanDisabled": MessageLookupByLibrary.simpleMessage("Отключено"),
@@ -361,6 +364,12 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "aiPolicyPlanTitle": MessageLookupByLibrary.simpleMessage(
       "План локальных правил",
+    ),
+    "aiPolicySavedOnly": MessageLookupByLibrary.simpleMessage(
+      "Сохранено, но не действует",
+    ),
+    "aiPolicySavedUnverified": MessageLookupByLibrary.simpleMessage(
+      "Сохранено, состояние выполнения не подтверждено",
     ),
     "aiPolicyUnknownMultiplierExcluded": MessageLookupByLibrary.simpleMessage(
       "Исключать узлы с неизвестным множителем",

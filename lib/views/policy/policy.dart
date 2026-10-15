@@ -13,6 +13,7 @@ import 'package:fl_clash/providers/workbench.dart';
 import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/views/ai/approval.dart';
+import 'package:fl_clash/views/ai/change_record.dart';
 import 'package:fl_clash/views/ai/composer_context.dart';
 import 'package:fl_clash/views/ai/errors.dart';
 import 'package:fl_clash/widgets/widgets.dart';
@@ -73,9 +74,15 @@ class _LocalPolicyWorkbenchViewState
       if (mounted && _epoch == epoch) {
         setState(
           () => _message = result['status'] == 'applied'
-              ? ref.read(coreStatusProvider) == CoreStatus.connected
-                    ? context.appLocalizations.policySaved
-                    : context.appLocalizations.policySavedInactive
+              ? switch (aiCompletionStatus(result)) {
+                  'effective' =>
+                    context.appLocalizations.aiPolicyEffectiveVerified,
+                  'saved_inactive' =>
+                    context.appLocalizations.aiPolicySavedOnly,
+                  'saved_unverified' =>
+                    context.appLocalizations.aiPolicySavedUnverified,
+                  _ => context.appLocalizations.policySaved,
+                }
               : context.appLocalizations.policyRejectedStatus,
         );
       }
@@ -1340,7 +1347,7 @@ class _LocalPolicyWorkbenchViewState
   String _historyStatus(String status) {
     final strings = context.appLocalizations;
     return switch (status) {
-      'applied' => strings.policyAppliedStatus,
+      'applied' => strings.policySaved,
       'draft' => strings.policyDraftStatus,
       'rejected' => strings.policyRejectedStatus,
       'recovery_required' => strings.policyRecoveryStatus,

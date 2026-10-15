@@ -295,6 +295,8 @@ class _CapabilityService extends Mock implements ApplicationCapabilityService {
   Map<String, Object?>? runtimeReadResult;
   Map<String, Object?>? mutationResult;
   Map<String, Object?>? operationQueryResult;
+  Future<Map<String, Object?>> Function(Map<String, Object?> params)?
+  queryHandler;
   final pending = Completer<void>();
   @override
   List<Map<String, Object?>> get manifest =>
@@ -319,6 +321,7 @@ class _CapabilityService extends Mock implements ApplicationCapabilityService {
       };
     }
     if (command == 'operation_query') {
+      if (queryHandler != null) return queryHandler!(params);
       if (operationQueryResult != null) return operationQueryResult!;
       return {
         'operationId': 'other-conversation-change',
@@ -365,6 +368,7 @@ Future<ProviderContainer> _mount(
   _CapabilityService? capabilities,
   AgentSettings settings = _settings,
   TargetPlatform? platform,
+  TextEditingController? inputController,
 }) async {
   final container = ProviderContainer(
     overrides: [
@@ -409,7 +413,10 @@ Future<ProviderContainer> _mount(
         },
         home: aiVisualSurface(
           'V3 AI 助手',
-          AiAssistantView(initialPrompt: initialPrompt),
+          AiAssistantView(
+            initialPrompt: initialPrompt,
+            inputController: inputController,
+          ),
         ),
       ),
     ),
@@ -481,6 +488,36 @@ Future<ProviderContainer> _mountMixedHeightHistory(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'provided composer sends exact Chinese and remains owner managed',
+    (tester) async {
+      final transport = _MultiTurnTransport();
+      final runtime = AgentRuntime(launcher: () async => transport);
+      final input = TextEditingController();
+      final container = await _mount(
+        tester,
+        _Controller(runtime, _Credentials()),
+        inputController: input,
+      );
+      addTearDown(container.dispose);
+      addTearDown(input.dispose);
+      const message = 'AI 优先迷之屋美国，国内直连，其余香港；先生成草稿。';
+      input.text = message;
+      await tester.pump();
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+      await waitAiCondition(
+        tester,
+        () => transport.promptCalls == 1 && input.text.isEmpty,
+        'Chinese composer text must reach the actual runtime',
+      );
+      expect(transport.prompts.single['data']['user'], message);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      input.text = '外部仍可管理输入';
+      expect(input.text, '外部仍可管理输入');
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets(
     'latest message reaches the real tail of lazy mixed-height history',
     (tester) async {
@@ -597,6 +634,177 @@ void main() {
     expect(find.byKey(const ValueKey('ai-latest-message')), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  for (final failure in ['timeout', 'exception', 'wrong_id']) {
+    testWidgets(
+      'linked operation keeps its last receipt during $failure and refreshes the complete receipt',
+      (tester) async {
+        final controller = _Controller(
+          AgentRuntime(launcher: () async => _Transport()),
+          _Credentials(),
+        );
+        var phase = 0;
+        var finalQueries = 0;
+        var blockedQueries = 0;
+        final waiting = Completer<Map<String, Object?>>();
+        Map<String, Object?> receipt(bool running) => {
+          'version': 1,
+          'persisted': true,
+          'currentStateMatches': true,
+          'scope': 'local_policy',
+          'outcome': running ? 'effective' : 'saved',
+          'activation': {
+            'required': true,
+            'targetId': 'integration:flclash_local',
+            'documentRevision': 7,
+            'loadedTargetId': 'integration:flclash_local',
+            'loadedDocumentRevision': 7,
+            'loaded': true,
+            'running': running,
+            'effective': running,
+            'reason': running ? 'active' : 'network_stopped',
+          },
+        };
+        final finalRunning = failure != 'exception';
+        final capabilities = _CapabilityService()
+          ..queryHandler = (params) async {
+            final id = params['operationId'] as String;
+            if (phase == 1) {
+              blockedQueries++;
+              if (failure == 'timeout') return waiting.future;
+              if (failure == 'exception') {
+                throw StateError('approval queue temporarily unavailable');
+              }
+              return {'operationId': 'wrong-operation', 'status': 'completed'};
+            }
+            if (phase == 2) finalQueries++;
+            return {
+              'operationId': id,
+              'status': id == 'pending-connection'
+                  ? (phase == 2 ? 'completed' : 'running')
+                  : 'applied',
+              if (id == 'selected-target')
+                'result': {
+                  'completion': receipt(phase == 2 ? finalRunning : false),
+                  'marker': phase == 2
+                      ? 'fresh-complete-result'
+                      : 'last-confirmed-result',
+                },
+            };
+          };
+        final container = await _mount(
+          tester,
+          controller,
+          capabilities: capabilities,
+        );
+        addTearDown(container.dispose);
+        for (final id in ['selected-target', 'pending-connection']) {
+          await controller.store.saveChange(
+            id: id,
+            category: id == 'selected-target'
+                ? 'capability:profile_select'
+                : 'capability:connection_set',
+            summary: id,
+            highRisk: false,
+            fingerprint: 'fixture',
+            before: {},
+            after: {},
+            createdAt: 1,
+            expiresAt: 9999999999999,
+          );
+          await controller.store.changeStatus(
+            id,
+            id == 'selected-target' ? 'applied' : 'running',
+          );
+        }
+        await container
+            .read(aiHistoryStoreProvider)
+            .save(
+              AiConversation(
+                id: 'd' * 32,
+                updatedAt: 1,
+                messages: const [
+                  {'role': 'user', 'content': 'restore queued operation'},
+                ],
+                changeIds: const ['selected-target', 'pending-connection'],
+                changeReferences: const {
+                  'selected-target': 1,
+                  'pending-connection': 1,
+                },
+              ),
+            );
+        await _tapAi(
+          tester,
+          find.byTooltip(AppLocalizations.current.aiConversationHistory),
+        );
+        await tester.pumpAndSettle();
+        await _tapAi(tester, find.text('restore queued operation'));
+        await tester.pumpAndSettle();
+        AiToolResultCard selected() => tester
+            .widgetList<AiToolResultCard>(find.byType(AiToolResultCard))
+            .firstWhere(
+              (card) => card.result?['operationId'] == 'selected-target',
+            );
+        final oldResult = selected().result;
+        expect(
+          (oldResult!['result'] as Map)['marker'],
+          'last-confirmed-result',
+        );
+        expect(
+          find.text(AppLocalizations.current.aiPolicySavedOnly),
+          findsOneWidget,
+        );
+        phase = 1;
+        await tester.pump(const Duration(seconds: 3));
+        await waitAiCondition(
+          tester,
+          () => blockedQueries >= 2,
+          'Both operation refreshes must enter the temporarily blocked approval queue.',
+        );
+        if (failure == 'timeout') {
+          await tester.pump(const Duration(seconds: 5));
+          await tester.pump();
+        }
+        expect(selected().result, same(oldResult));
+        expect(
+          find.text(AppLocalizations.current.aiChangesUnavailable),
+          findsNothing,
+        );
+        phase = 2;
+        await tester.pump(const Duration(seconds: 3));
+        await waitAiCondition(
+          tester,
+          () => finalQueries >= 2,
+          'A later poll must retry both operation queries after the transient failure.',
+        );
+        await tester.pumpAndSettle();
+        expect(finalQueries, greaterThanOrEqualTo(2));
+        final fresh = selected().result!;
+        expect((fresh['result'] as Map)['marker'], 'fresh-complete-result');
+        expect(
+          find.text(
+            finalRunning
+                ? AppLocalizations.current.aiPolicyEffectiveVerified
+                : AppLocalizations.current.aiPolicySavedOnly,
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.text(AppLocalizations.current.aiChangesUnavailable),
+          findsNothing,
+        );
+        if (!waiting.isCompleted) {
+          waiting.complete({
+            'operationId': 'old-timed-out-query',
+            'status': 'failed',
+          });
+        }
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets(
     'history queries the same operation without restoring approval or raw parameters',
@@ -724,10 +932,7 @@ void main() {
         'latest-draft',
         'applied-change',
       ]);
-      expect(cards.map((card) => card.result!['status']), [
-        'expired',
-        'applied',
-      ]);
+      expect(cards.map((card) => card.result!['status']), ['expired', 'saved']);
       expect(
         cards.every((card) => !card.awaitingApproval && card.onApprove == null),
         true,

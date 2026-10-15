@@ -133,7 +133,7 @@ function contextSummary(message, force = false) {
         if (!object(item)) return undefined;
         const summary = { contextTruncated: true };
         for (const key of ['id', 'draftId', 'operationId', 'status', 'code', 'errorCode', 'replayed', 'version', 'documentVersion', 'total', 'nextCursor']) if (['string', 'number', 'boolean'].includes(typeof item[key])) summary[key] = typeof item[key] === 'string' ? item[key].slice(0, 256) : item[key];
-        for (const key of ['businessSummary', 'validation', 'contract', 'patchSchema']) if (item[key] !== undefined && bytes(item[key]) <= 65536) summary[key] = item[key];
+        for (const key of ['businessSummary', 'validation', 'contract', 'patchSchema', 'completion']) if (item[key] !== undefined && bytes(item[key]) <= 65536) summary[key] = item[key];
         if (Array.isArray(item.commands)) summary.commands = item.commands.map(command => object(command) ? { name: command.name, description: typeof command.description === 'string' ? command.description.slice(0, 512) : undefined } : command).slice(0, 128);
         summary.rereadTool = message.toolName;
         for (const key of ['proposal', 'result']) if (object(item[key])) summary[key] = select(item[key]);
@@ -217,6 +217,25 @@ function currentStateMatch(value) {
     if (match !== undefined) return match;
   }
 }
+function completionReceipt(value) {
+  if (object(value.completion)) return value.completion;
+  for (const key of ['change', 'operation', 'result']) if (object(value[key])) {
+    const receipt = completionReceipt(value[key]);
+    if (receipt) return receipt;
+  }
+}
+function effectiveCompletion(receipt) {
+  const activation = receipt?.activation;
+  return receipt?.version === 1 && receipt.persisted === true && receipt.currentStateMatches === true && object(activation) && activation.required === true && activation.loaded === true && activation.running === true && typeof activation.targetId === 'string' && activation.targetId.length > 0 && activation.targetId === activation.loadedTargetId && Number.isSafeInteger(activation.documentRevision) && activation.documentRevision === activation.loadedDocumentRevision;
+}
+function savedCompletion(receipt) {
+  return receipt?.version === 1 && receipt.persisted === true && receipt.currentStateMatches === true;
+}
+function completionSummary(receipt) {
+  if (effectiveCompletion(receipt)) return '配置已保存，已核对当前运行的本地规则目标和版本一致。实际流量命中情况尚未验证。';
+  if (receipt?.scope === 'local_policy') return ['integration_disabled', 'network_stopped'].includes(receipt.activation?.reason) ? '本地规则已保存，目前未用于当前网络；未切换网络或自动开启接管。' : '本地规则已保存，尚未确认当前网络使用的是此版本。';
+  return '设置已保存，当前保存内容已核对一致。';
+}
 function replayedResult(value) {
   return value.replayed === true || ['change', 'operation', 'result'].some(key => object(value[key]) && replayedResult(value[key]));
 }
@@ -237,8 +256,8 @@ function draftProof(value) {
 }
 function finishTool(run) {
   return {
-    name: 'task_finish', label: 'task_finish', description: '根据SDK自动绑定的最新真实结果结束任务。草稿可审阅用draft_ready；已实际完成用completed。可选proposalId/operationId填写工具返回的资源ID，无需填写内部工具调用ID。needs_input/failed需具体reason，summary为最终中文答复，只总结一次。',
-    parameters: { type: 'object', properties: { status: { type: 'string', enum: ['draft_ready', 'completed', 'needs_input', 'failed', 'chat'] }, summary: { type: 'string', minLength: 1, maxLength: 4096 }, proposalId: { type: 'string', minLength: 1, maxLength: 200 }, operationId: { type: 'string', minLength: 1, maxLength: 200 }, evidenceToolCallIds: { type: 'array', items: { type: 'string', maxLength: 200 }, maxItems: 32 }, reason: { type: 'string', maxLength: 4096 } }, required: ['status', 'summary'], additionalProperties: false },
+    name: 'task_finish', label: 'task_finish', description: '根据SDK自动绑定的最新真实结果结束任务。草稿可审阅用draft_ready；已实际完成用completed。可选proposalId/operationId填写工具返回的资源ID，无需填写内部工具调用ID。needs_input/failed需具体reason，summary为最终中文答复，只总结一次。completed的completionGoal在要求保存时为saved、要求当前生效时为effective，effective必须有同目标同版本的当前运行证明。',
+    parameters: { type: 'object', properties: { status: { type: 'string', enum: ['draft_ready', 'completed', 'needs_input', 'failed', 'chat'] }, summary: { type: 'string', minLength: 1, maxLength: 4096 }, completionGoal: { type: 'string', enum: ['saved', 'effective'] }, proposalId: { type: 'string', minLength: 1, maxLength: 200 }, operationId: { type: 'string', minLength: 1, maxLength: 200 }, evidenceToolCallIds: { type: 'array', items: { type: 'string', maxLength: 200 }, maxItems: 32 }, reason: { type: 'string', maxLength: 4096 } }, required: ['status', 'summary'], additionalProperties: false },
     replay: 'never', executionMode: 'sequential',
     execute: async (_, args) => {
       if (run.finished) return { ...toolContent({ code: 'taskAlreadyFinished' }), isError: true };
@@ -252,19 +271,31 @@ function finishTool(run) {
       const targetIds = new Set((lastWrite ? [resourceId(lastWrite.value, 'operation'), resourceId(lastWrite.value, 'proposal'), lastWrite.arguments?.id, lastWrite.arguments?.params?.operationId] : [args.operationId, args.proposalId]).filter(value => value !== undefined).map(String));
       const sameOperation = (result, index) => index === lastMutation && confirmed(result.value) || ['application_operation', 'changes_status', 'application_invoke'].includes(result.name) && targetIds.has(String(resourceId(result.value, 'operation'))) && (resultStatus(result.value) !== 'applied' || currentStateMatch(result.value) === true);
       const usable = (result, index) => index >= lastMutation && !result.isError && matchesResource(result) && !entries.some(([, later], laterIndex) => laterIndex > index && currentStateMatch(later.value) === false && targetIds.has(String(resourceId(later.value, 'operation')))) && (args.status === 'draft_ready' ? hasDraft(result.value) && (!localDraft || ['policies_draft_read', 'policy_draft_read'].includes(result.name) && index > lastLocalWrite && draftProof(result.value)?.validation.valid === true && (latestDraftId === undefined || resourceId(result.value, 'proposal') === latestDraftId)) : confirmed(result.value) && sameOperation(result, index) && currentStateMatch(result.value) !== false && (resultStatus(result.value) !== 'applied' || !replayedResult(result.value) || currentStateMatch(result.value) === true));
+      const legacyUsable = usable;
+      const completionUsable = (result, index) => {
+        if (!legacyUsable(result, index)) return false;
+        const receipt = completionReceipt(result.value);
+        if (!receipt) return args.completionGoal !== 'effective';
+        if (!['saved', 'effective'].includes(args.completionGoal) || !savedCompletion(receipt)) return false;
+        if (args.completionGoal === 'effective' && !effectiveCompletion(receipt)) return false;
+        if (index === lastMutation) return false;
+        return !entries.some(([, later], laterIndex) => laterIndex > index && targetIds.has(String(resourceId(later.value, 'operation'))) && completionReceipt(later.value));
+      };
       const suppliedIds = args.evidenceToolCallIds ?? [];
-      const selected = suppliedIds.length > 0 ? suppliedIds.map(id => entries.findIndex(([candidate]) => candidate === id)) : ['draft_ready', 'completed'].includes(args.status) ? [entries.findLastIndex(([, result], index) => usable(result, index))] : [];
+      const selected = suppliedIds.length > 0 ? suppliedIds.map(id => entries.findIndex(([candidate]) => candidate === id)) : ['draft_ready', 'completed'].includes(args.status) ? [entries.findLastIndex(([, result], index) => args.status === 'completed' ? completionUsable(result, index) : usable(result, index))] : [];
       const evidence = selected.map(index => entries[index]?.[1]);
       let valid = selected.every(index => index >= 0);
       if (args.status === 'chat') valid &&= lastMutation < 0;
       if (args.status === 'draft_ready') valid &&= selected.some(index => index >= 0 && usable(entries[index][1], index));
-      if (args.status === 'completed') valid &&= selected.some(index => index >= 0 && usable(entries[index][1], index)) && evidence.every(result => !result.isError && !['accepted', 'queued', 'running', 'pending', 'pending_confirmation', 'requires_user_action', 'failed', 'conflict', 'cancelled', 'unsupported'].includes(resultStatus(result.value)));
+      if (args.status === 'completed') valid &&= selected.some(index => index >= 0 && completionUsable(entries[index][1], index)) && evidence.every(result => !result.isError && !['accepted', 'queued', 'running', 'pending', 'pending_confirmation', 'requires_user_action', 'failed', 'conflict', 'cancelled', 'unsupported'].includes(resultStatus(result.value)));
       if (['needs_input', 'failed'].includes(args.status)) valid &&= typeof args.reason === 'string' && args.reason.trim().length > 0;
-      if (!valid) return { ...toolContent({ code: 'completionEvidenceRequired', status: args.status, ...(localDraft ? { required: 'policies_draft_read_latest_validated' } : {}) }), isError: true };
+      if (!valid) return { ...toolContent({ code: 'completionEvidenceRequired', status: args.status, ...(localDraft ? { required: 'policies_draft_read_latest_validated' } : args.status === 'completed' && lastWrite && completionReceipt(lastWrite.value) ? { required: 'fresh_same_operation_completion_with_explicit_goal', completionGoals: ['saved', 'effective'] } : {}) }), isError: true };
       const proofIndex = localDraft ? selected.findLast(index => usable(entries[index][1], index)) : undefined;
       const proof = proofIndex === undefined ? undefined : draftProof(entries[proofIndex][1].value);
       const reply = proof?.businessSummary?.reply;
-      const summary = typeof reply === 'string' && reply.trim() ? reply : args.summary;
+      const completedProof = args.status === 'completed' ? selected.findLast(index => completionUsable(entries[index][1], index)) : undefined;
+      const completion = completedProof === undefined ? undefined : completionReceipt(entries[completedProof][1].value);
+      const summary = completion ? completionSummary(completion) : args.status === 'completed' && evidence.some(result => resultStatus(result.value) === 'applied') ? '操作记录已确认；当前网络是否使用该配置尚未验证。' : typeof reply === 'string' && reply.trim() ? reply : args.summary;
       run.finished = { ...args, summary, evidenceToolCallIds: selected.map(index => entries[index][0]) };
       return { ...toolContent({ status: args.status, summary, ...(args.reason ? { reason: args.reason } : {}) }), terminate: true };
     },
@@ -370,7 +401,7 @@ export class AgentHost {
       return { ...toolContent(modelResultValue(tool.name, value)), isError: result.isError };
     } }));
     const builtinTools = [workflowTool(topic => { run.workflow = topic; }), finishTool(run)];
-    const businessNames = new Set(['workspace_overview', 'sources_query', 'nodes_query', 'node_sets_query', 'rules_query', 'policy_draft_edit', 'policy_draft_read', 'policy_preview', 'policy_edit_schema', 'changes_status', 'application_operation']);
+    const businessNames = new Set(['workspace_overview', 'sources_query', 'nodes_query', 'node_sets_query', 'rules_query', 'policy_draft_edit', 'policy_draft_read', 'policy_preview', 'policy_edit_schema', 'changes_commit', 'changes_status', 'application_catalog', 'application_invoke', 'application_operation']);
     const layered = tools.some(tool => tool.name === 'workspace_overview');
     const active = new Map(tools.filter(tool => !layered || businessNames.has(tool.name)).map(tool => [tool.name, tool]));
     let agent;

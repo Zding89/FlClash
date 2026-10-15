@@ -323,6 +323,99 @@ void main() {
   ]) => tools.execute(request(name, args));
 
   test(
+    'application commands expose real names and guide invalid calls',
+    () async {
+      final definition = tools.definitions.firstWhere(
+        (entry) => entry.name == 'application_invoke',
+      );
+      final properties = definition.parameters['properties'] as Map;
+      final commands = (properties['command'] as Map)['enum'] as List;
+      expect(commands, contains('connection_set'));
+      expect(commands, isNot(contains('runtime_start')));
+      final result = await execute('application_invoke', {
+        'command': 'runtime_start',
+        'params': <String, Object?>{},
+      });
+      expect(result.isError, isTrue);
+      expect(result.value['schemaTool'], 'application_catalog');
+      expect(result.value['schemaArguments'], isEmpty);
+    },
+  );
+
+  test(
+    'application command schemas and paged discovery include real base tools and supported aliases',
+    () async {
+      final base = AgentTools(
+        controller: controller,
+        approve: (_) async => false,
+        resources: tools.resources,
+        gateway: gateway,
+        exposeApplication: false,
+      ).definitions;
+      final invoke = tools.definitions.singleWhere(
+        (entry) => entry.name == 'application_invoke',
+      );
+      final commandSchema =
+          (invoke.parameters['properties'] as Map)['command'] as Map;
+      final commandNames = (commandSchema['enum'] as List)
+          .cast<String>()
+          .toSet();
+      expect(commandNames, containsAll(base.map((entry) => entry.name)));
+      expect(
+        commandNames,
+        containsAll([
+          'capabilities',
+          'capabilities_list',
+          'profiles_refresh_all',
+        ]),
+      );
+      final result = await execute('application_catalog', {
+        'commands': [
+          'policies_propose',
+          'policy_draft_edit',
+          'capabilities',
+          'profiles_refresh_all',
+        ],
+      });
+      expect(result.isError, isFalse);
+      final catalog = (result.value['capabilities'] as List).cast<Map>();
+      for (final name in ['policies_propose', 'policy_draft_edit']) {
+        final original = base.singleWhere((entry) => entry.name == name);
+        final entry = catalog.singleWhere((entry) => entry['command'] == name);
+        expect(entry['parameters'], original.parameters);
+        expect(entry['description'], original.description);
+      }
+      expect(
+        catalog.singleWhere(
+          (entry) => entry['command'] == 'capabilities',
+        )['aliasOf'],
+        'capabilities_list',
+      );
+      final discovered = <String>{};
+      String? cursor;
+      do {
+        final page = await execute('application_catalog', {
+          'limit': 100,
+          'cursor': ?cursor,
+        });
+        expect(page.isError, isFalse);
+        discovered.addAll(
+          (page.value['commands'] as List).map(
+            (entry) => (entry as Map)['id'] as String,
+          ),
+        );
+        cursor = page.value['nextCursor'] as String?;
+      } while (cursor != null);
+      expect(discovered, commandNames);
+      final invalid = await execute('application_catalog', {
+        'commands': ['profile_create'],
+      });
+      expect(invalid.isError, isTrue);
+      expect(invalid.value['code'], 'tool_unknown_command');
+    },
+  );
+
+  test(
     'AI proposals retain origins, dynamic references and user rule positions',
     () async {
       controller.currentDocument = LocalPolicyDocument.fromJson({

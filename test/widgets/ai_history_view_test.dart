@@ -78,12 +78,13 @@ void main() {
     String id, {
     required String summary,
     String status = 'draft',
+    String category = 'settings',
     Map<String, Object?> before = const {'mode': 'rule'},
     Map<String, Object?> after = const {'mode': 'global'},
   }) async {
     await database.saveChange(
       id: id,
-      category: 'settings',
+      category: category,
       summary: summary,
       highRisk: true,
       fingerprint: 'fixture-version',
@@ -94,6 +95,26 @@ void main() {
     );
     await database.changeStatus(id, status);
   }
+
+  _historyWidgetTest(
+    'a saved local rule journal does not claim current activation',
+    (tester) async {
+      await journal(
+        'local-saved',
+        summary: 'Saved local rules',
+        category: 'policies',
+        status: 'applied',
+      );
+      await _mount(
+        tester,
+        AiLinkedChangesView(store: database, ids: const ['local-saved']),
+      );
+      final strings = AppLocalizations.current;
+      expect(find.textContaining(strings.policySaved), findsOneWidget);
+      expect(find.textContaining(strings.policyAppliedStatus), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   _historyWidgetTest(
     'linked journals filter IDs, display terminal conflict and refresh live state',

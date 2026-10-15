@@ -1221,5 +1221,8 @@
   "policyCheckReadFailed": "Check status could not be read; node availability is unknown. Retry, or reopen this group if it still fails.",
   "policyCheckReadTimeout": "Reading check status timed out. Node availability is unconfirmed. Retry.",
   "policyCheckVersionMismatch": "The running version does not match this node group. Old results are hidden. Wait for configuration application to finish, then reopen the group.",
-  "policyCheckRetry": "Retry reading status"
+  "policyCheckRetry": "Retry reading status",
+  "aiPolicySavedOnly": "Saved; not active",
+  "aiPolicyEffectiveVerified": "Saved; activation verified",
+  "aiPolicySavedUnverified": "Saved; runtime state unverified"
 }

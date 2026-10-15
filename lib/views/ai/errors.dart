@@ -52,6 +52,11 @@ String aiErrorText(BuildContext context, Object? error) {
     'cancelled' || 'configuration_cancelled' => strings.aiCancelled,
     'configuration_version_conflict' ||
     'configuration_snapshot_expired' => strings.aiDraftInvalid,
+    'tool_invalid_arguments' ||
+    'invalid_arguments' ||
+    'command_unknown' ||
+    'tool_unknown_command' ||
+    'configuration_policy_edit_invalid' => strings.aiConfigurationInvalid,
     'source_update_proxy_unavailable' => strings.policyUpdateProxyUnavailable,
     'source_download_network_failed' => strings.networkException,
     _ => strings.aiRequestFailed,

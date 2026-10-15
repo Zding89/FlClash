@@ -270,6 +270,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiNewConversation": MessageLookupByLibrary.simpleMessage("新しい会話"),
     "aiNoConnection": MessageLookupByLibrary.simpleMessage("接続を追加して会話を開始"),
     "aiNoDifferences": MessageLookupByLibrary.simpleMessage("適用する変更はありません"),
+    "aiPolicyEffectiveVerified": MessageLookupByLibrary.simpleMessage(
+      "保存済み・動作を確認済み",
+    ),
     "aiPolicyPlanChanges": m1,
     "aiPolicyPlanCounts": m2,
     "aiPolicyPlanDisabled": MessageLookupByLibrary.simpleMessage("無効"),
@@ -284,6 +287,10 @@ class MessageLookup extends MessageLookupByLibrary {
       "全通信に一致。このルールが無効か利用可能ノードがない場合のみ後続を確認",
     ),
     "aiPolicyPlanTitle": MessageLookupByLibrary.simpleMessage("ローカルルール案"),
+    "aiPolicySavedOnly": MessageLookupByLibrary.simpleMessage("保存済み・未適用"),
+    "aiPolicySavedUnverified": MessageLookupByLibrary.simpleMessage(
+      "保存済み・動作状態は未確認",
+    ),
     "aiPolicyUnknownMultiplierExcluded": MessageLookupByLibrary.simpleMessage(
       "倍率不明のノードを除外",
     ),

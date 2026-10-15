@@ -107,6 +107,53 @@ Map<String, Object?> agentPage(
 typedef AgentBusinessDelegate =
     Future<Map<String, Object?>> Function(AgentToolRequest request);
 
+final class AgentEditValidationException implements Exception {
+  final List<Map<String, Object?>> issues;
+  final bool complete;
+
+  const AgentEditValidationException(this.issues, {this.complete = true});
+
+  Map<String, Object?> toJson() => {
+    'code': 'tool_invalid_arguments',
+    'writeApplied': false,
+    'schemaTool': 'policy_edit_schema',
+    'issues': issues,
+    'issuesComplete': complete,
+  };
+}
+
+final class _EditIssues {
+  final List<Map<String, Object?>> values = [];
+  bool complete = true;
+
+  void add(
+    int index,
+    String kind,
+    String field,
+    String reason, {
+    String? expectedPath,
+  }) {
+    if (values.length >= 10) {
+      complete = false;
+      return;
+    }
+    values.add({
+      'actionIndex': index,
+      'kind': kind,
+      'field': field,
+      'reason': reason,
+      'schemaArguments': {'kind': kind == 'unknown' ? 'rule' : kind},
+      'expectedPath': ?expectedPath,
+    });
+  }
+
+  void check() {
+    if (values.isNotEmpty) {
+      throw AgentEditValidationException(values, complete: complete);
+    }
+  }
+}
+
 final class AgentBusinessTools {
   AgentBusinessTools({
     required this.controller,
@@ -516,6 +563,17 @@ final class AgentBusinessTools {
         },
         'identity':
             'Create actions allocate id and targetId locally; omit them in fields. Use clientKey for same-batch references. Update uses id and preserves omitted fields.',
+        if (kind == 'nodeSet')
+          'sourceSelection':
+              'sourceIds is the eligible source universe: omitted sources are excluded. To prefer a source while retaining fallback, include every allowed source in preferred order and use preferences [{type: source, direction: ascending}]. sourceIds order affects ranking only with source preference. excludedSourceIds is a hard exclusion, never a preference.',
+        if (kind == 'rule')
+          'fieldPlacement': {
+            'probe': 'fields.probe',
+            'recoverySeconds': 'fields.recoverySeconds',
+            'cooldownSeconds': 'fields.cooldownSeconds',
+            'scope':
+                'fields.scope; CN uses type destinationRegion and values [CN]; all/any require >=2 children',
+          },
         'semantics':
             'Rules are ordered; empty candidate choices continue to the next matching rule. CN is GeoIP, not GEOSITE. Save node-set filters for future source updates. Unknown metadata is not measured health.',
       };
@@ -807,6 +865,321 @@ final class AgentBusinessTools {
     );
   }
 
+  static String _actionKind(Object? action) => switch (action) {
+    'createRule' || 'updateRule' || 'removeRule' || 'moveRule' => 'rule',
+    'createNodeSet' || 'updateNodeSet' || 'removeNodeSet' => 'nodeSet',
+    'updateSettings' => 'settings',
+    'updateSources' => 'sources',
+    _ => 'unknown',
+  };
+
+  static void validateEditArguments(Map<String, Object?> args) {
+    final issues = _EditIssues();
+    final actions = args['actions'];
+    if (actions is! List || actions.isEmpty || actions.length > 100) {
+      issues.add(-1, 'unknown', 'actions', 'Provide 1 to 100 actions.');
+      issues.check();
+      return;
+    }
+    final fields = policyObject(
+      AgentPolicyContract.patchSchema['properties'],
+      'properties',
+    );
+    final envelope = policyObject(
+      ((definitions
+                  .firstWhere((entry) => entry.name == 'policy_draft_edit')
+                  .parameters['properties']
+              as Map)['actions']
+          as Map)['items'],
+      'action schema',
+    );
+    var visits = 0;
+    for (var index = 0; index < actions.length; index++) {
+      final action = actions[index];
+      final kind = action is Map ? _actionKind(action['action']) : 'unknown';
+      final editable = kind == 'unknown'
+          ? <String, Object?>{}
+          : _editableSchema(kind, fields);
+      final rootProperties = editable['properties'] as Map? ?? {};
+      void validate(Object? value, Map<String, Object?> schema, String path) {
+        if (++visits > 8000) {
+          if (visits == 8001) {
+            issues.complete = false;
+            issues.add(
+              index,
+              kind,
+              path,
+              'Validation limit exceeded; split the batch.',
+            );
+          }
+          return;
+        }
+        final type = schema['type'];
+        final types = type is List ? type : [type];
+        bool isType(Object? type) => switch (type) {
+          'null' => value == null,
+          'object' => value is Map,
+          'array' => value is List,
+          'string' => value is String,
+          'integer' => value is int,
+          'number' => value is num && value.isFinite,
+          'boolean' => value is bool,
+          _ => false,
+        };
+        if (!types.any(isType)) {
+          issues.add(
+            index,
+            kind,
+            path,
+            'Expected type: ${types.join(' or ')}.',
+          );
+          return;
+        }
+        if (schema['enum'] case final List allowed) {
+          if (!allowed.contains(value)) {
+            issues.add(index, kind, path, 'Use an allowed schema enum value.');
+            return;
+          }
+        }
+        if (value is String) {
+          if (schema['maxLength'] is int &&
+                  value.length > (schema['maxLength'] as int) ||
+              schema['minLength'] is int &&
+                  value.length < (schema['minLength'] as int) ||
+              schema['pattern'] is String &&
+                  !RegExp(schema['pattern'] as String).hasMatch(value)) {
+            issues.add(
+              index,
+              kind,
+              path,
+              'String must satisfy the schema length and pattern.',
+            );
+          }
+        }
+        if (value is num &&
+            (schema['minimum'] is num && value < (schema['minimum'] as num) ||
+                schema['maximum'] is num &&
+                    value > (schema['maximum'] as num) ||
+                schema['exclusiveMinimum'] is num &&
+                    value <= (schema['exclusiveMinimum'] as num))) {
+          issues.add(
+            index,
+            kind,
+            path,
+            'Number must satisfy the schema bounds.',
+          );
+        }
+        if (value is List) {
+          if (schema['maxItems'] is int &&
+                  value.length > (schema['maxItems'] as int) ||
+              schema['minItems'] is int &&
+                  value.length < (schema['minItems'] as int) ||
+              schema['uniqueItems'] == true &&
+                  value.map(policyDigest).toSet().length != value.length) {
+            issues.add(
+              index,
+              kind,
+              path,
+              'Array must satisfy schema size and uniqueness constraints.',
+            );
+          }
+          if (schema['items'] case final Map itemSchema) {
+            for (
+              var position = 0;
+              position < min(value.length, 101);
+              position++
+            ) {
+              validate(
+                value[position],
+                policyObject(itemSchema, 'items'),
+                '$path[$position]',
+              );
+            }
+          }
+        }
+        if (value is Map) {
+          final properties = schema['properties'] as Map? ?? {};
+          for (final required in schema['required'] as List? ?? []) {
+            if (!value.containsKey(required)) {
+              issues.add(
+                index,
+                kind,
+                '$path.$required',
+                'Required field is missing.',
+              );
+            }
+          }
+          for (final entry in value.entries.take(128)) {
+            final childSchema = properties[entry.key];
+            if (childSchema is Map) {
+              validate(
+                entry.value,
+                policyObject(childSchema, 'property'),
+                path.isEmpty ? '${entry.key}' : '$path.${entry.key}',
+              );
+            } else if (schema['additionalProperties'] == false) {
+              final recognized = rootProperties.containsKey(entry.key);
+              final safePath = recognized
+                  ? (path.isEmpty ? '${entry.key}' : '$path.${entry.key}')
+                  : path;
+              issues.add(
+                index,
+                kind,
+                safePath,
+                recognized
+                    ? 'Field belongs directly inside fields, outside nested objects.'
+                    : 'Unknown field; use only the schema properties.',
+                expectedPath: recognized ? 'fields.${entry.key}' : null,
+              );
+            }
+          }
+          if (value.length > 128) {
+            issues.add(
+              index,
+              kind,
+              path,
+              'Object exceeds the validation field limit.',
+            );
+          }
+        }
+      }
+
+      validate(action, envelope, '');
+      if (action is! Map || kind == 'unknown') continue;
+      final supplied = action['fields'] ?? <String, Object?>{};
+      validate(supplied, editable, 'fields');
+      if (action['action'] == 'createRule' ||
+          action['action'] == 'createNodeSet') {
+        for (final required
+            in kind == 'rule' ? ['label'] : ['label', 'sourceIds']) {
+          if (supplied is Map && !supplied.containsKey(required)) {
+            issues.add(
+              index,
+              kind,
+              'fields.$required',
+              'Create requires this field.',
+            );
+          }
+        }
+      }
+    }
+    issues.check();
+  }
+
+  static void _validateEditedModel(
+    Map<String, Object?> value,
+    int index,
+    String kind,
+    _EditIssues issues,
+  ) {
+    final scope = value['scope'];
+    void match(Map<String, Object?> json, String path) {
+      try {
+        PolicyMatch.fromJson(json);
+      } on FormatException catch (error) {
+        final failure = switch (error.message) {
+          'Logical scope requires at least two conditions' => (
+            'children',
+            'all/any require at least 2 children and no values; use the single child directly for one condition.',
+          ),
+          'Not scope requires exactly one condition' => (
+            'children',
+            'not requires exactly 1 child and no values.',
+          ),
+          'Choose a destination region' => (
+            'values',
+            'destinationRegion values must be ISO codes such as CN or !CN.',
+          ),
+          'Match scope requires values' => (
+            'values',
+            'This scope needs nonempty values and no children.',
+          ),
+          'Global/group scopes cannot be nested' => (
+            'children',
+            'Nested global/group scopes are not allowed.',
+          ),
+          'Enter a domain without protocol or path' => (
+            'values',
+            'Use a domain without a protocol or path.',
+          ),
+          _ => (
+            '',
+            'Scope violates the match model; check its type, values, children and depth.',
+          ),
+        };
+        final children = json['children'];
+        if (children is List && children.length >= 2) {
+          final before = issues.values.length;
+          for (var child = 0; child < children.length; child++) {
+            if (children[child] is Map) {
+              match(
+                policyObject(children[child], 'scope'),
+                '$path.children[$child]',
+              );
+            }
+          }
+          if (issues.values.length > before) return;
+        }
+        issues.add(
+          index,
+          kind,
+          failure.$1.isEmpty ? path : '$path.${failure.$1}',
+          failure.$2,
+        );
+      }
+    }
+
+    if (kind == 'rule' && scope is Map) {
+      match(policyObject(scope, 'scope'), 'fields.scope');
+    }
+    try {
+      if (kind == 'rule') {
+        LocalPolicy.fromJson(value);
+      } else {
+        PolicyNodeSet.fromJson(value);
+      }
+    } on FormatException catch (error) {
+      if (kind == 'rule' &&
+          issues.values.any(
+            (issue) =>
+                issue['actionIndex'] == index &&
+                (issue['field'] as String).startsWith('fields.scope'),
+          )) {
+        return;
+      }
+      final failure = switch (error.message) {
+        'Invalid probe URL or timing' => (
+          'fields.probe',
+          'Use an HTTP(S) URL without credentials; timeoutSeconds < intervalSeconds <= validitySeconds.',
+        ),
+        'Invalid expected HTTP status' => (
+          'fields.probe.expectedStatus',
+          'Use HTTP status 100-599 or an ascending range such as 200-399.',
+        ),
+        'Policy requires a unique ordered candidate list' => (
+          'fields.choices',
+          'Proxy needs nonempty unique choices; direct/reject need empty choices. Do not combine choices with legacy candidateNodeIds.',
+        ),
+        'Invalid policy identity or target' => (
+          'fields.label',
+          'A rule label must be nonempty; identity and target are assigned locally.',
+        ),
+        _ => (
+          'fields',
+          'Edited resource violates its actual model; consult the editable schema.',
+        ),
+      };
+      issues.add(index, kind, failure.$1, failure.$2);
+    } on ArgumentError {
+      issues.add(
+        index,
+        kind,
+        'fields',
+        'Use only enum values defined in the editable schema.',
+      );
+    }
+  }
+
   Future<Map<String, Object?>> _edit(
     AgentToolRequest request,
     LocalPolicyDocument document,
@@ -816,6 +1189,8 @@ final class AgentBusinessTools {
     final rows = (args['actions'] as List)
         .map((action) => policyObject(action, 'action'))
         .toList();
+    validateEditArguments(args);
+    final modelIssues = _EditIssues();
     final aliases = <String, String>{};
     final assigned = <String, String>{};
     String allocate() =>
@@ -907,6 +1282,12 @@ final class AgentBusinessTools {
           'targetId': localPolicyTargetId,
           if (isRule) ...{'origin': 'ai', 'priority': min(priority, 1000000)},
         };
+        _validateEditedModel(
+          created,
+          index,
+          isRule ? 'rule' : 'nodeSet',
+          modelIssues,
+        );
         list.add(created);
       } else {
         final position = list.indexWhere((item) => item['id'] == id);
@@ -933,10 +1314,18 @@ final class AgentBusinessTools {
           list.insert(next, moved);
           orderChanged = true;
         } else {
-          list[position] = _merge(list[position], fields);
+          final updated = _merge(list[position], fields);
+          _validateEditedModel(
+            updated,
+            index,
+            isRule ? 'rule' : 'nodeSet',
+            modelIssues,
+          );
+          list[position] = updated;
         }
       }
     }
+    modelIssues.check();
     candidate['policies'] = [
       for (var index = 0; index < rules.length; index++)
         {...rules[index], if (orderChanged) 'priority': (index + 1) * 100},

@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/metacubex/mihomo/adapter"
 	"github.com/metacubex/mihomo/adapter/outbound"
 	"github.com/metacubex/mihomo/common/buf"
 	C "github.com/metacubex/mihomo/constant"
@@ -88,6 +89,37 @@ type localManagedAdapter struct {
 	direct   C.Proxy
 }
 
+func (a *localManagedAdapter) SupportUDP() bool {
+	proxy, _, err := a.engine.selectProxyForRequest(a.policyID, &C.Metadata{NetWork: C.UDP}, false)
+	if err != nil {
+		a.engine.mu.Lock()
+		defer a.engine.mu.Unlock()
+		r := a.engine.policies[a.policyID]
+		return r != nil && localPolicyAction(r.definition) == "reject"
+	}
+	if proxy == nil {
+		proxy = a.direct
+	}
+	return proxy != nil && proxy.SupportUDP()
+}
+
+func (a *localManagedAdapter) Unwrap(metadata *C.Metadata, touch bool) C.Proxy {
+	if metadata == nil || metadata.NetWork != C.UDP {
+		return nil
+	}
+	_, _, err := a.engine.selectProxyForRequest(a.policyID, metadata, false)
+	if err == nil {
+		return nil
+	}
+	a.engine.mu.Lock()
+	defer a.engine.mu.Unlock()
+	r := a.engine.policies[a.policyID]
+	if r != nil && localPolicyAction(r.definition) == "proxy" && localPolicySkipsUnavailable(a.engine.config, r.definition) {
+		return adapter.NewProxy(outbound.NewBase(outbound.BaseOption{Name: "PASS", Type: C.Pass, UDP: true}))
+	}
+	return nil
+}
+
 func (a *localManagedAdapter) Type() C.AdapterType {
 	a.engine.mu.Lock()
 	defer a.engine.mu.Unlock()
@@ -140,7 +172,13 @@ func (a *localManagedAdapter) DialContext(ctx context.Context, m *C.Metadata) (C
 	return wrapped, nil
 }
 func (a *localManagedAdapter) ListenPacketContext(ctx context.Context, m *C.Metadata) (C.PacketConn, error) {
-	proxy, id, err := a.engine.selectProxyForRequest(a.policyID, m, true)
+	metadata := C.Metadata{}
+	if m != nil {
+		metadata = *m
+	}
+	metadata.NetWork = C.UDP
+	m = &metadata
+	proxy, id, err := a.engine.selectProxyForRequest(a.policyID, &metadata, true)
 	if err != nil {
 		return nil, err
 	}

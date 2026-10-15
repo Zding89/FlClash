@@ -461,6 +461,8 @@ type LocalPolicySnapshot struct {
 	NodeSets                     []LocalPolicyStatus `json:"nodeSets"`
 }
 type localPolicyRuntime struct {
+	network           C.NetWork
+	udpSelection      *localPolicyRuntime
 	activeNodeIDs     []string
 	selectionMode     string
 	balanceStrategy   string
@@ -668,7 +670,17 @@ func (e *localPolicyEngine) sourceReasonLocked(nodeID string, p LocalPolicyDefin
 	}
 	return ""
 }
+func (e *localPolicyEngine) requestNodeReasonLocked(r *localPolicyRuntime, id string) string {
+	if r.network == C.UDP && e.proxies[id] != nil && !e.proxies[id].SupportUDP() {
+		return "udp_unsupported"
+	}
+	return ""
+}
+
 func (e *localPolicyEngine) nodeReasonLocked(r *localPolicyRuntime, id string, now time.Time) string {
+	if reason := e.requestNodeReasonLocked(r, id); reason != "" {
+		return reason
+	}
 	if r.setID != "" && !localPolicyScheduleActive(e.setDefinitions[r.setID].Schedule, now) {
 		return "schedule_inactive"
 	}
@@ -691,6 +703,10 @@ func (e *localPolicyEngine) nodeReasonLocked(r *localPolicyRuntime, id string, n
 	return ""
 }
 func (e *localPolicyEngine) evaluateLocked(r *localPolicyRuntime, now time.Time) {
+	if selection := r.udpSelection; selection != nil {
+		selection.definition, selection.health = r.definition, r.health
+		defer e.evaluateLocked(selection, now)
+	}
 	if localPolicyAction(r.definition) != "proxy" {
 		r.activeNodeIDs = nil
 		reason := localPolicyAction(r.definition)
@@ -779,6 +795,16 @@ func (e *localPolicyEngine) selectProxyForRequest(policyID string, metadata *C.M
 	if r == nil {
 		return nil, "", errors.New("local policy missing")
 	}
+	owner := r
+	if metadata != nil && metadata.NetWork == C.UDP {
+		if r.udpSelection == nil {
+			r.udpSelection = &localPolicyRuntime{network: C.UDP}
+		}
+		selection := r.udpSelection
+		selection.definition, selection.health = r.definition, r.health
+		selection.balanceCursor = r.balanceCursor
+		r = selection
+	}
 	defer e.beginSelectionRoundLocked()()
 	e.evaluateLocked(r, e.now())
 	if !localPolicyScheduleActive(r.definition.Schedule, e.now()) {
@@ -792,6 +818,7 @@ func (e *localPolicyEngine) selectProxyForRequest(policyID string, metadata *C.M
 	}
 	if r.selectionMode == "loadBalance" && len(r.activeNodeIDs) > 0 {
 		r.selected = localBalancedNode(r, metadata, allocate)
+		owner.balanceCursor = r.balanceCursor
 	}
 	if r.selected == "" {
 		if !localPolicySkipsUnavailable(e.config, r.definition) && r.definition.Fallback == "direct" {

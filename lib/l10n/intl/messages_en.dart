@@ -332,6 +332,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiNoDifferences": MessageLookupByLibrary.simpleMessage(
       "No changes to apply",
     ),
+    "aiPolicyEffectiveVerified": MessageLookupByLibrary.simpleMessage(
+      "Saved; activation verified",
+    ),
     "aiPolicyPlanChanges": m1,
     "aiPolicyPlanCounts": m2,
     "aiPolicyPlanDisabled": MessageLookupByLibrary.simpleMessage("Disabled"),
@@ -353,6 +356,12 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "aiPolicyPlanTitle": MessageLookupByLibrary.simpleMessage(
       "Local rule plan",
+    ),
+    "aiPolicySavedOnly": MessageLookupByLibrary.simpleMessage(
+      "Saved; not active",
+    ),
+    "aiPolicySavedUnverified": MessageLookupByLibrary.simpleMessage(
+      "Saved; runtime state unverified",
     ),
     "aiPolicyUnknownMultiplierExcluded": MessageLookupByLibrary.simpleMessage(
       "Exclude nodes with unknown multiplier",

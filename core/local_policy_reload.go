@@ -98,37 +98,48 @@ func (e *localPolicyEngine) inheritRuntime(old *localPolicyEngine) {
 				compatible = false
 			}
 		}
-		if !compatible || prior.selected == "" || e.policyNodeReasonLocked(r, prior.selected, now) != "" {
+		if !compatible {
 			continue
 		}
-		inheritLocalSelection(r, prior)
-		if len(r.definition.Choices) > 0 && (r.selectedChoice < 0 || r.selectedChoice >= len(r.definition.Choices) || e.choiceNodeReasonLocked(r, r.selectedChoice, r.selected, now) != "") {
-			r.selected = ""
+		e.inheritPolicySelectionLocked(r, prior, now)
+		if prior.udpSelection != nil {
+			r.udpSelection = &localPolicyRuntime{network: prior.udpSelection.network, definition: r.definition, health: r.health}
+			e.inheritPolicySelectionLocked(r.udpSelection, prior.udpSelection, now)
+		}
+	}
+}
+
+func (e *localPolicyEngine) inheritPolicySelectionLocked(r, prior *localPolicyRuntime, now time.Time) {
+	if prior.selected == "" || e.policyNodeReasonLocked(r, prior.selected, now) != "" {
+		return
+	}
+	inheritLocalSelection(r, prior)
+	if len(r.definition.Choices) > 0 && (r.selectedChoice < 0 || r.selectedChoice >= len(r.definition.Choices) || e.choiceNodeReasonLocked(r, r.selectedChoice, r.selected, now) != "") {
+		r.selected = ""
+		return
+	}
+	if r.recoveryNode != "" && (r.recoveryChoice < 0 || r.recoveryChoice >= len(r.definition.Choices) || e.choiceNodeReasonLocked(r, r.recoveryChoice, r.recoveryNode, now) != "") {
+		r.recoveryNode = ""
+		r.recoverySince = time.Time{}
+	}
+	for index, selection := range prior.choiceSelections {
+		if index < 0 || index >= len(r.definition.Choices) {
 			continue
 		}
-		if r.recoveryNode != "" && (r.recoveryChoice < 0 || r.recoveryChoice >= len(r.definition.Choices) || e.choiceNodeReasonLocked(r, r.recoveryChoice, r.recoveryNode, now) != "") {
-			r.recoveryNode = ""
-			r.recoverySince = time.Time{}
+		set := e.sets[selection.setID]
+		if set == nil || e.choiceNodeReasonLocked(r, index, selection.selected, now) != "" {
+			continue
 		}
-		for index, selection := range prior.choiceSelections {
-			if index < 0 || index >= len(r.definition.Choices) {
-				continue
-			}
-			set := e.sets[selection.setID]
-			if set == nil || e.choiceNodeReasonLocked(r, index, selection.selected, now) != "" {
-				continue
-			}
-			cloned := &localPolicyRuntime{setID: selection.setID, definition: set.definition, health: set.health}
-			inheritLocalSelection(cloned, selection)
-			if e.choiceNodeReasonLocked(r, index, cloned.optimizationNode, now) != "" {
-				cloned.optimizationNode = ""
-				cloned.optimizationSince = time.Time{}
-			}
-			if r.choiceSelections == nil {
-				r.choiceSelections = map[int]*localPolicyRuntime{}
-			}
-			r.choiceSelections[index] = cloned
+		cloned := &localPolicyRuntime{network: r.network, setID: selection.setID, definition: set.definition, health: set.health}
+		inheritLocalSelection(cloned, selection)
+		if e.choiceNodeReasonLocked(r, index, cloned.optimizationNode, now) != "" {
+			cloned.optimizationNode = ""
+			cloned.optimizationSince = time.Time{}
 		}
+		if r.choiceSelections == nil {
+			r.choiceSelections = map[int]*localPolicyRuntime{}
+		}
+		r.choiceSelections[index] = cloned
 	}
 }
 

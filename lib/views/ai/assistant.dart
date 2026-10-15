@@ -31,8 +31,9 @@ import 'history.dart';
 import 'message.dart';
 
 class AiAssistantView extends ConsumerStatefulWidget {
-  const AiAssistantView({super.key, this.initialPrompt});
+  const AiAssistantView({super.key, this.initialPrompt, this.inputController});
   final String? initialPrompt;
+  final TextEditingController? inputController;
 
   @override
   ConsumerState<AiAssistantView> createState() => _AiAssistantViewState();
@@ -53,7 +54,7 @@ class _ConversationMessage {
 }
 
 class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
-  final _input = TextEditingController();
+  late final _input = widget.inputController ?? TextEditingController();
   final _scroll = ScrollController();
   final _messages = <_ConversationMessage>[];
   late final WorkbenchController _controller;
@@ -108,6 +109,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       }
     });
     _input.text = widget.initialPrompt ?? '';
+    if (widget.inputController != null) _input.addListener(_composerChanged);
     ref.listenManual(aiComposerContextProvider, (_, next) {
       if (next != null) _scheduleComposerContext();
     }, fireImmediately: true);
@@ -150,9 +152,14 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     unawaited(_persistConversation());
     unawaited(_subscription?.cancel() ?? Future<void>.value());
     unawaited(_controller.closeAgent());
-    _input.dispose();
+    _input.removeListener(_composerChanged);
+    if (widget.inputController == null) _input.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  void _composerChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _persistConversation() async {
@@ -315,7 +322,8 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     final ids = _changeIds.toList();
     try {
       final rows = await Future.wait(ids.map(_controller.store.readChange));
-      final operationStates = <String, String>{};
+      final operationResults = <String, Map<String, Object?>>{};
+      final unavailableOperations = <String>{};
       await Future.wait([
         for (final row in rows)
           if (row != null && row.category.startsWith('capability:'))
@@ -327,13 +335,14 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
                       'operationId': row.id,
                     }, origin: 'agent')
                     .timeout(const Duration(seconds: 5));
-                operationStates[row.id] =
-                    result['operationId'] == row.id &&
-                        result['status'] is String
-                    ? result['status'] as String
-                    : 'unverified';
+                if (result['operationId'] == row.id &&
+                    result['status'] is String) {
+                  operationResults[row.id] = result;
+                } else {
+                  unavailableOperations.add(row.id);
+                }
               } catch (_) {
-                operationStates[row.id] = 'unverified';
+                unavailableOperations.add(row.id);
               }
             }(),
       ]);
@@ -353,22 +362,25 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       }
       if (!mounted || epoch != _epoch || generation != _cardGeneration) return;
       setState(() {
-        _linkedChangesPending = rows.any(
-          (row) =>
-              const {
-                'draft',
-                'committing',
-                'persisted',
-                'restoring',
-                'running',
-                'accepted',
-                'queued',
-              }.contains(
-                row == null
-                    ? null
-                    : operationStates[row.id] ?? aiStoredChangeStatus(row),
-              ),
-        );
+        _linkedChangesPending =
+            unavailableOperations.isNotEmpty ||
+            rows.any(
+              (row) =>
+                  const {
+                    'draft',
+                    'committing',
+                    'persisted',
+                    'restoring',
+                    'running',
+                    'accepted',
+                    'queued',
+                  }.contains(
+                    row == null
+                        ? null
+                        : operationResults[row.id]?['status'] ??
+                              aiStoredChangeStatus(row),
+                  ),
+            );
         for (var index = 0; index < rows.length; index++) {
           final row = rows[index];
           if (row == null) continue;
@@ -383,7 +395,12 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
             _messages.removeWhere((message) => message.proposal?.id == row.id);
             continue;
           }
-          var status = operationStates[row.id] ?? aiStoredChangeStatus(row);
+          if (unavailableOperations.contains(row.id) && existing != null) {
+            continue;
+          }
+          var status =
+              operationResults[row.id]?['status'] as String? ??
+              aiStoredChangeStatus(row);
           if (status == 'draft' &&
               !row.category.startsWith('resource:') &&
               !row.category.startsWith('capability:') &&
@@ -398,7 +415,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
             status = 'unverified';
           }
           if (existing != null) {
-            existing.result = {'status': status};
+            existing.result = operationResults[row.id] ?? {'status': status};
             existing.failed = const {'failed', 'interrupted'}.contains(status);
             continue;
           }
@@ -407,7 +424,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
             ..changeId = row.id
             ..operationSummary = operation ? row.summary : null
             ..proposal = operation ? null : aiStoredProposal(row)
-            ..result = {'status': status};
+            ..result = operationResults[row.id] ?? {'status': status};
           if (restoring && status == 'requires_recovery') {
             _recoveryRequired = true;
           }
@@ -432,7 +449,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       _followOutput();
     } catch (_) {
       if (mounted && epoch == _epoch && generation == _cardGeneration) {
-        setState(() => _error = context.appLocalizations.aiChangesUnavailable);
+        setState(() => _linkedChangesPending = ids.isNotEmpty);
       }
     } finally {
       if (_cardRefreshEpoch == epoch) _cardRefreshEpoch = null;

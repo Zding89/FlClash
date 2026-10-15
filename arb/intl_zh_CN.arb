@@ -1207,5 +1207,8 @@
   "policyCheckReadFailed": "检查状态读取失败，不能据此判断节点是否可用。请重试；若仍失败，请重新打开节点组。",
   "policyCheckReadTimeout": "读取检查状态超时，节点是否可用尚未确认。请重试。",
   "policyCheckVersionMismatch": "运行版本与当前节点组不一致，旧检查结果已隐藏。请等待配置应用完成后重新打开节点组。",
-  "policyCheckRetry": "重新读取状态"
+  "policyCheckRetry": "重新读取状态",
+  "aiPolicySavedOnly": "已保存，尚未生效",
+  "aiPolicyEffectiveVerified": "已保存，已核验生效",
+  "aiPolicySavedUnverified": "已保存，运行状态未确认"
 }

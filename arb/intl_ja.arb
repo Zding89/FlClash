@@ -1207,5 +1207,8 @@
   "policyCheckReadFailed": "チェック状態を取得できません。ノードの利用可否は不明です。再試行し、失敗が続く場合はグループを開き直してください。",
   "policyCheckReadTimeout": "チェック状態の取得がタイムアウトしました。ノードの利用可否は未確認です。再試行してください。",
   "policyCheckVersionMismatch": "実行中のバージョンがグループと一致しないため、古い結果を非表示にしました。設定の適用後にグループを開き直してください。",
-  "policyCheckRetry": "状態を再取得"
+  "policyCheckRetry": "状態を再取得",
+  "aiPolicySavedOnly": "保存済み・未適用",
+  "aiPolicyEffectiveVerified": "保存済み・動作を確認済み",
+  "aiPolicySavedUnverified": "保存済み・動作状態は未確認"
 }

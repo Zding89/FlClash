@@ -49,6 +49,13 @@ abstract interface class ApplicationCapabilityGateway {
   });
 }
 
+abstract interface class ApplicationCompletionGateway {
+  Future<ConfigurationActivationBasis?> captureActivationBasis();
+  Future<ConfigurationCompletionReceipt> readActivationBasis(
+    ConfigurationActivationBasis basis,
+  );
+}
+
 class _FileGrant {
   const _FileGrant(this.path, this.mode, this.expiresAt);
   final String path;
@@ -57,7 +64,7 @@ class _FileGrant {
 }
 
 class FlutterApplicationCapabilityGateway
-    implements ApplicationCapabilityGateway {
+    implements ApplicationCapabilityGateway, ApplicationCompletionGateway {
   FlutterApplicationCapabilityGateway({
     required this.ref,
     required this.controller,
@@ -76,6 +83,15 @@ class FlutterApplicationCapabilityGateway
   @override
   Future<String> version() async =>
       configurationDigest(await controller.backend.readState());
+
+  @override
+  Future<ConfigurationActivationBasis?> captureActivationBasis() =>
+      controller.backend.captureActivationBasis();
+
+  @override
+  Future<ConfigurationCompletionReceipt> readActivationBasis(
+    ConfigurationActivationBasis basis,
+  ) => controller.backend.readActivationBasis(basis);
 
   Future<List<Group>> _groups() => core.getProxiesGroups(
     sortType: ProxiesSortType.none,

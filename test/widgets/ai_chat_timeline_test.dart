@@ -346,7 +346,12 @@ void main() {
           final cards = tester.widgetList<AiToolResultCard>(
             find.byType(AiToolResultCard),
           );
-          expect(cards.map((card) => card.proposal?.summary), ['Plan $turn']);
+          expect(
+            cards.map((card) => card.proposal?.summary),
+            ['Plan $turn'],
+            reason:
+                'Draft cards must retain their proposal: ${cards.map((card) => card.result)}',
+          );
           expect(
             tester
                 .widget<ListView>(

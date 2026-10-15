@@ -5,6 +5,7 @@ import 'package:fl_clash/configuration/changes.dart';
 import 'package:flutter/material.dart';
 
 import 'approval.dart';
+import 'change_record.dart';
 import 'errors.dart';
 import 'policy_plan.dart';
 
@@ -264,8 +265,13 @@ class AiToolResultCard extends StatelessWidget {
     if (failed) {
       return aiErrorText(context, result?['code'] ?? result?['errorCode']);
     }
-    return switch (result?['status']) {
+    final completion = aiCompletionStatus(result);
+    return switch (completion ?? result?['status']) {
       'approved' => strings.aiApproved,
+      'effective' => strings.aiPolicyEffectiveVerified,
+      'saved_inactive' => strings.aiPolicySavedOnly,
+      'saved_unverified' => strings.aiPolicySavedUnverified,
+      'saved' => strings.policySaved,
       'applied' => strings.policyAppliedStatus,
       'draft' || 'proposal_ready' => strings.aiPolicyPlanReady,
       'superseded' => strings.policySupersededStatus,
@@ -454,13 +460,16 @@ class AiToolResultCard extends StatelessWidget {
               for (final entry
                   in fields.entries
                       .where(
-                        (entry) =>
-                            !{'taskEffect', 'recovery'}.contains(entry.key),
+                        (entry) => !{
+                          'taskEffect',
+                          'recovery',
+                          'completion',
+                        }.contains(entry.key),
                       )
                       .where(
                         (entry) =>
-                            !failed ||
-                            !{'code', 'errorCode'}.contains(entry.key),
+                            !{'code', 'errorCode'}.contains(entry.key) ||
+                            (!failed && entry.value != null),
                       )
                       .take(8))
                 Padding(

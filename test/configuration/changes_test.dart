@@ -152,6 +152,36 @@ class _TransactionalBackend extends _Backend
   }
 }
 
+class _CompletionBackend extends _Backend
+    implements ConfigurationCompletionBackend {
+  bool changeDuringRead = false;
+  bool running = true;
+
+  @override
+  Future<ConfigurationCompletionReceipt> readCompletion(
+    Map<String, Object?> before,
+    Map<String, Object?> after, {
+    required bool currentStateMatches,
+  }) async {
+    if (changeDuringRead) state['value'] = 3;
+    return ConfigurationCompletionReceipt(
+      persisted: true,
+      currentStateMatches: currentStateMatches,
+      scope: ConfigurationCompletionScope.localPolicy,
+      activation: ConfigurationActivationReceipt(
+        required: true,
+        targetId: localPolicyTargetId,
+        documentRevision: 1,
+        loadedTargetId: localPolicyTargetId,
+        loadedDocumentRevision: 1,
+        loaded: true,
+        running: running,
+        reason: running ? 'active' : 'network_stopped',
+      ),
+    );
+  }
+}
+
 class _ConcurrentValidationBackend extends _Backend {
   @override
   Future<Map<String, Object?>> validate(Map<String, Object?> candidate) async {
@@ -184,6 +214,62 @@ void main() {
     summary: 'change',
     candidate: {'value': 2, 'other': 1},
   );
+  test(
+    'replayed commits re-read current runtime and saved state without writing',
+    () async {
+      final live = _CompletionBackend();
+      final changes = ConfigurationChangeService(
+        backend: live,
+        store: database,
+      );
+      final draft = await changes.propose(
+        category: 'policies',
+        summary: 'local rules',
+        candidate: {'value': 2, 'other': 1},
+      );
+      final first = await changes.commit(
+        id: draft.id,
+        approve: (_) async => true,
+      );
+      expect((first['completion'] as Map)['outcome'], 'effective');
+      final writes = live.writes;
+      live.running = false;
+      final replay = await changes.commit(
+        id: draft.id,
+        approve: (_) async => true,
+      );
+      expect(replay['replayed'], isTrue);
+      expect((replay['completion'] as Map)['outcome'], 'saved');
+      expect(live.writes, writes);
+      live.state['value'] = 4;
+      final changed = await changes.completionStatus(draft.id);
+      expect(changed['currentStateMatches'], isFalse);
+      expect((changed['completion'] as Map)['currentStateMatches'], isFalse);
+    },
+  );
+
+  test(
+    'a concurrent saved-state change invalidates runtime completion evidence',
+    () async {
+      final live = _CompletionBackend();
+      final changes = ConfigurationChangeService(
+        backend: live,
+        store: database,
+      );
+      final draft = await changes.propose(
+        category: 'policies',
+        summary: 'local rules',
+        candidate: {'value': 2, 'other': 1},
+      );
+      await changes.commit(id: draft.id, approve: (_) async => true);
+      live.changeDuringRead = true;
+      final result = await changes.completionStatus(draft.id);
+      expect(result['currentStateMatches'], isFalse);
+      expect((result['completion'] as Map)['outcome'], 'saved');
+      expect((result['completion'] as Map)['currentStateMatches'], isFalse);
+    },
+  );
+
   test('stale full state cannot produce a policy draft', () async {
     final expected = configurationDigest(await backend.readState());
     backend.state['other'] = 2;

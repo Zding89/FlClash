@@ -9868,6 +9868,36 @@ class AppLocalizations {
       args: [],
     );
   }
+
+  /// `Saved; not active`
+  String get aiPolicySavedOnly {
+    return Intl.message(
+      'Saved; not active',
+      name: 'aiPolicySavedOnly',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Saved; activation verified`
+  String get aiPolicyEffectiveVerified {
+    return Intl.message(
+      'Saved; activation verified',
+      name: 'aiPolicyEffectiveVerified',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Saved; runtime state unverified`
+  String get aiPolicySavedUnverified {
+    return Intl.message(
+      'Saved; runtime state unverified',
+      name: 'aiPolicySavedUnverified',
+      desc: '',
+      args: [],
+    );
+  }
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<AppLocalizations> {

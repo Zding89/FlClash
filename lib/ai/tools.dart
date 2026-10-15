@@ -7,7 +7,6 @@ import 'package:fl_clash/configuration/changes.dart';
 import 'package:fl_clash/capabilities/service.dart';
 import 'package:fl_clash/capabilities/manifest.dart';
 import 'package:fl_clash/configuration/resources.dart';
-import 'package:fl_clash/configuration/settings.dart';
 import 'package:fl_clash/core/controller.dart';
 import 'package:fl_clash/database/workbench_database.dart';
 import 'package:fl_clash/enum/enum.dart';
@@ -242,9 +241,39 @@ final class AgentTools {
     },
   );
 
-  List<AgentToolDefinition> get definitions => [
+  List<Map<String, Object?>> get _applicationCatalog {
+    final commands = {
+      for (final capability in applicationCapabilities)
+        capability.command: capability.toJson(),
+    };
+    for (final definition in _definitions(includeApplication: false)) {
+      commands.putIfAbsent(
+        definition.name,
+        () => ApplicationCapability(
+          command: definition.name,
+          domain: 'application',
+          description: definition.description,
+          mutating: _mutating(definition.name, const {}),
+          parameters: definition.parameters,
+        ).toJson(),
+      );
+    }
+    commands['capabilities'] = {
+      ...commands['capabilities_list']!,
+      'command': 'capabilities',
+      'aliasOf': 'capabilities_list',
+    };
+    return commands.values.toList();
+  }
+
+  List<AgentToolDefinition> get definitions =>
+      _definitions(includeApplication: exposeApplication);
+
+  List<AgentToolDefinition> _definitions({
+    required bool includeApplication,
+  }) => [
     ...AgentBusinessTools.definitions,
-    if (exposeApplication) ...[
+    if (includeApplication) ...[
       _definition(
         'application_catalog',
         'Read a compact macOS capability directory. Supply commands to fetch at most four exact input schemas; use cursor for more entries.',
@@ -257,7 +286,15 @@ final class AgentTools {
       _definition(
         'application_invoke',
         'Invoke a discovered application capability. Mutations retain local approval; never supply passwords, shell commands or arbitrary Core RPC.',
-        {'command': _string, 'params': _object, 'idempotencyKey': _string},
+        {
+          'command': _choice(
+            _applicationCatalog
+                .map((entry) => entry['command'] as String)
+                .toList(),
+          ),
+          'params': _object,
+          'idempotencyKey': _string,
+        },
         ['command', 'params'],
       ),
       _definition(
@@ -721,6 +758,15 @@ final class AgentTools {
     AgentToolResult error(String code) => AgentToolResult({
       'code': code,
       'taskEffect': effect,
+      if (request.name == 'application_invoke') ...{
+        'schemaTool': 'application_catalog',
+        'schemaArguments': {
+          if (_applicationCatalog.any(
+            (entry) => entry['command'] == request.arguments['command'],
+          ))
+            'commands': [request.arguments['command']],
+        },
+      },
       if (request.name == 'policy_draft_edit' &&
           code == 'configuration_version_conflict')
         'recovery': {
@@ -749,6 +795,9 @@ final class AgentTools {
       if (required.any((key) => !request.arguments.containsKey(key))) {
         throw const FormatException('Missing argument');
       }
+      if (request.name == 'policy_draft_edit') {
+        AgentBusinessTools.validateEditArguments(request.arguments);
+      }
       for (final entry in request.arguments.entries) {
         _checkArgument(
           entry.value,
@@ -758,6 +807,11 @@ final class AgentTools {
       final value = await _execute(request);
       _current(request);
       return AgentToolResult({...redactResource(value), 'taskEffect': effect});
+    } on AgentEditValidationException catch (failure) {
+      return AgentToolResult({
+        ...failure.toJson(),
+        'taskEffect': effect,
+      }, isError: true);
     } on ConfigurationChangeException catch (failure) {
       return error(_safeErrorCode(failure.code));
     } on ScriptExecutionException catch (failure) {
@@ -935,39 +989,37 @@ final class AgentTools {
     }
     switch (request.name) {
       case 'application_catalog':
+        final catalog = _applicationCatalog;
         final commands = args['commands'] as List?;
         if (commands != null) {
           if (commands.any(
-            (name) => !applicationCapabilities.any(
-              (capability) => capability.command == name,
-            ),
+            (name) => !catalog.any((entry) => entry['command'] == name),
           )) {
             throw const ConfigurationChangeException('tool_unknown_command');
           }
           return {
-            'capabilities': applicationCapabilities
-                .where((capability) => commands.contains(capability.command))
-                .map((capability) => capability.toJson())
+            'capabilities': catalog
+                .where((entry) => commands.contains(entry['command']))
                 .toList(),
           };
         }
         return agentPage(
           'commands',
           [
-            for (final capability in applicationCapabilities)
+            for (final capability in catalog)
               {
-                'id': capability.command,
-                'name': capability.command,
-                'description': agentShortText(capability.description, 120),
-                'requiresConfirmation': capability.mutating,
+                'id': capability['command'],
+                'name': capability['command'],
+                'description': agentShortText(
+                  capability['description'] as String,
+                  120,
+                ),
+                'requiresConfirmation':
+                    capability['risk'] == 'requires_confirmation',
               },
           ],
           args,
-          version: policyDigest(
-            applicationCapabilities
-                .map((capability) => capability.toJson())
-                .toList(),
-          ),
+          version: policyDigest(catalog),
         );
       case 'application_invoke':
         return controller.ref
@@ -1365,16 +1417,28 @@ final class AgentTools {
           final row = await controller.store.readChange(
             policyString(args, 'id'),
           );
+          var configurationChange =
+              row != null &&
+              {
+                'policies',
+                'settings',
+                'ai',
+                'target',
+                'undo',
+              }.contains(row.category);
+          if (row != null && row.category.startsWith('recovery:')) {
+            final original = await controller.store.readChange(
+              row.category.substring('recovery:'.length),
+            );
+            configurationChange =
+                original != null &&
+                !original.category.startsWith('resource:') &&
+                !original.category.startsWith('repair:');
+          }
           return {
             'change': row == null ? null : _status(row),
-            if (row != null &&
-                row.status == 'applied' &&
-                {'policies', 'settings', 'ai'}.contains(row.category))
-              'currentStateMatches':
-                  configurationDigest(
-                    await controller.changes.backend.readState(),
-                  ) ==
-                  configurationDigest(jsonDecode(row.afterPayload)),
+            if (row != null && row.status == 'applied' && configurationChange)
+              ...await controller.changes.completionStatus(row.id),
           };
         }
         return {

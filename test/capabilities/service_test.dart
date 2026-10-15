@@ -55,6 +55,91 @@ class _Gateway implements ApplicationCapabilityGateway {
   }
 }
 
+class _CompletionGateway extends _Gateway
+    implements ApplicationCompletionGateway {
+  bool running = false;
+  bool matches = true;
+  bool capturedBeforeMutation = false;
+  int reads = 0;
+
+  @override
+  Future<ConfigurationActivationBasis?> captureActivationBasis() async {
+    capturedBeforeMutation = calls == 0;
+    return ConfigurationActivationBasis(
+      stateFingerprint: List.filled(64, 'a').join(),
+      targetId: localPolicyTargetId,
+      documentRevision: 7,
+    );
+  }
+
+  @override
+  Future<ConfigurationCompletionReceipt> readActivationBasis(
+    ConfigurationActivationBasis basis,
+  ) async {
+    reads++;
+    return ConfigurationCompletionReceipt(
+      persisted: true,
+      currentStateMatches: matches,
+      scope: ConfigurationCompletionScope.localPolicy,
+      activation: ConfigurationActivationReceipt(
+        required: true,
+        targetId: basis.targetId,
+        documentRevision: basis.documentRevision,
+        loadedTargetId: localPolicyTargetId,
+        loadedDocumentRevision: 7,
+        loaded: true,
+        running: running,
+        reason: running ? 'active' : 'network_stopped',
+      ),
+    );
+  }
+
+  @override
+  Future<Map<String, Object?>> execute(
+    String command,
+    Map<String, Object?> params, {
+    required String origin,
+    Future<bool> Function()? beginMutation,
+    bool Function()? isCurrent,
+  }) async {
+    final result = await super.execute(
+      command,
+      params,
+      origin: origin,
+      beginMutation: beginMutation,
+      isCurrent: isCurrent,
+    );
+    running = params['running'] == true;
+    return result;
+  }
+}
+
+class _CompletionBackend extends _ConfigurationBackend
+    implements ConfigurationCompletionBackend {
+  bool running = true;
+
+  @override
+  Future<ConfigurationCompletionReceipt> readCompletion(
+    Map<String, Object?> before,
+    Map<String, Object?> after, {
+    required bool currentStateMatches,
+  }) async => ConfigurationCompletionReceipt(
+    persisted: true,
+    currentStateMatches: currentStateMatches,
+    scope: ConfigurationCompletionScope.localPolicy,
+    activation: ConfigurationActivationReceipt(
+      required: true,
+      targetId: localPolicyTargetId,
+      documentRevision: 7,
+      loadedTargetId: localPolicyTargetId,
+      loadedDocumentRevision: 7,
+      loaded: true,
+      running: running,
+      reason: running ? 'active' : 'network_stopped',
+    ),
+  );
+}
+
 class _ConfigurationBackend implements ConfigurationBackend {
   Map<String, Object?> state = {'value': 1};
   bool script = false;
@@ -151,6 +236,110 @@ void main() {
           gateway: _AgentGateway(),
         ),
       );
+
+  test(
+    'connection completion binds before execution and refreshes after stop and target change',
+    () async {
+      final live = _CompletionGateway();
+      final connected = replacement(live);
+      final operation = await connected.execute(
+        'connection_set',
+        {'running': true},
+        origin: 'agent',
+        approve: (_) async => true,
+      );
+      await connected.drain();
+      final id = operation['operationId'] as String;
+      expect(live.capturedBeforeMutation, isTrue);
+      final stored = await store.readSection('capability.activation.$id');
+      expect(stored!.keys.toSet(), {
+        'version',
+        'stateFingerprint',
+        'targetId',
+        'documentRevision',
+      });
+      Future<Map> completion() async {
+        final query = await connected.execute('operation_query', {
+          'operationId': id,
+        });
+        expect(query['operationId'], id);
+        expect(query['status'], 'completed');
+        expect(jsonEncode(query), isNot(contains('stateFingerprint')));
+        return (query['result'] as Map)['completion'] as Map;
+      }
+
+      expect((await completion())['outcome'], 'effective');
+      live.running = false;
+      expect((await completion())['outcome'], 'saved');
+      live.running = true;
+      live.matches = false;
+      expect((await completion())['currentStateMatches'], isFalse);
+      expect(live.reads, 3);
+    },
+  );
+
+  test(
+    'profile selection query refreshes its bound configuration row instead of stored proof',
+    () async {
+      final backend = _CompletionBackend();
+      final changes = ConfigurationChangeService(
+        backend: backend,
+        store: store,
+      );
+      when(() => controller.changes).thenReturn(changes);
+      final draft = await changes.propose(
+        category: 'target',
+        summary: 'local target',
+        candidate: {'value': 2},
+      );
+      final committed = await changes.commit(
+        id: draft.id,
+        approve: (_) async => true,
+      );
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await store.saveChange(
+        id: 'selection-operation',
+        category: 'capability:profile_select',
+        summary: 'select local',
+        highRisk: true,
+        fingerprint: 'fixture',
+        before: {},
+        after: {
+          'command': 'profile_select',
+          'params': {'integrationId': localPolicyProfileId},
+        },
+        createdAt: now,
+        expiresAt: now + 60000,
+      );
+      await store.changeStatus('selection-operation', 'applied');
+      await store.writeSection(
+        'capability.result.selection-operation',
+        committed,
+      );
+      Future<Map> completion() async {
+        final query = await service.execute('operation_query', {
+          'operationId': 'selection-operation',
+        });
+        expect(query['operationId'], 'selection-operation');
+        return (query['result'] as Map)['completion'] as Map;
+      }
+
+      expect((await completion())['outcome'], 'effective');
+      backend.running = false;
+      expect((await completion())['outcome'], 'saved');
+      backend.state['value'] = 3;
+      expect((await completion())['currentStateMatches'], isFalse);
+      await store.writeSection('capability.result.selection-operation', {
+        ...committed,
+        'id': 'missing-target-change',
+      });
+      final missing = await service.execute('operation_query', {
+        'operationId': 'selection-operation',
+      });
+      expect((missing['result'] as Map)['currentStateMatches'], isFalse);
+      expect((missing['result'] as Map).containsKey('completion'), isFalse);
+    },
+  );
 
   test(
     'restarted agent must locally approve a pending operation again',

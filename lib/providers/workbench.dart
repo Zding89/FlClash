@@ -745,12 +745,14 @@ class FlutterConfigurationBackend
         ApprovedConfigurationValidator,
         ConfigurationRecoveryBackend,
         ConfigurationCommitBackend,
-        ConfigurationRecoveryValidator {
+        ConfigurationRecoveryValidator,
+        ConfigurationCompletionBackend {
   final Ref ref;
   final WorkbenchDatabase store;
   final PolicyProfileService profiles;
   final SettingsCatalog catalog;
   final Future<void> Function() _closeAgent;
+  final Future<Map<String, Object?>> Function() _readPolicyStatus;
   Map<String, Object?>? _lastActivated;
   final Map<String, String?> _commitArtifacts = {};
   String? _providedYaml;
@@ -763,10 +765,120 @@ class FlutterConfigurationBackend
     required this.profiles,
     SettingsCatalog? catalog,
     Future<void> Function()? closeAgent,
-  }) : catalog = catalog ?? SettingsCatalog(),
+    Future<Map<String, Object?>> Function()? readPolicyStatus,
+  }) : _readPolicyStatus =
+           readPolicyStatus ?? (() => coreController.getLocalPolicyStatus()),
+       catalog = catalog ?? SettingsCatalog(),
        _closeAgent =
            closeAgent ??
            (() => ref.read(workbenchControllerProvider).closeAgent());
+
+  @override
+  Future<ConfigurationCompletionReceipt> readCompletion(
+    Map<String, Object?> before,
+    Map<String, Object?> after, {
+    required bool currentStateMatches,
+  }) async {
+    final localPolicy =
+        configurationDigest(before['policies']) !=
+        configurationDigest(after['policies']);
+    if (!localPolicy) {
+      return ConfigurationCompletionReceipt(
+        persisted: true,
+        currentStateMatches: currentStateMatches,
+        scope: ConfigurationCompletionScope.configuration,
+      );
+    }
+    final document = LocalPolicyDocument.fromJson(
+      policyObject(after['policies'], 'policies'),
+    ).asStandalone();
+    return _readActivationCompletion(
+      target: document.activeIntegration?.targetId,
+      revision: document.revision,
+      enabled: document.moduleEnabled && document.integrationEnabled,
+      currentStateMatches: currentStateMatches,
+    );
+  }
+
+  Future<ConfigurationActivationBasis?> captureActivationBasis() async {
+    final state = await readState();
+    final document = LocalPolicyDocument.fromJson(
+      policyObject(state['policies'], 'policies'),
+    ).asStandalone();
+    if (!document.moduleEnabled || !document.integrationEnabled) return null;
+    return ConfigurationActivationBasis(
+      stateFingerprint: configurationDigest(state),
+      targetId: document.activeIntegration!.targetId,
+      documentRevision: document.revision,
+    );
+  }
+
+  Future<ConfigurationCompletionReceipt> readActivationBasis(
+    ConfigurationActivationBasis basis,
+  ) async {
+    final matches =
+        configurationDigest(await readState()) == basis.stateFingerprint;
+    final receipt = await _readActivationCompletion(
+      target: basis.targetId,
+      revision: basis.documentRevision,
+      enabled: true,
+      currentStateMatches: matches,
+    );
+    final stillMatches =
+        matches &&
+        configurationDigest(await readState()) == basis.stateFingerprint;
+    return ConfigurationCompletionReceipt(
+      persisted: true,
+      currentStateMatches: stillMatches,
+      scope: ConfigurationCompletionScope.localPolicy,
+      activation: receipt.activation,
+    );
+  }
+
+  Future<ConfigurationCompletionReceipt> _readActivationCompletion({
+    required String? target,
+    required int revision,
+    required bool enabled,
+    required bool currentStateMatches,
+  }) async {
+    final connected = ref.read(coreStatusProvider) == CoreStatus.connected;
+    Map<String, Object?> status = {};
+    if (connected) {
+      try {
+        status = await _readPolicyStatus();
+      } catch (_) {}
+    }
+    final running =
+        ref.read(coreStatusProvider) == CoreStatus.connected &&
+        ref.read(isStartProvider) &&
+        !ref.read(suspendProvider);
+    final loaded = status['enabled'] == true;
+    final loadedTarget = status['targetId'];
+    final loadedRevision = status['documentRevision'];
+    return ConfigurationCompletionReceipt(
+      persisted: true,
+      currentStateMatches: currentStateMatches,
+      scope: ConfigurationCompletionScope.localPolicy,
+      activation: ConfigurationActivationReceipt(
+        required: enabled,
+        targetId: target,
+        documentRevision: revision,
+        loadedTargetId: loadedTarget is String ? loadedTarget : null,
+        loadedDocumentRevision: loadedRevision is int ? loadedRevision : null,
+        loaded: loaded,
+        running: running,
+        reason: !currentStateMatches
+            ? 'configuration_changed'
+            : !enabled
+            ? 'integration_disabled'
+            : !running
+            ? 'network_stopped'
+            : !loaded || loadedTarget != target || loadedRevision != revision
+            ? 'runtime_version_unconfirmed'
+            : 'active',
+      ),
+    );
+  }
 
   Future<void> synchronizeActivatedState() async {
     if (_activating) return;

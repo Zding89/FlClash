@@ -594,6 +594,211 @@ void main() {
   );
 
   test(
+    'action validation returns safe repair paths and leaves the retained draft untouched',
+    () async {
+      final initial = await success('policy_draft_edit', {
+        'version': version(),
+        'actions': [
+          {
+            'action': 'updateRule',
+            'id': 'alpha',
+            'fields': {'label': 'Retained'},
+          },
+        ],
+      });
+      final id = draftId(initial);
+      final snapshot = (await store.readChange(id))!.afterPayload;
+      final examples = <Map<String, Object?>>[
+        {
+          'action': 'createRule',
+          'probe': {'url': 'https://secret.invalid/?token=DO_NOT_ECHO'},
+          'fields': {'label': 'DO_NOT_ECHO', 'action': 'direct'},
+        },
+        {
+          'action': 'createRule',
+          'fields': {
+            'label': 'DO_NOT_ECHO',
+            'action': 'direct',
+            'probe': {'recoverySeconds': 30, 'cooldownSeconds': 10},
+          },
+        },
+        {
+          'action': 'createRule',
+          'fields': {
+            'label': 'DO_NOT_ECHO',
+            'action': 'direct',
+            'scope': {
+              'type': 'any',
+              'children': [
+                {
+                  'type': 'domainSuffix',
+                  'values': ['DO_NOT_ECHO.invalid'],
+                },
+              ],
+            },
+          },
+        },
+        {
+          'action': 'createRule',
+          'fields': {
+            'label': 'DO_NOT_ECHO',
+            'action': 'direct',
+            'scope': {
+              'type': 'region',
+              'values': ['CN'],
+            },
+          },
+        },
+      ];
+      final expectedFields = [
+        'probe',
+        'fields.probe.recoverySeconds',
+        'fields.scope.children',
+        'fields.scope.type',
+      ];
+      for (var index = 0; index < examples.length; index++) {
+        final failure = await execute('policy_draft_edit', {
+          'draftId': id,
+          'version': initial['version'],
+          'actions': [
+            {
+              'action': 'updateRule',
+              'id': 'beta',
+              'fields': {'label': 'must not persist'},
+            },
+            examples[index],
+          ],
+        });
+        expect(failure.isError, isTrue);
+        expect(failure.value['code'], 'tool_invalid_arguments');
+        expect(failure.value['writeApplied'], isFalse);
+        expect(failure.value['schemaTool'], 'policy_edit_schema');
+        final issues = failure.value['issues'] as List;
+        expect(
+          issues.any(
+            (issue) =>
+                (issue as Map)['actionIndex'] == 1 &&
+                issue['field'] == expectedFields[index],
+          ),
+          isTrue,
+          reason: '${failure.value}',
+        );
+        if (index == 1) {
+          expect(
+            issues.any(
+              (issue) =>
+                  (issue as Map)['expectedPath'] == 'fields.recoverySeconds',
+            ),
+            isTrue,
+          );
+          expect(
+            issues.any(
+              (issue) =>
+                  (issue as Map)['expectedPath'] == 'fields.cooldownSeconds',
+            ),
+            isTrue,
+          );
+        }
+        final encoded = jsonEncode(failure.value);
+        expect(encoded, isNot(contains('DO_NOT_ECHO')));
+        expect(utf8.encode(encoded).length, lessThanOrEqualTo(6144));
+        expect((await store.readChange(id))!.afterPayload, snapshot);
+        expect((await store.readChange(id))!.status, 'draft');
+        expect(await store.watchChanges().first, hasLength(1));
+        expect(backend.writes, 0);
+      }
+    },
+  );
+
+  test(
+    'corrected complete batch creates every resource and semantic scopes without writes',
+    () async {
+      final result = await success('policy_draft_edit', {
+        'version': version(),
+        'actions': [
+          {
+            'action': 'createNodeSet',
+            'clientKey': 'preferred',
+            'fields': {
+              'label': 'HK preferred',
+              'sourceIds': ['2', '1'],
+              'regions': ['HK'],
+              'preferences': [
+                {'type': 'source', 'direction': 'ascending'},
+              ],
+            },
+          },
+          for (final type in [
+            'domainSuffix',
+            'destinationRegion',
+            'global',
+            'any',
+          ])
+            {
+              'action': 'createRule',
+              'fields': {
+                'label': type,
+                'scope': {
+                  'type': type,
+                  if (type == 'domainSuffix') 'values': ['example.com'],
+                  if (type == 'destinationRegion') 'values': ['CN'],
+                  if (type == 'any')
+                    'children': [
+                      {
+                        'type': 'domainSuffix',
+                        'values': ['example.com'],
+                      },
+                      {
+                        'type': 'domainSuffix',
+                        'values': ['example.net'],
+                      },
+                    ],
+                },
+                'choices': [
+                  {'type': 'nodeSet', 'id': 'preferred'},
+                ],
+                'probe': {'intervalSeconds': 30, 'timeoutSeconds': 5},
+                'recoverySeconds': 30,
+                'cooldownSeconds': 10,
+              },
+            },
+        ],
+      });
+      final document = await controller.readPolicyDraft(draftId(result));
+      expect(document.policies, hasLength(6));
+      expect(document.nodeSets, hasLength(2));
+      expect((result['createdResources'] as List), hasLength(5));
+      expect(backend.writes, 0);
+      final schema = await success('policy_edit_schema', {'kind': 'nodeSet'});
+      expect(schema['sourceSelection'], contains('hard exclusion'));
+    },
+  );
+
+  test(
+    'many invalid fields remain bounded and never echo user-supplied keys or values',
+    () async {
+      final result = await execute('policy_draft_edit', {
+        'version': version(),
+        'actions': [
+          for (var index = 0; index < 100; index++)
+            {
+              'action': 'createRule',
+              'fields': {'DO_NOT_ECHO_$index': 'private-fixture'},
+            },
+        ],
+      });
+      expect(result.isError, isTrue);
+      expect(result.value['writeApplied'], isFalse);
+      expect(result.value['issuesComplete'], isFalse);
+      final encoded = jsonEncode(result.value);
+      expect(encoded, isNot(contains('DO_NOT_ECHO')));
+      expect(encoded, isNot(contains('private-fixture')));
+      expect(utf8.encode(encoded).length, lessThanOrEqualTo(6144));
+      expect(await store.watchChanges().first, isEmpty);
+    },
+  );
+
+  test(
     'specified draft preview compiles and simulates that draft, using one source snapshot',
     () async {
       final proposal = await success('policy_draft_edit', {

@@ -14,6 +14,127 @@ abstract interface class ConfigurationBackend {
   Future<void> activate(Map<String, Object?> candidate);
 }
 
+enum ConfigurationCompletionScope { configuration, localPolicy }
+
+final class ConfigurationActivationBasis {
+  final String stateFingerprint;
+  final String targetId;
+  final int documentRevision;
+
+  const ConfigurationActivationBasis({
+    required this.stateFingerprint,
+    required this.targetId,
+    required this.documentRevision,
+  });
+
+  factory ConfigurationActivationBasis.fromJson(Map<String, Object?> json) {
+    policyKeys(json, {
+      'version',
+      'stateFingerprint',
+      'targetId',
+      'documentRevision',
+    });
+    final fingerprint = policyString(json, 'stateFingerprint', maximum: 64);
+    final target = policyString(json, 'targetId', maximum: 128);
+    if (json['version'] != 1 ||
+        !RegExp(r'^[a-f0-9]{64}$').hasMatch(fingerprint) ||
+        target != localPolicyTargetId) {
+      throw const FormatException('Invalid activation basis');
+    }
+    return ConfigurationActivationBasis(
+      stateFingerprint: fingerprint,
+      targetId: target,
+      documentRevision: policyInt(json, 'documentRevision'),
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'version': 1,
+    'stateFingerprint': stateFingerprint,
+    'targetId': targetId,
+    'documentRevision': documentRevision,
+  };
+}
+
+final class ConfigurationActivationReceipt {
+  final bool required;
+  final String? targetId;
+  final int? documentRevision;
+  final String? loadedTargetId;
+  final int? loadedDocumentRevision;
+  final bool loaded;
+  final bool running;
+  final String reason;
+
+  const ConfigurationActivationReceipt({
+    required this.required,
+    this.targetId,
+    this.documentRevision,
+    this.loadedTargetId,
+    this.loadedDocumentRevision,
+    required this.loaded,
+    required this.running,
+    required this.reason,
+  });
+
+  bool get effective =>
+      required &&
+      loaded &&
+      running &&
+      targetId != null &&
+      targetId == loadedTargetId &&
+      documentRevision != null &&
+      documentRevision == loadedDocumentRevision;
+
+  Map<String, Object?> toJson() => {
+    'required': required,
+    'targetId': targetId,
+    'documentRevision': documentRevision,
+    'loadedTargetId': loadedTargetId,
+    'loadedDocumentRevision': loadedDocumentRevision,
+    'loaded': loaded,
+    'running': running,
+    'effective': effective,
+    'reason': reason,
+  };
+}
+
+final class ConfigurationCompletionReceipt {
+  final bool persisted;
+  final bool currentStateMatches;
+  final ConfigurationCompletionScope scope;
+  final ConfigurationActivationReceipt? activation;
+
+  const ConfigurationCompletionReceipt({
+    required this.persisted,
+    required this.currentStateMatches,
+    required this.scope,
+    this.activation,
+  });
+
+  bool get effective =>
+      persisted && currentStateMatches && activation?.effective == true;
+
+  Map<String, Object?> toJson() => {
+    'version': 1,
+    'persisted': persisted,
+    'currentStateMatches': currentStateMatches,
+    'scope': scope == ConfigurationCompletionScope.localPolicy
+        ? 'local_policy'
+        : 'configuration',
+    'outcome': effective ? 'effective' : 'saved',
+    if (activation != null) 'activation': activation!.toJson(),
+  };
+}
+
+abstract interface class ConfigurationCompletionBackend {
+  Future<ConfigurationCompletionReceipt> readCompletion(
+    Map<String, Object?> before,
+    Map<String, Object?> after, {
+    required bool currentStateMatches,
+  });
+}
+
 abstract interface class ApprovedConfigurationValidator {
   Future<Map<String, Object?>> validateApproved(Map<String, Object?> candidate);
 }
@@ -389,6 +510,34 @@ final class ConfigurationChangeService {
     ).asStandalone();
   });
 
+  Future<Map<String, Object?>> completionStatus(String id) async {
+    final row = await store.readChange(id);
+    if (row == null || row.status != 'applied') return {};
+    final before = policyObject(jsonDecode(row.beforePayload), 'before');
+    final after = policyObject(jsonDecode(row.afterPayload), 'after');
+    final matches =
+        configurationDigest(await backend.readState()) ==
+        configurationDigest(after);
+    if (backend is! ConfigurationCompletionBackend) {
+      return {'currentStateMatches': matches};
+    }
+    final receipt = await (backend as ConfigurationCompletionBackend)
+        .readCompletion(before, after, currentStateMatches: matches);
+    final stillMatches =
+        matches &&
+        configurationDigest(await backend.readState()) ==
+            configurationDigest(after);
+    return {
+      'currentStateMatches': stillMatches,
+      'completion': ConfigurationCompletionReceipt(
+        persisted: receipt.persisted,
+        currentStateMatches: stillMatches,
+        scope: receipt.scope,
+        activation: receipt.activation,
+      ).toJson(),
+    };
+  }
+
   Future<ConfigurationProposal> readProposal(String id) async {
     final row = await store.readChange(id);
     if (row == null) {
@@ -564,7 +713,12 @@ final class ConfigurationChangeService {
       );
     }
     if (initial.status == 'applied') {
-      return {'id': id, 'status': 'applied', 'replayed': true};
+      return {
+        'id': id,
+        'status': 'applied',
+        'replayed': true,
+        ...await completionStatus(id),
+      };
     }
     if (initial.status != 'draft') {
       throw const ConfigurationChangeException(
@@ -597,7 +751,12 @@ final class ConfigurationChangeService {
         );
       }
       if (row.status == 'applied') {
-        return {'id': id, 'status': 'applied', 'replayed': true};
+        return {
+          'id': id,
+          'status': 'applied',
+          'replayed': true,
+          ...await completionStatus(id),
+        };
       }
       if (row.status != 'draft') {
         throw const ConfigurationChangeException(
@@ -686,7 +845,7 @@ final class ConfigurationChangeService {
             );
           }
           await store.changeStatus(id, 'applied');
-          return {'id': id, 'status': 'applied'};
+          return {'id': id, 'status': 'applied', ...await completionStatus(id)};
         } catch (error) {
           if (error is ConfigurationChangeException &&
               error.code == 'configuration_version_conflict') {

@@ -854,6 +854,17 @@ class ApplicationCapabilityService {
         await controller.store.changeStatus(id, 'running');
         if (!await valid()) return;
       }
+      if (command == 'connection_set' &&
+          gateway is ApplicationCompletionGateway) {
+        final basis = await (gateway as ApplicationCompletionGateway)
+            .captureActivationBasis();
+        if (basis != null) {
+          await controller.store.writeSection(
+            'capability.activation.$id',
+            basis.toJson(),
+          );
+        }
+      }
       final result = await gateway.execute(
         command,
         params,
@@ -966,14 +977,95 @@ class ApplicationCapabilityService {
     return {'status': 'requires_user_action', 'operationId': id};
   }
 
+  Future<Map<String, Object?>?> _refreshCompletion(
+    WorkbenchChange operation,
+    Map<String, Object?>? result,
+  ) async {
+    if (!{'applied', 'completed'}.contains(operation.status) ||
+        _active.containsKey(operation.id)) {
+      return result;
+    }
+    const categories = {'policies', 'settings', 'ai', 'target', 'undo'};
+    var changeId = categories.contains(operation.category)
+        ? operation.id
+        : null;
+    final command = operation.category.startsWith('capability:')
+        ? operation.category.substring('capability:'.length)
+        : null;
+    if (command == 'profile_select' && result?['id'] is String) {
+      final selected = await controller.store.readChange(
+        result!['id'] as String,
+      );
+      if (selected?.category == 'target') changeId = selected!.id;
+    }
+    if (command == 'profile_select' && changeId == null) {
+      return <String, Object?>{...?result, 'currentStateMatches': false}
+        ..remove('completion');
+    }
+    if (operation.category.startsWith('recovery:')) {
+      final original = await controller.store.readChange(
+        operation.category.substring('recovery:'.length),
+      );
+      if (original != null && categories.contains(original.category)) {
+        changeId = operation.id;
+      }
+    }
+    if (changeId != null) {
+      final refreshed = <String, Object?>{...?result, 'id': changeId}
+        ..remove('completion');
+      try {
+        refreshed.addAll(await controller.changes.completionStatus(changeId));
+      } catch (_) {
+        refreshed['currentStateMatches'] = false;
+      }
+      return refreshed;
+    }
+    if (command == 'connection_set' &&
+        gateway is ApplicationCompletionGateway) {
+      final stored = await controller.store.readSection(
+        'capability.activation.${operation.id}',
+      );
+      if (stored == null) return result;
+      final refreshed = Map<String, Object?>.from(result ?? {})
+        ..remove('completion');
+      try {
+        final receipt = await (gateway as ApplicationCompletionGateway)
+            .readActivationBasis(ConfigurationActivationBasis.fromJson(stored));
+        final payload = policyObject(
+          jsonDecode(operation.afterPayload),
+          'operation',
+        );
+        final arguments = policyObject(payload['params'], 'params');
+        final requested = policyBool(arguments, 'running');
+        final matches =
+            receipt.currentStateMatches &&
+            receipt.activation?.running == requested;
+        refreshed['completion'] = ConfigurationCompletionReceipt(
+          persisted: receipt.persisted,
+          currentStateMatches: matches,
+          scope: receipt.scope,
+          activation: receipt.activation,
+        ).toJson();
+        refreshed['currentStateMatches'] = matches;
+        refreshed['running'] = receipt.activation?.running;
+        refreshed['requestedRunning'] = requested;
+      } catch (_) {
+        refreshed['currentStateMatches'] = false;
+      }
+      return refreshed;
+    }
+    return result;
+  }
+
   Future<Map<String, Object?>> _query(String id) async {
     final row = await controller.store.readChange(id);
     if (row == null) {
       return {'status': 'failed', 'errorCode': 'operation_missing'};
     }
     if (!row.category.startsWith('capability:')) {
-      final result = await controller.store.readSection(
-        'capability.result.$id',
+      final result = await _refreshCompletion(
+        row,
+        await controller.store.readSection('capability.result.$id'),
       );
       return {
         'status': _active.containsKey(id)
@@ -1037,7 +1129,10 @@ class ApplicationCapabilityService {
           'digest': before['digest'],
           'version': before['version'],
         },
-      'result': await controller.store.readSection('capability.result.$id'),
+      'result': await _refreshCompletion(
+        row,
+        await controller.store.readSection('capability.result.$id'),
+      ),
     };
   }
 }

@@ -16,6 +16,67 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final scenario in [
+    ('inactive', false, false, 7, true, 'integration_disabled'),
+    ('effective', true, true, 7, true, 'active'),
+    ('stale revision', true, true, 6, true, 'runtime_version_unconfirmed'),
+    ('changed configuration', true, true, 7, false, 'configuration_changed'),
+  ]) {
+    testWidgets('completion card reports ${scenario.$1} from evidence', (
+      tester,
+    ) async {
+      await AppLocalizations.load(const Locale('zh', 'CN'));
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('zh', 'CN'),
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: Scaffold(
+            body: AiToolResultCard(
+              result: {
+                'status': 'applied',
+                'errorCode': null,
+                'completion': {
+                  'version': 1,
+                  'scope': 'local_policy',
+                  'persisted': true,
+                  'currentStateMatches': scenario.$5,
+                  'activation': {
+                    'required': scenario.$2,
+                    'targetId': localPolicyTargetId,
+                    'documentRevision': 7,
+                    'loadedTargetId': localPolicyTargetId,
+                    'loadedDocumentRevision': scenario.$4,
+                    'loaded': scenario.$2,
+                    'running': scenario.$3,
+                    'effective': true,
+                    'reason': scenario.$6,
+                  },
+                },
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final strings = AppLocalizations.current;
+      final expected = scenario.$1 == 'effective'
+          ? strings.aiPolicyEffectiveVerified
+          : scenario.$1 == 'inactive'
+          ? strings.aiPolicySavedOnly
+          : strings.aiPolicySavedUnverified;
+      expect(find.text(expected), findsOneWidget);
+      expect(find.text(strings.policyAppliedStatus), findsNothing);
+      expect(find.text('completion'), findsNothing);
+      expect(find.text('effective'), findsNothing);
+      expect(find.text(strings.aiRequestFailed), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
   testWidgets(
     'version conflicts show business feedback without internal fields',
     (tester) async {

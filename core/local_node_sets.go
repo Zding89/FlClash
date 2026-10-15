@@ -418,6 +418,9 @@ func (e *localPolicyEngine) evaluateSetSelectionLocked(r, measured, owner *local
 		return
 	}
 	eligibleReason := func(id string) string {
+		if reason := e.requestNodeReasonLocked(r, id); reason != "" {
+			return reason
+		}
 		if !e.setDefinitions[measured.setID].includes(e.nodes[id]) {
 			return "outside_node_set"
 		}
@@ -510,6 +513,9 @@ func (e *localPolicyEngine) evaluateSetSelectionLocked(r, measured, owner *local
 	e.recordSelectionLocked(r, desired, reason, now)
 }
 func (e *localPolicyEngine) choiceNodeReasonLocked(r *localPolicyRuntime, index int, id string, now time.Time) string {
+	if reason := e.requestNodeReasonLocked(r, id); reason != "" {
+		return reason
+	}
 	if reason := e.sourceReasonLocked(id, r.definition, now); reason != "" {
 		return reason
 	}
@@ -564,6 +570,7 @@ func (e *localPolicyEngine) evaluateChoicesLocked(r *localPolicyRuntime, now tim
 			}
 			selection.definition = set.definition
 			selection.health = set.health
+			selection.network = r.network
 			e.evaluateSetSelectionLocked(selection, set, r, now)
 			id = selection.selected
 		}

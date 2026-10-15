@@ -166,6 +166,7 @@ class _AiLinkedChangesViewState extends ConsumerState<AiLinkedChangesView> {
     final strings = context.appLocalizations;
     return switch (status) {
       'applied' => strings.policyAppliedStatus,
+      'saved' => strings.policySaved,
       'draft' ||
       'pending_confirmation' ||
       'proposal_ready' => strings.policyDraftStatus,

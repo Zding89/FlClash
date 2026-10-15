@@ -494,6 +494,7 @@ test('business tools discover and activate an exact schema without eager global 
   const f = fixture([
     context => {
       assert.ok(declared(context).has('workspace_overview'));
+      for (const name of ['changes_commit', 'application_catalog', 'application_invoke', 'application_operation']) assert.ok(declared(context).has(name), name);
       assert.ok(!declared(context).has('settings_read'));
       return [call('discover', 'tools_catalog', { names: ['settings_read'] })];
     },
@@ -503,7 +504,7 @@ test('business tools discover and activate an exact schema without eager global 
     },
     [text('设置读取完成')],
   ], { settings_read: () => ({ value: { taskEffect: 'read', settings: { locale: 'zh_CN' } } }) });
-  f.host.receive(input({ tools: ['workspace_overview', 'settings_read'].map(definition) })); await f.done();
+  f.host.receive(input({ tools: ['workspace_overview', 'settings_read', 'changes_commit', 'application_catalog', 'application_invoke', 'application_operation'].map(definition) })); await f.done();
   assert.equal(f.events.at(-1).data.failed, false);
 });
 
@@ -678,4 +679,117 @@ test('large catalog capabilities and the latest draft business state survive req
   assert.deepEqual(firstGroup.filter(message => message.role === 'toolResult').map(message => message.toolCallId), firstCalls);
   assert.ok(boundedContext.messages.length <= 100);
   assert.ok(Buffer.byteLength(JSON.stringify(boundedContext.messages)) <= MAX_CONTEXT_BYTES);
+});
+
+const configurationReceipt = (overrides = {}) => ({
+  version: 1, persisted: true, currentStateMatches: true, scope: 'local_policy', outcome: 'effective',
+  activation: { required: true, targetId: 'integration:flclash_local', documentRevision: 7, loadedTargetId: 'integration:flclash_local', loadedDocumentRevision: 7, loaded: true, running: true, effective: true, reason: 'active' },
+  ...overrides,
+});
+
+test('configuration activation requires a fresh same-operation target revision and running proof', async () => {
+  const good = configurationReceipt();
+  for (const activation of [
+    { ...good.activation, required: false, reason: 'integration_disabled' },
+    { ...good.activation, running: false, reason: 'network_stopped' },
+    { ...good.activation, loaded: false },
+    { ...good.activation, loadedTargetId: 'profile:7' },
+    { ...good.activation, loadedDocumentRevision: 6 },
+  ]) {
+    const receipt = { ...good, activation };
+    const f = fixture([
+      [call('commit', 'changes_commit', { id: 'local-change' })],
+      [call('query', 'changes_status', { id: 'local-change' })],
+      [call('false-effective', 'task_finish', { status: 'completed', completionGoal: 'effective', summary: '规则已生效' })],
+      context => {
+        assert.equal(context.messages.find(message => message.role === 'toolResult' && message.toolCallId === 'false-effective').isError, true);
+        return [call('saved', 'task_finish', { status: 'completed', completionGoal: 'saved', summary: '规则已生效' })];
+      },
+    ], {
+      changes_commit: () => ({ value: { id: 'local-change', status: 'applied', completion: receipt } }),
+      changes_status: () => ({ value: { change: { id: 'local-change', status: 'applied' }, currentStateMatches: true, completion: receipt } }),
+    });
+    f.host.receive(input()); await f.done();
+    assert.equal(f.events.at(-1).data.taskStatus, 'completed');
+    const finals = f.events.filter(event => event.type === 'text' && event.data.phase === 'final');
+    assert.ok(finals.some(event => event.data.text.includes('本地规则已保存')));
+    if (['integration_disabled', 'network_stopped'].includes(activation.reason)) assert.ok(finals.some(event => event.data.text.includes('目前未用于当前网络')));
+    else assert.ok(finals.some(event => event.data.text.includes('尚未确认')));
+    assert.ok(!finals.some(event => event.data.text.includes('规则已生效')));
+    assert.equal(f.events.filter(event => event.type === 'toolRequest' && event.data.name === 'changes_commit').length, 1);
+  }
+});
+
+test('fresh running matching activation completes but immediate receipt alone cannot', async () => {
+  const f = fixture([
+    [call('commit', 'changes_commit', { id: 'active-change' })],
+    [call('too-early', 'task_finish', { status: 'completed', completionGoal: 'effective', summary: '立即生效' })],
+    [call('query', 'changes_status', { id: 'active-change' })],
+    [call('missing-goal', 'task_finish', { status: 'completed', summary: '未区分保存与生效' })],
+    context => {
+      assert.equal(context.messages.find(message => message.role === 'toolResult' && message.toolCallId === 'missing-goal').isError, true);
+      return [call('done', 'task_finish', { status: 'completed', completionGoal: 'effective', summary: '已验证所有流量' })];
+    },
+  ], {
+    changes_commit: () => ({ value: { id: 'active-change', status: 'applied', completion: configurationReceipt() } }),
+    changes_status: () => ({ value: { change: { id: 'active-change', status: 'applied' }, currentStateMatches: true, completion: configurationReceipt() } }),
+  });
+  f.host.receive(input()); await f.done();
+  assert.equal(f.events.at(-1).data.taskStatus, 'completed');
+  assert.ok(f.events.some(event => event.type === 'text' && event.data.phase === 'final' && event.data.text.includes('实际流量命中情况尚未验证')));
+});
+
+test('stop after a successful query invalidates its former effective evidence', async () => {
+  let queries = 0;
+  const f = fixture([
+    [call('commit', 'changes_commit', { id: 'stopped-change' })],
+    [call('active-query', 'changes_status', { id: 'stopped-change' })],
+    [call('stopped-query', 'changes_status', { id: 'stopped-change' })],
+    [call('stale', 'task_finish', { status: 'completed', completionGoal: 'effective', summary: '仍然生效', evidenceToolCallIds: ['active-query'] })],
+    [call('saved', 'task_finish', { status: 'completed', completionGoal: 'saved', summary: '仍然生效' })],
+  ], {
+    changes_commit: () => ({ value: { id: 'stopped-change', status: 'applied', completion: configurationReceipt() } }),
+    changes_status: () => ({ value: { change: { id: 'stopped-change', status: 'applied' }, currentStateMatches: true, completion: configurationReceipt(queries++ === 0 ? {} : { activation: { ...configurationReceipt().activation, running: false, reason: 'network_stopped' } }) } }),
+  });
+  f.host.receive(input()); await f.done();
+  assert.equal(f.events.at(-1).data.taskStatus, 'completed');
+  assert.ok(f.events.some(event => event.type === 'text' && event.data.phase === 'final' && event.data.text.includes('未用于当前网络')));
+});
+
+test('ordinary settings and restored changes finish saved without starting networking', async () => {
+  for (const id of ['settings-change', 'recovery-change']) {
+    const f = fixture([
+      [call('commit', 'changes_commit', { id })],
+      [call('query', 'changes_status', { id })],
+      [call('done', 'task_finish', { status: 'completed', completionGoal: 'saved', summary: '网络已生效' })],
+    ], {
+      changes_commit: () => ({ value: { id, status: 'applied', completion: configurationReceipt({ scope: 'configuration', activation: undefined, outcome: 'saved' }) } }),
+      changes_status: () => ({ value: { change: { id, status: 'applied' }, currentStateMatches: true, completion: configurationReceipt({ scope: 'configuration', activation: undefined, outcome: 'saved' }) } }),
+    });
+    f.host.receive(input()); await f.done();
+    assert.equal(f.events.at(-1).data.taskStatus, 'completed');
+    assert.ok(f.events.some(event => event.type === 'text' && event.data.phase === 'final' && event.data.text === '设置已保存，当前保存内容已核对一致。'));
+  }
+});
+
+test('select then connect finishes only with refreshed evidence bound to the connection operation', async () => {
+  const f = fixture([
+    [call('select', 'application_invoke', { command: 'profile_select', params: { integrationId: 'flclash_local' } })],
+    [call('selected', 'application_operation', { operationId: 'select-op' })],
+    [call('connect', 'application_invoke', { command: 'connection_set', params: { running: true } })],
+    [call('other-proof', 'changes_status', { id: 'selected-change' })],
+    [call('wrong', 'task_finish', { status: 'completed', completionGoal: 'effective', summary: '不能跳过连接操作状态' })],
+    context => {
+      assert.equal(context.messages.find(message => message.role === 'toolResult' && message.toolCallId === 'wrong').isError, true);
+      return [call('connected', 'application_operation', { operationId: 'connect-op' })];
+    },
+    [call('done', 'task_finish', { status: 'completed', completionGoal: 'effective', operationId: 'connect-op', summary: '当前本地规则已核对' })],
+  ], {
+    application_invoke: request => ({ value: { operationId: request.arguments.command === 'profile_select' ? 'select-op' : 'connect-op', status: 'accepted', taskEffect: 'mutation' } }),
+    application_operation: request => ({ value: { operationId: request.arguments.operationId, status: 'completed', taskEffect: 'read', result: { completion: configurationReceipt(request.arguments.operationId === 'select-op' ? { activation: { ...configurationReceipt().activation, running: false, reason: 'network_stopped' } } : {}) } } }),
+    changes_status: () => ({ value: { change: { id: 'selected-change', status: 'applied' }, currentStateMatches: true, completion: configurationReceipt(), taskEffect: 'read' } }),
+  });
+  f.host.receive(input({ tools: ['application_invoke', 'application_operation', 'changes_status'].map(definition) })); await f.done();
+  assert.equal(f.events.at(-1).data.taskStatus, 'completed');
+  assert.ok(f.events.some(event => event.type === 'text' && event.data.phase === 'final' && event.data.text.includes('当前运行的本地规则目标和版本一致')));
 });

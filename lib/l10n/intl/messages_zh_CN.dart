@@ -254,6 +254,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiNewConversation": MessageLookupByLibrary.simpleMessage("新建对话"),
     "aiNoConnection": MessageLookupByLibrary.simpleMessage("先添加连接，再开始对话"),
     "aiNoDifferences": MessageLookupByLibrary.simpleMessage("没有需要修改的内容"),
+    "aiPolicyEffectiveVerified": MessageLookupByLibrary.simpleMessage(
+      "已保存，已核验生效",
+    ),
     "aiPolicyPlanChanges": m1,
     "aiPolicyPlanCounts": m2,
     "aiPolicyPlanDisabled": MessageLookupByLibrary.simpleMessage("已停用"),
@@ -268,6 +271,10 @@ class MessageLookup extends MessageLookupByLibrary {
       "匹配全部流量；仅在本条未生效或没有可用节点时检查后续规则",
     ),
     "aiPolicyPlanTitle": MessageLookupByLibrary.simpleMessage("本地规则方案"),
+    "aiPolicySavedOnly": MessageLookupByLibrary.simpleMessage("已保存，尚未生效"),
+    "aiPolicySavedUnverified": MessageLookupByLibrary.simpleMessage(
+      "已保存，运行状态未确认",
+    ),
     "aiPolicyUnknownMultiplierExcluded": MessageLookupByLibrary.simpleMessage(
       "排除未标注倍率的节点",
     ),
