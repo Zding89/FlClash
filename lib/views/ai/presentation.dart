@@ -418,7 +418,7 @@ class AiToolResultCard extends StatelessWidget {
                     ),
                   ),
               if (awaitingApproval ||
-                  result == null ||
+                  result?['status'] == null ||
                   result!['status'] == 'pending_confirmation')
                 Text(
                   awaitingApproval

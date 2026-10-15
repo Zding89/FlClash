@@ -136,7 +136,9 @@ void main() {
                 padding: const EdgeInsets.all(20),
                 child: AiToolResultCard(
                   proposal: proposal,
-                  result: const {'status': 'pending_confirmation'},
+                  result: width < 500
+                      ? const {}
+                      : const {'status': 'pending_confirmation'},
                   onReview: () {},
                 ),
               ),
@@ -146,6 +148,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('本地规则方案'), findsOneWidget);
+      expect(find.text('方案已生成，尚未应用'), findsOneWidget);
+      expect(find.text('检查结果'), findsNothing);
       expect(find.text('3 条规则 · 2 个节点组'), findsOneWidget);
       expect(find.textContaining('国内（中国） (GeoIP) → 直连'), findsOneWidget);
       expect(find.text('policies.policies'), findsNothing);
@@ -178,7 +182,24 @@ void main() {
           ],
           supportedLocales: AppLocalizations.delegate.supportedLocales,
           home: Scaffold(
-            body: AiConfigurationApprovalDialog(proposal: proposal),
+            body: AiConfigurationApprovalDialog(
+              proposal: ConfigurationProposal(
+                id: proposal.id,
+                summary: proposal.summary,
+                highRisk: proposal.highRisk,
+                expiresAt: proposal.expiresAt,
+                differences: proposal.differences,
+                validation: {
+                  'localPolicyDocuments': {
+                    'before': const LocalPolicyDocument()
+                        .asStandalone()
+                        .toJson(),
+                    'after': after.asStandalone().toJson(),
+                    'sourceLabels': {'7': '测试机场'},
+                  },
+                },
+              ),
+            ),
           ),
         ),
       );

@@ -110,6 +110,27 @@ Map<String, Object?>? aiPolicyPlan(
   if (saved is Map && saved['before'] is Map && saved['after'] is Map) {
     return Map<String, Object?>.from(saved);
   }
+  final documents = proposal.validation['localPolicyDocuments'];
+  if (documents is Map &&
+      documents['before'] is Map &&
+      documents['after'] is Map) {
+    final labels = documents['sourceLabels'];
+    final sourceLabels = <String, String>{
+      if (labels is Map)
+        for (final entry in labels.entries)
+          if (entry.value is String) '${entry.key}': entry.value as String,
+    };
+    return {
+      for (final name in ['before', 'after'])
+        name: policyBusinessSummary(
+          LocalPolicyDocument.fromJson(
+            Map<String, Object?>.from(documents[name] as Map),
+          ),
+          context.appLocalizations,
+          sourceLabels: sourceLabels,
+        ),
+    };
+  }
   Map<String, Object?> side(bool after) {
     final rules = <LocalPolicy>[];
     final sets = <PolicyNodeSet>[];

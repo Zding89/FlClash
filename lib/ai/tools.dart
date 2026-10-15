@@ -692,7 +692,11 @@ final class AgentTools {
       ...proposal.toJson(),
       'validation': {
         for (final entry in proposal.validation.entries)
-          if (entry.key != 'finalConfigDifferences') entry.key: entry.value,
+          if (!{
+            'finalConfigDifferences',
+            'localPolicyDocuments',
+          }.contains(entry.key))
+            entry.key: entry.value,
         if (proposal.validation.containsKey('finalConfigDifferences'))
           'finalDifferencesAvailableLocally': true,
       },
