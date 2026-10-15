@@ -19,6 +19,7 @@ import 'package:fl_clash/views/backup_and_restore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'policy_contract.dart';
 import 'runtime.dart';
 
 abstract interface class AgentResourceGateway {
@@ -248,8 +249,19 @@ final class AgentTools {
     ),
     _definition(
       'policies_read',
-      'Read structured local policies without source configuration content.',
+      'Read independent local policies and dynamic nodeSets, their target, reference semantics and examples. No subscription profile selection is required.',
       {},
+    ),
+    _definition(
+      'policies_catalog',
+      'Discover the complete local policy patch schema, matching, ordering, nodeSet references and safe drafting examples.',
+      {},
+    ),
+    _definition(
+      'policies_draft_read',
+      'Read only the policy document of an existing pending policy draft for continued edits. Credentials and application configuration are withheld.',
+      {'id': _string},
+      ['id'],
     ),
     _definition(
       'nodes_list',
@@ -263,9 +275,10 @@ final class AgentTools {
     ),
     _definition(
       'policies_propose',
-      'Merge fields into policy, integration, budget and override definitions by stable ID and create a draft.',
+      'Create an independent local policy draft. Merge by stable IDs, preserving omitted fields; reuse draftId and rule IDs to revise a pending draft. Never applies changes; changes_commit requests local approval.',
       {
-        'patch': _object,
+        'patch': AgentPolicyContract.patchSchema,
+        'draftId': _string,
         'removePolicyIds': {'type': 'array', 'items': _string, 'maxItems': 100},
         'removeNodeSetIds': {
           'type': 'array',
@@ -335,7 +348,7 @@ final class AgentTools {
     ),
     _definition(
       'rules_read',
-      'Read existing appended or custom rules for one profile or global appended rules.',
+      'Read subscription appended/custom rules for one profile or global subscription appended rules. Independent local rules use policies_read.',
       {
         'profileId': _profileId,
         'scene': _choice(['added', 'custom', 'disabled']),
@@ -344,7 +357,7 @@ final class AgentTools {
     ),
     _definition(
       'rule_propose',
-      'Draft a scoped rule add, edit, delete or order change.',
+      'Draft a subscription appended/custom rule add, edit, delete or order change. Independent local rules and nodeSets use policies_propose without profile selection.',
       {
         'profileId': _profileId,
         'scene': _choice(['added', 'custom']),
@@ -363,13 +376,13 @@ final class AgentTools {
     ),
     _definition(
       'groups_read',
-      'Read custom groups scoped to one profile.',
+      'Read subscription custom proxy groups scoped to one profile. These are not independent local nodeSets; use policies_read for those.',
       {'profileId': _id},
       ['profileId'],
     ),
     _definition(
       'group_propose',
-      'Draft adding, editing or deleting a custom group and update exact local references on rename.',
+      'Draft adding, editing or deleting a subscription custom proxy group and update exact subscription references on rename. Independent local nodeSets use policies_propose.',
       {
         'profileId': _id,
         'operation': _choice(['add', 'edit', 'delete']),
@@ -489,6 +502,7 @@ final class AgentTools {
     final valid = switch (type) {
       'string' => value is String,
       'integer' => value is int,
+      'number' => value is num && value.isFinite,
       'boolean' => value is bool,
       'object' => value is Map<String, Object?>,
       'array' => value is List,
@@ -499,17 +513,50 @@ final class AgentTools {
         value is String &&
             schema['maxLength'] is int &&
             value.length > (schema['maxLength'] as int) ||
-        value is int &&
+        value is num &&
             schema['minimum'] is num &&
             value < (schema['minimum'] as num) ||
-        value is int &&
+        value is num &&
             schema['maximum'] is num &&
             value > (schema['maximum'] as num)) {
       throw const FormatException('Invalid argument');
     }
+    if (value is String &&
+            (schema['minLength'] is int &&
+                    value.length < (schema['minLength'] as int) ||
+                schema['pattern'] is String &&
+                    !RegExp(schema['pattern'] as String).hasMatch(value)) ||
+        value is num &&
+            schema['exclusiveMinimum'] is num &&
+            value <= (schema['exclusiveMinimum'] as num)) {
+      throw const FormatException('Invalid argument');
+    }
+    if (value is Map<String, Object?>) {
+      final properties = policyObject(
+        schema['properties'] ?? <String, Object?>{},
+        'properties',
+      );
+      final required = schema['required'] as List? ?? const [];
+      if (required.any((key) => !value.containsKey(key)) ||
+          schema['maxProperties'] is int &&
+              value.length > (schema['maxProperties'] as int)) {
+        throw const FormatException('Invalid object');
+      }
+      for (final entry in value.entries) {
+        final nested = properties[entry.key] ?? schema['additionalProperties'];
+        if (nested == false) throw const FormatException('Unknown field');
+        if (nested is Map) {
+          _checkArgument(entry.value, policyObject(nested, 'property'));
+        }
+      }
+    }
     if (value is List && schema['items'] != null) {
       if (schema['maxItems'] is int &&
-          value.length > (schema['maxItems'] as int)) {
+              value.length > (schema['maxItems'] as int) ||
+          schema['minItems'] is int &&
+              value.length < (schema['minItems'] as int) ||
+          schema['uniqueItems'] == true &&
+              value.map(policyDigest).toSet().length != value.length) {
         throw const FormatException('Too many items');
       }
       final items = policyObject(schema['items'], 'items');
@@ -608,13 +655,16 @@ final class AgentTools {
       _current(request);
       return AgentToolResult(redactResource(value));
     } on ConfigurationChangeException catch (error) {
-      return AgentToolResult({'code': error.code}, isError: true);
-    } on ScriptExecutionException catch (error) {
-      return AgentToolResult({'code': error.code}, isError: true);
-    } on PolicySourceException catch (error) {
       return AgentToolResult({
+        'code': _safeErrorCode(error.code),
+      }, isError: true);
+    } on ScriptExecutionException catch (error) {
+      return AgentToolResult({
+        'code': _safeErrorCode(error.code),
+      }, isError: true);
+    } on PolicySourceException {
+      return const AgentToolResult({
         'code': 'source_option_unsupported',
-        'option': error.option,
       }, isError: true);
     } on FormatException {
       return const AgentToolResult({
@@ -628,6 +678,13 @@ final class AgentTools {
       return const AgentToolResult({'code': 'tool_failed'}, isError: true);
     }
   }
+
+  static String _safeErrorCode(String value) =>
+      RegExp(
+        r'^(configuration|resource|script|tool|action|source)_[a-z0-9_]{1,80}$',
+      ).hasMatch(value)
+      ? value
+      : 'tool_failed';
 
   Map<String, Object?> _proposal(ConfigurationProposal proposal) => {
     'proposal': {
@@ -720,8 +777,27 @@ final class AgentTools {
         }
         final proposal = await controller.proposeSettingsPatch(patch);
         return _proposal(proposal);
+      case 'policies_catalog':
+        final document = await controller.readPolicies();
+        return {
+          'contract': AgentPolicyContract.describe(document),
+          'patchSchema': AgentPolicyContract.patchSchema,
+        };
       case 'policies_read':
-        return {'document': (await controller.readPolicies()).toJson()};
+        final document = await controller.readPolicies();
+        return {
+          'document': document.asStandalone().toJson(),
+          'contract': AgentPolicyContract.describe(document),
+        };
+      case 'policies_draft_read':
+        final id = policyString(args, 'id');
+        final document = await controller.readPolicyDraft(id);
+        return {
+          'id': id,
+          'status': 'draft',
+          'document': document.toJson(),
+          'contract': AgentPolicyContract.describe(document),
+        };
       case 'nodes_list':
         final nodes = await controller.loadNodes(
           policyString(args, 'targetId'),
@@ -745,7 +821,12 @@ final class AgentTools {
           'offset': offset,
         };
       case 'policies_propose':
-        final document = (await controller.readPolicies()).asStandalone();
+        final draftId = args['draftId'] as String?;
+        final document =
+            (draftId == null
+                    ? await controller.readPolicies()
+                    : await controller.readPolicyDraft(draftId))
+                .asStandalone();
         _current(request);
         final patch = policyObject(args['patch'], 'patch');
         policyKeys(patch, {
@@ -849,6 +930,7 @@ final class AgentTools {
         return _proposal(
           await controller.proposePolicies(
             LocalPolicyDocument.fromJson(candidate).asStandalone(),
+            draftId: draftId,
           ),
         );
       case 'policies_simulate':

@@ -513,4 +513,53 @@ void main() {
       }
     },
   );
+  test('structured context and safe diagnostics survive reopening', () async {
+    await store.save(
+      AiConversation(
+        id: _id(1),
+        updatedAt: 1,
+        messages: const [
+          {'role': 'user', 'content': 'make draft'},
+        ],
+        context: const [
+          {'role': 'user', 'content': 'make draft'},
+          {
+            'role': 'assistant',
+            'content': [
+              {
+                'type': 'toolCall',
+                'id': 'call-1',
+                'name': 'policies_propose',
+                'arguments': {'patch': {}},
+              },
+            ],
+          },
+          {
+            'role': 'toolResult',
+            'toolCallId': 'call-1',
+            'toolName': 'policies_propose',
+            'isError': false,
+            'content': [
+              {'type': 'text', 'text': '{"proposal":{"id":"draft-1"}}'},
+            ],
+          },
+        ],
+        diagnostics: const [
+          {
+            'kind': 'tool',
+            'name': 'policies_propose',
+            'status': 'draft',
+            'at': 1,
+            'payload': 'must-not-persist',
+          },
+        ],
+      ),
+    );
+    await reopen();
+    final entry = (await store.list()).single;
+    expect(entry.context, hasLength(3));
+    expect(entry.context.last['toolCallId'], 'call-1');
+    expect(entry.diagnostics.single['status'], 'draft');
+    expect(jsonEncode(entry.toJson()), isNot(contains('must-not-persist')));
+  });
 }

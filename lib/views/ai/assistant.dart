@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:fl_clash/ai/runtime.dart';
 import 'package:fl_clash/ai/history.dart';
+import 'package:fl_clash/ai/context.dart';
 import 'package:fl_clash/ai/settings.dart';
 import 'package:fl_clash/ai/tools.dart';
 import 'package:fl_clash/common/common.dart';
@@ -56,6 +57,10 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
   String? _targetLabel;
   final _changeIds = <String>{};
   final _historySecrets = <String>{};
+  List<Map<String, Object?>> _context = [];
+  final _diagnostics = <Map<String, Object?>>[];
+  int _contextMessageCount = 0;
+  bool _recoveryRequired = false;
   Timer? _historyTimer;
   bool _helpExpanded = false;
   AgentRuntime? _runtime;
@@ -111,6 +116,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
 
   @override
   void dispose() {
+    if (_busy) _recoveryRequired = true;
     _epoch++;
     _cancelApprovals();
     _runtime?.cancel();
@@ -144,6 +150,12 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
           ? null
           : aiHistoryText(_targetLabel!, _historySecrets),
       changeIds: _changeIds.toList(),
+      context: aiContextMessages(
+        _context,
+        sanitize: (text) => aiHistoryText(text, _historySecrets),
+      ),
+      diagnostics: aiDiagnosticEvents(_diagnostics),
+      recoveryRequired: _recoveryRequired,
     );
     try {
       await _historyStore.save(entry);
@@ -192,6 +204,10 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       _conversationId = entry.id;
       _targetLabel = entry.targetLabel;
       _changeIds.addAll(entry.changeIds);
+      _context = entry.context;
+      _recoveryRequired = entry.recoveryRequired;
+      _diagnostics.addAll(entry.diagnostics);
+      _contextMessageCount = entry.messages.length;
       _messages.addAll(
         entry.messages.map(
           (message) =>
@@ -224,13 +240,23 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
         request.name == 'application_operation') {
       return;
     }
-    if (request.name == 'application_invoke' &&
-        !applicationCapabilities.any(
-          (capability) =>
-              capability.command == request.arguments['command'] &&
-              capability.mutating,
-        )) {
-      return;
+    if (request.name == 'application_invoke') {
+      final command = request.arguments['command'];
+      final mutating =
+          command is String &&
+          (command.endsWith('_propose') ||
+              const {
+                'changes_commit',
+                'changes_undo',
+                'rule_set_disabled',
+                'script_select',
+                'resource_update',
+              }.contains(command) ||
+              applicationCapabilities.any(
+                (capability) =>
+                    capability.command == command && capability.mutating,
+              ));
+      if (!mutating) return;
     }
     final proposal = aiResultProposal(value);
     if (proposal != null) _changeIds.add(proposal.id);
@@ -280,12 +306,18 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       ..approval = Completer<bool>();
     setState(() => _appendToolMessage(message));
     _followOutput();
-    final approved = await message.approval!.future;
-    if (mounted) setState(() {});
-    return approved &&
-        mounted &&
-        epoch == _epoch &&
-        _runtime?.isClosed == false;
+    final runtime = _runtime;
+    await runtime?.setApprovalPending(true);
+    try {
+      final approved = await message.approval!.future;
+      if (mounted) setState(() {});
+      return approved &&
+          mounted &&
+          epoch == _epoch &&
+          _runtime?.isClosed == false;
+    } finally {
+      await runtime?.setApprovalPending(false);
+    }
   }
 
   void _followOutput() {
@@ -296,10 +328,38 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     });
   }
 
+  void _recordDiagnostic(
+    String kind, {
+    String? name,
+    String? status,
+    String? code,
+    int? turn,
+  }) {
+    _diagnostics.add({
+      'kind': kind,
+      'name': ?name,
+      'status': ?status,
+      'code': ?code,
+      'turn': ?turn,
+      'at': DateTime.now().millisecondsSinceEpoch,
+    });
+    if (_diagnostics.length > 64) _diagnostics.removeAt(0);
+  }
+
   void _event(AgentRuntimeEvent event) {
     if (!mounted || !_busy) return;
     setState(() {
       switch (event.type) {
+        case 'context':
+          _context = aiContextMessages(
+            event.data['messages'],
+            sanitize: (text) => aiHistoryText(text, _historySecrets),
+          );
+          _contextMessageCount = _messages
+              .where((message) => message.role != 'tool')
+              .length;
+        case 'task':
+          _recordDiagnostic('task', status: event.data['status'] as String?);
         case 'text':
           final text = event.data['text'] as String;
           _responseBytes += utf8.encode(text).length;
@@ -311,11 +371,34 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
             _messages[_assistantIndex].text += text;
           }
         case 'status':
+          _recordDiagnostic(
+            'run',
+            status: event.data['status'] as String?,
+            turn: event.data['turn'] as int?,
+          );
           _status = context.appLocalizations.aiThinking;
         case 'error':
+          _recoveryRequired = true;
+          _recordDiagnostic('error', code: event.data['code'] as String?);
           _error = aiErrorText(context, event.data['code']);
           _cancelApprovals();
         case 'done':
+          _recoveryRequired =
+              event.data['cancelled'] == true || event.data['failed'] == true;
+          if (event.data['taskStatus'] is String) {
+            _recordDiagnostic(
+              'task',
+              status: event.data['taskStatus'] as String,
+            );
+          }
+          _recordDiagnostic(
+            'run',
+            status: event.data['cancelled'] == true
+                ? 'cancelled'
+                : event.data['failed'] == true
+                ? 'failed'
+                : 'finished',
+          );
           if (event.data['cancelled'] == true) {
             _status = context.appLocalizations.aiCancelled;
           } else {
@@ -341,6 +424,26 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     return result;
   }
 
+  List<Map<String, Object?>>? _promptContext() {
+    if (_context.isEmpty) return null;
+    final trailing = _messages
+        .where((message) => message.role != 'tool')
+        .skip(_contextMessageCount)
+        .where((message) => message.text.isNotEmpty);
+    return aiContextMessages([
+      ..._context,
+      for (final message in trailing)
+        {
+          'role': message.role,
+          'content': message.role == 'user'
+              ? message.text
+              : [
+                  {'type': 'text', 'text': message.text},
+                ],
+        },
+    ]);
+  }
+
   Future<void> _send(AgentSettings settings) async {
     final user = _input.text.trim();
     final connection = settings.selected;
@@ -354,6 +457,8 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     final epoch = ++_epoch;
     final controller = _controller;
     final history = _history();
+    final modelContext = _promptContext();
+    final recoveryRequired = _recoveryRequired;
     setState(() {
       _busy = true;
       _error = null;
@@ -383,6 +488,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
         },
       );
       setState(() {
+        _recoveryRequired = true;
         _helpExpanded = false;
         if (_messages.isEmpty) {
           _targetLabel = ref.read(currentProfileProvider)?.label;
@@ -401,6 +507,8 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
         key: key,
         user: user,
         messages: history,
+        context: modelContext,
+        recoveryRequired: recoveryRequired,
         tools: tools.definitions,
         executeTool: (request) async {
           if (!mounted || _epoch != epoch || !request.isCurrent()) {
@@ -409,6 +517,18 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
           setState(() => _status = context.appLocalizations.aiToolWorking);
           final result = await tools.execute(request);
           if (mounted && _epoch == epoch && request.isCurrent()) {
+            _recordDiagnostic(
+              'tool',
+              name: request.name == 'application_invoke'
+                  ? request.arguments['command'] as String?
+                  : request.name,
+              status: result.isError
+                  ? 'failed'
+                  : result.value['status'] as String? ?? 'returned',
+              code:
+                  (result.value['code'] ?? result.value['errorCode'])
+                      as String?,
+            );
             _linkResult(request, result.value);
             setState(() {
               _status = context.appLocalizations.aiThinking;
@@ -429,6 +549,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       );
     } catch (error) {
       if (mounted && _epoch == epoch) {
+        _recoveryRequired = true;
         setState(() => _error = aiErrorText(context, error));
       }
     } finally {
@@ -447,6 +568,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
   }
 
   Future<void> _stop() async {
+    _recoveryRequired = true;
     final epoch = ++_epoch;
     final runtime = _runtime;
     _runtime = null;
@@ -467,6 +589,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
   }
 
   Future<void> _openSettings() async {
+    if (_busy) _recoveryRequired = true;
     _epoch++;
     final runtime = _runtime;
     _runtime = null;
@@ -530,6 +653,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
   }
 
   Future<void> _clear({bool persist = true}) async {
+    if (_busy) _recoveryRequired = true;
     final epoch = ++_epoch;
     final runtime = _runtime;
     _runtime = null;
@@ -545,6 +669,10 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       _targetLabel = null;
       _changeIds.clear();
       _historySecrets.clear();
+      _context = [];
+      _contextMessageCount = 0;
+      _recoveryRequired = false;
+      _diagnostics.clear();
       _busy = true;
       _error = null;
       _status = null;

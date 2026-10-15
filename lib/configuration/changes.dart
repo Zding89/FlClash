@@ -256,6 +256,7 @@ final class ConfigurationChangeService {
     required String category,
     required String summary,
     required Map<String, Object?> candidate,
+    String? baseDraftId,
   }) => _serial(() async {
     if (!category.startsWith('recovery:') &&
         !category.startsWith('repair:') &&
@@ -265,6 +266,9 @@ final class ConfigurationChangeService {
       );
     }
     final before = await backend.readState();
+    if (baseDraftId != null) {
+      await _pendingDraft(baseDraftId, category, before);
+    }
     final snapshot = policyObject(
       jsonDecode(jsonEncode(candidate)),
       'candidate',
@@ -286,17 +290,26 @@ final class ConfigurationChangeService {
     final now = clock();
     final id = _id();
     final expiresAt = now.add(proposalLifetime).millisecondsSinceEpoch;
-    await store.saveChange(
-      id: id,
-      category: category,
-      summary: summary,
-      highRisk: highRisk,
-      fingerprint: configurationDigest(before),
-      before: before,
-      after: snapshot,
-      createdAt: now.millisecondsSinceEpoch,
-      expiresAt: expiresAt,
-    );
+    if (baseDraftId != null) {
+      await _pendingDraft(baseDraftId, category, await backend.readState());
+    }
+    await store.transaction(() async {
+      await store.saveChange(
+        id: id,
+        category: category,
+        summary: summary,
+        highRisk: highRisk,
+        fingerprint: configurationDigest(before),
+        before: before,
+        after: snapshot,
+        createdAt: now.millisecondsSinceEpoch,
+        expiresAt: expiresAt,
+      );
+      if (baseDraftId != null) {
+        await store.changeStatus(baseDraftId, 'superseded');
+        _prepared.remove(baseDraftId);
+      }
+    });
     return ConfigurationProposal(
       id: id,
       summary: summary,
@@ -305,6 +318,43 @@ final class ConfigurationChangeService {
       differences: differences,
       validation: validation,
     );
+  });
+
+  Future<WorkbenchChange> _pendingDraft(
+    String id,
+    String category,
+    Map<String, Object?> current,
+  ) async {
+    final row = await store.readChange(id);
+    if (row == null) {
+      throw const ConfigurationChangeException(
+        'configuration_proposal_missing',
+      );
+    }
+    if (row.category != category || row.status != 'draft') {
+      throw const ConfigurationChangeException(
+        'configuration_proposal_not_pending',
+      );
+    }
+    if (clock().millisecondsSinceEpoch >= row.expiresAt) {
+      throw const ConfigurationChangeException(
+        'configuration_proposal_expired',
+      );
+    }
+    if (configurationDigest(current) != row.fingerprint) {
+      throw const ConfigurationChangeException(
+        'configuration_version_conflict',
+      );
+    }
+    return row;
+  }
+
+  Future<LocalPolicyDocument> readPolicyDraft(String id) => _serial(() async {
+    final row = await _pendingDraft(id, 'policies', await backend.readState());
+    final candidate = policyObject(jsonDecode(row.afterPayload), 'after');
+    return LocalPolicyDocument.fromJson(
+      policyObject(candidate['policies'], 'policies'),
+    ).asStandalone();
   });
 
   Future<ConfigurationProposal> readProposal(String id) async {

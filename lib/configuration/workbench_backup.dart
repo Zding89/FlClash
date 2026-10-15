@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 import 'package:fl_clash/ai/credentials.dart';
+import 'package:fl_clash/ai/context.dart';
 import 'package:fl_clash/ai/history.dart';
 import 'package:fl_clash/ai/settings.dart';
 import 'package:fl_clash/database/workbench_database.dart';
@@ -284,6 +285,9 @@ Map<String, Object?> _validateConversations(
       'messages',
       'targetLabel',
       'changeIds',
+      'context',
+      'diagnostics',
+      'recoveryRequired',
     });
     final id = policyString(entry, 'id', maximum: 32);
     if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(id) || !ids.add(id)) {
@@ -312,6 +316,11 @@ Map<String, Object?> _validateConversations(
       if (entry['targetLabel'] != null)
         'targetLabel': policyString(entry, 'targetLabel', maximum: 160),
       'changeIds': refs,
+      if (entry['recoveryRequired'] == true) 'recoveryRequired': true,
+      if (entry['context'] != null)
+        'context': aiContextMessages(entry['context']),
+      if (entry['diagnostics'] != null)
+        'diagnostics': aiDiagnosticEvents(entry['diagnostics']),
     };
   }, maximum: 20);
   return {'version': 1, 'conversations': entries};

@@ -40,6 +40,7 @@ String aiErrorText(BuildContext context, Object? error) {
     'quotaExceeded' => strings.aiQuotaExceeded,
     'rateLimited' => strings.aiRateLimited,
     'timeout' || 'requestTimeout' => strings.aiTimedOut,
+    'contextLimit' || 'outputLimit' || 'turnLimit' => strings.aiHistoryLimit,
     'keychainFailure' ||
     'invalidCredentialId' ||
     'invalidSecret' => strings.aiCredentialUnavailable,

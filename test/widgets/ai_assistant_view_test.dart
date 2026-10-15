@@ -121,6 +121,60 @@ class _MarkdownTransport extends _Transport {
   }
 }
 
+class _ContextTransport extends _Transport {
+  final prompts = <Map<String, dynamic>>[];
+  @override
+  Future<void> write(List<int> bytes) async {
+    final frame = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+    if (frame['type'] != 'prompt') return;
+    prompt = frame;
+    prompts.add(frame);
+    promptCalls++;
+    event('text', {'text': 'answer $promptCalls'});
+    event('context', {
+      'messages': [
+        ...?frame['data']['context'] as List?,
+        {'role': 'user', 'content': frame['data']['user']},
+        {
+          'role': 'assistant',
+          'content': [
+            {
+              'type': 'toolCall',
+              'id': 'call-$promptCalls',
+              'name': 'policies_propose',
+              'arguments': {'patch': {}},
+            },
+          ],
+        },
+        {
+          'role': 'toolResult',
+          'toolCallId': 'call-$promptCalls',
+          'toolName': 'policies_propose',
+          'isError': false,
+          'content': [
+            {
+              'type': 'text',
+              'text':
+                  '{"proposal":{"id":"draft-$promptCalls"},"private":"test-secret"}',
+            },
+          ],
+        },
+        {
+          'role': 'assistant',
+          'content': [
+            {'type': 'text', 'text': 'answer $promptCalls'},
+          ],
+        },
+      ],
+    });
+    event('done', {
+      'cancelled': false,
+      'failed': false,
+      'taskStatus': 'draft_ready',
+    });
+  }
+}
+
 class _MultiTurnTransport extends _Transport {
   _MultiTurnTransport({this.failFirst = false});
   final bool failFirst;
@@ -193,7 +247,7 @@ class _Controller extends Mock implements WorkbenchController {
     environment: FlutterResourceEnvironment(ref: ref, store: store),
   );
   @override
-  final AgentRuntime runtime;
+  AgentRuntime runtime;
   @override
   final AgentCredentialStore credentials;
   @override
@@ -626,6 +680,66 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'tool context continues across turns and history restore without rendering tools',
+    (tester) async {
+      final transport = _ContextTransport();
+      final controller = _Controller(
+        AgentRuntime(launcher: () async => transport),
+        _Credentials(),
+      );
+      final container = await _mount(tester, controller);
+      addTearDown(container.dispose);
+      final store = container.read(aiHistoryStoreProvider);
+      for (var turn = 1; turn <= 2; turn++) {
+        await tester.enterText(
+          find.byKey(const ValueKey('ai-prompt')),
+          'question $turn',
+        );
+        await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+        await tester.pumpAndSettle();
+      }
+      expect(transport.prompts.last['data']['context'], hasLength(4));
+      expect(find.byType(AiToolResultCard), findsNothing);
+      final saved = (await store.list()).single;
+      expect(saved.context, hasLength(8));
+      expect(saved.recoveryRequired, false);
+      expect(
+        saved.diagnostics.any((event) => event['status'] == 'draft_ready'),
+        true,
+      );
+      expect(jsonEncode(saved.context), isNot(contains('test-secret')));
+      await _tapAi(
+        tester,
+        find.byTooltip(AppLocalizations.current.aiConversationHistory),
+      );
+      await tester.pumpAndSettle();
+      await _tapAi(tester, find.text('question 1'));
+      await tester.pumpAndSettle();
+      await waitAiCondition(
+        tester,
+        () =>
+            find.byKey(const ValueKey('ai-send')).evaluate().isNotEmpty &&
+            find.text('answer 2').evaluate().isNotEmpty,
+        'History restore must finish closing the previous runtime before continuing',
+      );
+      final resumedTransport = _ContextTransport();
+      controller.runtime = AgentRuntime(launcher: () async => resumedTransport);
+      await tester.enterText(
+        find.byKey(const ValueKey('ai-prompt')),
+        'continue draft',
+      );
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+      await tester.pumpAndSettle();
+      expect(resumedTransport.prompts.single['data']['context'], hasLength(8));
+      expect(
+        resumedTransport.prompts.single['data']['recoveryRequired'],
+        isNull,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('same runtime sends three arrow turns with accumulated history', (
     tester,

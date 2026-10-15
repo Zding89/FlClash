@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:drift/native.dart';
 import 'package:fl_clash/ai/runtime.dart';
 import 'package:fl_clash/ai/tools.dart';
+import 'package:fl_clash/ai/policy_contract.dart';
 import 'package:fl_clash/common/javascript.dart';
 import 'package:fl_clash/common/snowflake.dart';
 import 'package:fl_clash/configuration/resources.dart';
@@ -47,6 +48,8 @@ class _Controller extends Mock implements WorkbenchController {
   List<Map<String, Object?>>? simulationSteps;
   Map<String, Object?>? settingsPatch;
   LocalPolicyDocument? proposedDocument;
+  ConfigurationChangeService? policyChanges;
+  Object? readError;
   LocalPolicyDocument currentDocument = const LocalPolicyDocument()
       .asStandalone();
   ConfigurationProposal get proposal => const ConfigurationProposal(
@@ -67,14 +70,30 @@ class _Controller extends Mock implements WorkbenchController {
 
   @override
   Future<ConfigurationProposal> proposePolicies(
-    LocalPolicyDocument document,
-  ) async {
+    LocalPolicyDocument document, {
+    String? draftId,
+  }) async {
     proposedDocument = document;
-    return proposal;
+    final changes = policyChanges;
+    if (changes == null) return proposal;
+    final state = await changes.backend.readState();
+    return changes.propose(
+      category: 'policies',
+      summary: 'Local rules',
+      candidate: {...state, 'policies': document.toJson()},
+      baseDraftId: draftId,
+    );
   }
 
   @override
-  Future<LocalPolicyDocument> readPolicies() async => currentDocument;
+  Future<LocalPolicyDocument> readPolicyDraft(String id) =>
+      policyChanges!.readPolicyDraft(id);
+  @override
+  Future<LocalPolicyDocument> readPolicies() async {
+    if (readError != null) throw readError!;
+    return currentDocument;
+  }
+
   @override
   Future<PolicySimulationResult> simulatePolicies({
     required LocalPolicyDocument document,
@@ -96,6 +115,53 @@ class _Controller extends Mock implements WorkbenchController {
         {'policyId': 'p', 'reason': 'fixture'},
       ],
     );
+  }
+}
+
+class _PolicyBackend implements ConfigurationBackend {
+  final Map<String, Object?> state;
+  int writes = 0;
+  bool failValidation = false;
+  void Function()? onValidate;
+
+  _PolicyBackend(LocalPolicyDocument document)
+    : state = {
+        'policies': document.toJson(),
+        'config': {'password': 'never-expose-config'},
+      };
+
+  @override
+  Future<Map<String, Object?>> readState() async =>
+      policyObject(jsonDecode(jsonEncode(state)), 'state');
+  @override
+  Future<Map<String, Object?>> validate(Map<String, Object?> candidate) async {
+    onValidate?.call();
+    if (failValidation) throw const FormatException('private source content');
+    LocalPolicyDocument.fromJson(
+      policyObject(candidate['policies'], 'policies'),
+    );
+    return {};
+  }
+
+  @override
+  bool isHighRisk(Map<String, Object?> before, Map<String, Object?> after) =>
+      true;
+  @override
+  Future<void> persist(Map<String, Object?> candidate) async {
+    writes++;
+  }
+
+  @override
+  Future<void> activate(Map<String, Object?> candidate) async {}
+}
+
+class _SupersedeFailureDatabase extends WorkbenchDatabase {
+  _SupersedeFailureDatabase() : super(NativeDatabase.memory());
+
+  @override
+  Future<void> changeStatus(String id, String status, {String? error}) async {
+    if (status == 'superseded') throw StateError('journal unavailable');
+    return super.changeStatus(id, status, error: error);
   }
 }
 
@@ -313,6 +379,436 @@ void main() {
       expect(proposed.policies.last.origin, PolicyOrigin.ai);
       expect(proposed.policies.last.choices.single.id, 'japan');
       expect(approvals, 0);
+    },
+  );
+
+  LocalPolicyDocument nodeSetDocument() => LocalPolicyDocument.fromJson({
+    ...const LocalPolicyDocument().asStandalone().toJson(),
+    'nodeSets': [
+      for (final pair in [('hk', 'HK'), ('us', 'US'), ('low', 'HK')])
+        {
+          'id': pair.$1,
+          'label': pair.$1,
+          'targetId': localPolicyTargetId,
+          'sourceIds': ['7'],
+          'regions': [pair.$2],
+          if (pair.$1 == 'low') 'maxMultiplier': 0.5,
+        },
+    ],
+  });
+
+  Map<String, Object?> policyPatch(String id, String set) => {
+    'policies': [
+      {
+        'id': id,
+        'label': id,
+        'targetId': localPolicyTargetId,
+        'scope': {
+          'type': 'domainSuffix',
+          'values': ['$id.example'],
+        },
+        'choices': [
+          {'type': 'nodeSet', 'id': set},
+        ],
+      },
+    ],
+  };
+
+  test(
+    'policy discovery explains empty independent configuration and examples',
+    () async {
+      final empty = await execute('policies_read');
+      expect((empty.value['document'] as Map)['policies'], isEmpty);
+      final contract = empty.value['contract'] as Map;
+      expect(contract['targetId'], localPolicyTargetId);
+      final semantics = contract['semantics'] as Map;
+      expect(semantics['subscriptionProfileSelectionRequired'], false);
+      expect(semantics['nodeSetsAreSubscriptionProxyGroups'], false);
+      final example = (contract['examples'] as List).single as Map;
+      final result = await execute(
+        'policies_propose',
+        policyObject(example['arguments'], 'arguments'),
+      );
+      expect(result.isError, false, reason: '${result.value}');
+      expect(
+        controller.proposedDocument!.policies.single.action,
+        PolicyAction.direct,
+      );
+      controller.currentDocument = nodeSetDocument();
+      final populated = await execute('policies_catalog');
+      final available =
+          (populated.value['contract'] as Map)['availableNodeSets'] as List;
+      expect(available.map((entry) => (entry as Map)['id']), [
+        'hk',
+        'us',
+        'low',
+      ]);
+      expect(populated.value['patchSchema'], AgentPolicyContract.patchSchema);
+      expect(approvals, 0);
+    },
+  );
+
+  test(
+    'policy schema discovers all model fields and enforces nested inputs',
+    () async {
+      final schema = AgentPolicyContract.patchSchema['properties'] as Map;
+      final policySchema = (schema['policies'] as Map)['items'] as Map;
+      final setSchema = (schema['nodeSets'] as Map)['items'] as Map;
+      expect(
+        (policySchema['properties'] as Map).keys.toSet(),
+        const LocalPolicy(
+          id: 'p',
+          label: 'P',
+          targetId: localPolicyTargetId,
+          action: PolicyAction.direct,
+        ).toJson().keys.toSet(),
+      );
+      expect(
+        (setSchema['properties'] as Map).keys.toSet(),
+        nodeSetDocument().nodeSets.first.toJson().keys.toSet(),
+      );
+      final probe =
+          ((policySchema['properties'] as Map)['probe'] as Map)['properties']
+              as Map;
+      expect(probe.keys.toSet(), const PolicyProbe().toJson().keys.toSet());
+      for (final patch in [
+        {
+          'policies': [
+            {
+              'id': 'p',
+              'scope': {'type': 'unsupported'},
+            },
+          ],
+        },
+        {
+          'nodeSets': [
+            {
+              'id': 'hk',
+              'preferences': [
+                {'type': 'latency', 'direction': 'up'},
+              ],
+            },
+          ],
+        },
+        {
+          'policies': [
+            {
+              'id': 'p',
+              'guard': {'password': 'never-expose'},
+            },
+          ],
+        },
+        {
+          'nodeAttributes': {
+            'node': {'multiplier': -1},
+          },
+        },
+      ]) {
+        final result = await execute('policies_propose', {'patch': patch});
+        expect(result.value['code'], 'tool_invalid_arguments');
+      }
+      expect(controller.proposedDocument, isNull);
+    },
+  );
+
+  test(
+    'local nodeSet rules can be edited continuously without profile selection or loss',
+    () async {
+      controller.currentDocument = nodeSetDocument();
+      final backend = _PolicyBackend(controller.currentDocument);
+      controller.policyChanges = ConfigurationChangeService(
+        backend: backend,
+        store: database,
+      );
+      final first = await execute('policies_propose', {
+        'patch': policyPatch('streaming', 'hk'),
+      });
+      expect(first.isError, false, reason: '${first.value}');
+      final firstId = (first.value['proposal'] as Map)['id'] as String;
+      final read = await execute('policies_draft_read', {'id': firstId});
+      expect(read.isError, false);
+      expect(jsonEncode(read.value), isNot(contains('never-expose-config')));
+      expect(read.value.keys, isNot(contains('config')));
+      final second = await execute('policies_propose', {
+        'draftId': firstId,
+        'patch': {
+          'policies': [
+            {
+              'id': 'streaming',
+              'label': 'Updated',
+              'choices': [
+                {'type': 'nodeSet', 'id': 'us'},
+              ],
+              'probe': {'intervalSeconds': 120},
+            },
+            ...(policyPatch('downloads', 'low')['policies'] as List),
+          ],
+        },
+      });
+      expect(second.isError, false, reason: '${second.value}');
+      final secondId = (second.value['proposal'] as Map)['id'] as String;
+      final revised = await controller.readPolicyDraft(secondId);
+      expect(revised.policies.map((rule) => rule.id), [
+        'streaming',
+        'downloads',
+      ]);
+      expect(revised.policies.first.scope.values, ['streaming.example']);
+      expect(revised.policies.first.probe.intervalSeconds, 120);
+      expect(revised.policies.first.probe.timeoutSeconds, 5);
+      expect(revised.policies.first.choices.single.id, 'us');
+      expect(revised.nodeSets.length, 3);
+      final third = await execute('policies_propose', {
+        'draftId': secondId,
+        'patch': {
+          'policies': [
+            {'id': 'streaming', 'label': 'Final'},
+          ],
+        },
+      });
+      expect(third.isError, false, reason: '${third.value}');
+      final thirdId = (third.value['proposal'] as Map)['id'] as String;
+      expect((await controller.readPolicyDraft(thirdId)).policies.length, 2);
+      expect((await database.readChange(firstId))!.status, 'superseded');
+      expect((await database.readChange(secondId))!.status, 'superseded');
+      expect((await database.readChange(thirdId))!.status, 'draft');
+      expect(backend.writes, 0);
+      expect(approvals, 0);
+      expect(controller.currentDocument.policies, isEmpty);
+    },
+  );
+
+  test(
+    'draft failures retain the prior draft and conflicts remain explicit',
+    () async {
+      controller.currentDocument = nodeSetDocument();
+      final backend = _PolicyBackend(controller.currentDocument);
+      controller.policyChanges = ConfigurationChangeService(
+        backend: backend,
+        store: database,
+      );
+      final first = await execute('policies_propose', {
+        'patch': policyPatch('streaming', 'hk'),
+      });
+      final id = (first.value['proposal'] as Map)['id'] as String;
+      backend.failValidation = true;
+      final failed = await execute('policies_propose', {
+        'draftId': id,
+        'patch': {
+          'policies': [
+            {'id': 'streaming', 'label': 'Invalid'},
+          ],
+        },
+      });
+      expect(failed.value['code'], 'tool_invalid_arguments');
+      expect((await database.readChange(id))!.status, 'draft');
+      backend.failValidation = false;
+      backend.onValidate = () => backend.state['other'] = true;
+      final conflict = await execute('policies_propose', {
+        'draftId': id,
+        'patch': {
+          'policies': [
+            {'id': 'streaming', 'label': 'Stale'},
+          ],
+        },
+      });
+      expect(conflict.value['code'], 'configuration_version_conflict');
+      expect((await database.readChange(id))!.status, 'draft');
+      expect(
+        (await execute('policies_draft_read', {'id': id})).value['code'],
+        'configuration_version_conflict',
+      );
+      expect(
+        (await execute('policies_draft_read', {'id': 'missing'})).value['code'],
+        'configuration_proposal_missing',
+      );
+      backend.state.remove('other');
+      await database.changeStatus(id, 'rejected');
+      expect(
+        (await execute('policies_draft_read', {'id': id})).value['code'],
+        'configuration_proposal_not_pending',
+      );
+      expect(backend.writes, 0);
+    },
+  );
+
+  test('only pending unexpired policy drafts can be continued', () async {
+    final backend = _PolicyBackend(controller.currentDocument);
+    var now = DateTime(2026, 10, 15);
+    final changes = ConfigurationChangeService(
+      backend: backend,
+      store: database,
+      clock: () => now,
+    );
+    controller.policyChanges = changes;
+    final settings = await changes.propose(
+      category: 'settings',
+      summary: 'Settings',
+      candidate: {...backend.state, 'other': 1},
+    );
+    expect(
+      (await execute('policies_draft_read', {'id': settings.id})).value['code'],
+      'configuration_proposal_not_pending',
+    );
+    final draft = await execute('policies_propose', {
+      'patch': {
+        'policies': [
+          {
+            'id': 'p',
+            'label': 'P',
+            'targetId': localPolicyTargetId,
+            'action': 'direct',
+          },
+        ],
+      },
+    });
+    final id = (draft.value['proposal'] as Map)['id'] as String;
+    now = now.add(const Duration(minutes: 10));
+    expect(
+      (await execute('policies_draft_read', {'id': id})).value['code'],
+      'configuration_proposal_expired',
+    );
+    expect((await database.readChange(id))!.status, 'draft');
+  });
+
+  test(
+    'tool errors always return a safe machine code without raw source details',
+    () async {
+      const secret = 'password=never-expose-raw-source';
+      for (final error in [
+        const FormatException(secret),
+        const ConfigurationChangeException(secret),
+        const ScriptExecutionException(secret),
+        const PolicySourceException(secret),
+        StateError(secret),
+      ]) {
+        controller.readError = error;
+        final result = await execute('policies_read');
+        expect(result.isError, true);
+        expect(result.value['code'], matches(RegExp(r'^[a-z][a-z0-9_]+$')));
+        expect(jsonEncode(result.value), isNot(contains(secret)));
+      }
+    },
+  );
+
+  test(
+    'nested partial nodeSet patches preserve fields and legacy opaque inputs remain accepted',
+    () async {
+      controller.currentDocument = nodeSetDocument();
+      final result = await execute('policies_propose', {
+        'patch': {
+          'nodeSets': [
+            {
+              'id': 'hk',
+              'preferences': [
+                {'type': 'latency', 'direction': 'ascending'},
+              ],
+            },
+          ],
+        },
+      });
+      expect(result.isError, false, reason: '${result.value}');
+      final set = controller.proposedDocument!.nodeSets.first;
+      expect(set.sourceIds, ['7']);
+      expect(set.regions, ['HK']);
+      expect(set.preferences.single.type, NodePreferenceType.latency);
+      final opaque = await execute('settings_propose', {
+        'patch': {
+          'legacy': {
+            'nested': [
+              true,
+              'value',
+              {'number': 2},
+            ],
+          },
+        },
+      });
+      expect(opaque.isError, false);
+      expect(controller.settingsPatch!['legacy'], isA<Map>());
+    },
+  );
+
+  test('concurrent revisions of one draft produce one successor', () async {
+    controller.currentDocument = nodeSetDocument();
+    final backend = _PolicyBackend(controller.currentDocument);
+    controller.policyChanges = ConfigurationChangeService(
+      backend: backend,
+      store: database,
+    );
+    final first = await execute('policies_propose', {
+      'patch': policyPatch('streaming', 'hk'),
+    });
+    final id = (first.value['proposal'] as Map)['id'] as String;
+    final results = await Future.wait([
+      for (final label in ['A', 'B'])
+        execute('policies_propose', {
+          'draftId': id,
+          'patch': {
+            'policies': [
+              {'id': 'streaming', 'label': label},
+            ],
+          },
+        }),
+    ]);
+    expect(results.where((result) => !result.isError).length, 1);
+    expect(
+      results.where((result) => result.isError).single.value['code'],
+      'configuration_proposal_not_pending',
+    );
+    final rows = await database.watchChanges().first;
+    expect(rows.where((row) => row.status == 'draft').length, 1);
+    expect(rows.where((row) => row.status == 'superseded').length, 1);
+    expect(backend.writes, 0);
+  });
+
+  test(
+    'a successor journal failure rolls back without destroying the original draft',
+    () async {
+      final failingStore = _SupersedeFailureDatabase();
+      try {
+        final backend = _PolicyBackend(controller.currentDocument);
+        final changes = ConfigurationChangeService(
+          backend: backend,
+          store: failingStore,
+        );
+        final candidate = {
+          ...backend.state,
+          'policies': LocalPolicyDocument.fromJson({
+            ...controller.currentDocument.toJson(),
+            'policies': [
+              {
+                'id': 'p',
+                'label': 'P',
+                'targetId': localPolicyTargetId,
+                'action': 'direct',
+              },
+            ],
+          }).toJson(),
+        };
+        final original = await changes.propose(
+          category: 'policies',
+          summary: 'Original',
+          candidate: candidate,
+        );
+        await expectLater(
+          changes.propose(
+            category: 'policies',
+            summary: 'Revised',
+            candidate: candidate,
+            baseDraftId: original.id,
+          ),
+          throwsStateError,
+        );
+        final rows = await failingStore.watchChanges().first;
+        expect(rows.length, 1);
+        expect(rows.single.id, original.id);
+        expect(rows.single.status, 'draft');
+        expect(
+          (await changes.readPolicyDraft(original.id)).policies.single.id,
+          'p',
+        );
+      } finally {
+        await failingStore.close();
+      }
     },
   );
 

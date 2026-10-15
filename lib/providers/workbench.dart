@@ -359,9 +359,13 @@ class WorkbenchController {
     );
   }
 
+  Future<LocalPolicyDocument> readPolicyDraft(String id) =>
+      changes.readPolicyDraft(id);
+
   Future<ConfigurationProposal> proposePolicies(
-    LocalPolicyDocument document,
-  ) async {
+    LocalPolicyDocument document, {
+    String? draftId,
+  }) async {
     document = LocalPolicyDocument.fromJson(document.toJson()).asStandalone();
     final snapshot = await backend.readState();
     final current = LocalPolicyDocument.fromJson(
@@ -391,6 +395,7 @@ class WorkbenchController {
       category: 'policies',
       summary: currentAppLocalizations.localPolicies,
       candidate: snapshot,
+      baseDraftId: draftId,
     );
   }
 

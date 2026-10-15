@@ -202,8 +202,9 @@ class _FixtureWorkbench extends Mock implements WorkbenchController {
   }) async => _nodes;
   @override
   Future<ConfigurationProposal> proposePolicies(
-    LocalPolicyDocument document,
-  ) async {
+    LocalPolicyDocument document, {
+    String? draftId,
+  }) async {
     proposed = document;
     return const ConfigurationProposal(
       id: 'fixture-proposal',

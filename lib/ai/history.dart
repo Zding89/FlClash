@@ -4,6 +4,8 @@ import 'dart:math';
 
 import 'package:fl_clash/database/workbench_database.dart';
 
+import 'context.dart';
+
 String aiConversationId() => List.generate(
   16,
   (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0'),
@@ -39,6 +41,9 @@ class AiConversation {
     required this.messages,
     this.targetLabel,
     this.changeIds = const [],
+    this.context = const [],
+    this.diagnostics = const [],
+    this.recoveryRequired = false,
   });
 
   final String id;
@@ -46,6 +51,9 @@ class AiConversation {
   final List<Map<String, String>> messages;
   final String? targetLabel;
   final List<String> changeIds;
+  final List<Map<String, Object?>> context;
+  final List<Map<String, Object?>> diagnostics;
+  final bool recoveryRequired;
 
   String get title =>
       messages
@@ -61,6 +69,9 @@ class AiConversation {
     'messages': messages,
     if (targetLabel != null) 'targetLabel': targetLabel,
     'changeIds': changeIds,
+    if (context.isNotEmpty) 'context': context,
+    if (diagnostics.isNotEmpty) 'diagnostics': diagnostics,
+    if (recoveryRequired) 'recoveryRequired': true,
   };
 
   static AiConversation? parse(Object? value) {
@@ -86,6 +97,12 @@ class AiConversation {
     }
     if (messages.isEmpty) return null;
     final ids = value['changeIds'];
+    List<Map<String, Object?>> context = const [];
+    try {
+      context = aiContextMessages(value['context'] ?? const []);
+    } on FormatException {
+      context = const [];
+    }
     return AiConversation(
       id: value['id'] as String,
       updatedAt: value['updatedAt'] as int,
@@ -96,6 +113,9 @@ class AiConversation {
               min(160, (value['targetLabel'] as String).length),
             )
           : null,
+      context: context,
+      diagnostics: aiDiagnosticEvents(value['diagnostics']),
+      recoveryRequired: value['recoveryRequired'] == true,
       changeIds: ids is List
           ? ids
                 .whereType<String>()

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:fl_clash/ai/credentials.dart';
+import 'package:fl_clash/ai/history.dart';
 import 'package:fl_clash/ai/settings.dart';
 import 'package:fl_clash/configuration/workbench_backup.dart';
 import 'package:fl_clash/database/workbench_database.dart';
@@ -122,6 +123,59 @@ void main() {
     await source.close();
     await target.close();
   });
+
+  test(
+    'portable backup retains tool context and interrupted task state',
+    () async {
+      await seed();
+      await AiHistoryStore(source).save(
+        const AiConversation(
+          id: 'abcdef0123456789abcdef0123456789',
+          updatedAt: 100,
+          messages: [
+            {'role': 'user', 'content': 'continue draft'},
+          ],
+          context: [
+            {'role': 'user', 'content': 'continue draft'},
+            {
+              'role': 'assistant',
+              'content': [
+                {
+                  'type': 'toolCall',
+                  'id': 'call-1',
+                  'name': 'policies_read',
+                  'arguments': {},
+                },
+              ],
+            },
+            {
+              'role': 'toolResult',
+              'toolCallId': 'call-1',
+              'toolName': 'policies_read',
+              'isError': false,
+              'content': [
+                {'type': 'text', 'text': '{"document":{"policies":[]}}'},
+              ],
+            },
+          ],
+          recoveryRequired: true,
+          diagnostics: [
+            {'kind': 'run', 'status': 'cancelled', 'at': 100},
+          ],
+        ),
+      );
+      final exported = await exportWorkbenchBackup(source, profileIds: {7});
+      await restoreWorkbenchBackup(
+        target,
+        await WorkbenchBackup.parse(exported, profileIds: {7}),
+      );
+      final restored = (await AiHistoryStore(target).list()).first;
+      expect(restored.context, hasLength(3));
+      expect(restored.context.last['toolCallId'], 'call-1');
+      expect(restored.recoveryRequired, true);
+      expect(restored.diagnostics.single['status'], 'cancelled');
+    },
+  );
 
   test(
     'round trip preserves portable config and encrypted keys without device state or executable history',

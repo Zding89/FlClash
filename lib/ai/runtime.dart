@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'context.dart';
+
 class AgentConnectionSettings {
   const AgentConnectionSettings({
     required this.provider,
@@ -186,6 +188,9 @@ class AgentRuntime {
   bool _cancelled = false;
   Future<void> _writes = Future<void>.value();
   Timer? _watchdog;
+  DateTime? _watchdogDeadline;
+  Duration? _watchdogRemaining;
+  bool _approvalPending = false;
 
   Stream<AgentRuntimeEvent> get events => _events.stream;
   bool get isRunning => _completion != null;
@@ -264,6 +269,8 @@ class AgentRuntime {
     required List<AgentToolDefinition> tools,
     required AgentToolExecutor executeTool,
     List<Map<String, Object?>> messages = const [],
+    List<Map<String, Object?>>? context,
+    bool recoveryRequired = false,
   }) async {
     await start();
     if (_closed || isRunning) throw StateError('runtimeUnavailable');
@@ -275,6 +282,7 @@ class AgentRuntime {
         messages.length > 100) {
       throw ArgumentError('invalidPrompt');
     }
+    final safeContext = context == null ? null : aiContextMessages(context);
     _generation++;
     _requestId = _newId();
     _cancelled = false;
@@ -286,10 +294,8 @@ class AgentRuntime {
     _executeTool = executeTool;
     final completion = Completer<void>();
     _completion = completion;
-    _watchdog = Timer(
-      Duration(seconds: settings.timeoutSeconds * 3 + 5),
-      () => _fail('timeout'),
-    );
+    _approvalPending = false;
+    _armWatchdog(Duration(seconds: settings.timeoutSeconds * 3 + 5));
     try {
       await _send('prompt', {
         'settings': settings.toJson(),
@@ -297,6 +303,8 @@ class AgentRuntime {
         'user': user,
         'tools': tools.map((tool) => tool.toJson()).toList(),
         'messages': messages,
+        'context': ?safeContext,
+        if (recoveryRequired) 'recoveryRequired': true,
       });
     } catch (_) {
       _fail('hostTransportFailed');
@@ -417,6 +425,8 @@ class AgentRuntime {
       'error',
       'done',
       'toolRequest',
+      'context',
+      'task',
     ].contains(type)) {
       throw const FormatException();
     }
@@ -425,6 +435,19 @@ class AgentRuntime {
             (data['code'] is! String || !_validId(data['code'] as String)) ||
         type == 'done' &&
             (data['cancelled'] is! bool || data['failed'] is! bool)) {
+      throw const FormatException();
+    }
+    if (type == 'context') {
+      data['messages'] = aiContextMessages(data['messages']);
+    }
+    if (type == 'task' &&
+        !const {
+          'draft_ready',
+          'completed',
+          'needs_input',
+          'failed',
+          'chat',
+        }.contains(data['status'])) {
       throw const FormatException();
     }
     if (type == 'models') {
@@ -538,6 +561,31 @@ class AgentRuntime {
     }
   }
 
+  void _armWatchdog(Duration duration) {
+    _watchdog?.cancel();
+    _watchdogRemaining = duration;
+    _watchdogDeadline = DateTime.now().add(duration);
+    _watchdog = Timer(duration, () => _fail('timeout'));
+  }
+
+  Future<void> setApprovalPending(bool pending) async {
+    if (_closed || _cancelled || !isRunning || pending == _approvalPending) {
+      return;
+    }
+    if (pending) {
+      _watchdogRemaining = _watchdogDeadline?.difference(DateTime.now());
+      _watchdog?.cancel();
+    } else {
+      _armWatchdog(_watchdogRemaining ?? const Duration(seconds: 5));
+    }
+    _approvalPending = pending;
+    try {
+      await _send('approvalWait', {'pending': pending});
+    } catch (_) {
+      _fail('hostTransportFailed');
+    }
+  }
+
   void cancel() {
     if (_closed || _completion == null || _cancelled) return;
     _cancelled = true;
@@ -551,6 +599,9 @@ class AgentRuntime {
   void _finish({String? error}) {
     _watchdog?.cancel();
     _watchdog = null;
+    _watchdogDeadline = null;
+    _watchdogRemaining = null;
+    _approvalPending = false;
     final completion = _completion;
     if (completion != null) {
       if (error == null) {

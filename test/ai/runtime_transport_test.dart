@@ -248,4 +248,76 @@ void main() {
     await subscription.cancel();
     await expectLater(runtime.start(), throwsStateError);
   });
+  test(
+    'structured context is passed and emitted with generation checks',
+    () async {
+      final transport = FakeTransport();
+      final runtime = AgentRuntime(launcher: () async => transport);
+      final events = <AgentRuntimeEvent>[];
+      final subscription = runtime.events.listen(events.add);
+      final context = <Map<String, Object?>>[
+        {'role': 'user', 'content': 'previous request'},
+        {
+          'role': 'assistant',
+          'content': [
+            {'type': 'text', 'text': 'previous answer'},
+          ],
+        },
+      ];
+      final prompt = runtime.prompt(
+        settings: settings,
+        key: 'secret',
+        user: 'continue',
+        context: context,
+        tools: [],
+        executeTool: (_) async => const AgentToolResult({}),
+      );
+      await tick();
+      expect(transport.frames.single['data']['context'], hasLength(2));
+      transport.send('context', {'messages': context}, generation: 99);
+      transport.send('context', {'messages': context});
+      transport.send('task', {'status': 'draft_ready'});
+      transport.send('done', {'cancelled': false, 'failed': false});
+      await prompt;
+      expect(events.map((event) => event.type), ['context', 'task', 'done']);
+      await runtime.close();
+      await subscription.cancel();
+    },
+  );
+
+  test(
+    'approval waiting frames bracket the active run and allow completion',
+    () async {
+      final transport = FakeTransport();
+      final runtime = AgentRuntime(launcher: () async => transport);
+      final subscription = runtime.events.listen((_) {});
+      var completed = false;
+      final prompt = runtime
+          .prompt(
+            settings: settings,
+            key: 'secret',
+            user: 'apply',
+            tools: [],
+            executeTool: (_) async => const AgentToolResult({}),
+          )
+          .then((_) => completed = true);
+      await tick();
+      await runtime.setApprovalPending(true);
+      await tick();
+      expect(completed, false);
+      expect(runtime.isClosed, false);
+      await runtime.setApprovalPending(false);
+      expect(
+        transport.frames
+            .where((frame) => frame['type'] == 'approvalWait')
+            .map((frame) => frame['data']['pending']),
+        [true, false],
+      );
+      transport.send('done', {'cancelled': false, 'failed': false});
+      await tick();
+      await prompt;
+      await runtime.close();
+      await subscription.cancel();
+    },
+  );
 }
