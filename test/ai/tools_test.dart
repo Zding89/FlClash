@@ -1294,4 +1294,96 @@ void main() {
       expect(approvals, 0);
     },
   );
+  test(
+    'draft reply uses actual final order and duplicate global cannot replace valid draft',
+    () async {
+      controller.currentDocument = nodeSetDocument();
+      final backend = _PolicyBackend(controller.currentDocument);
+      controller.policyChanges = ConfigurationChangeService(
+        backend: backend,
+        store: database,
+      );
+      final first = await execute('policies_propose', {
+        'patch': {
+          'policies': [
+            ...(policyPatch('ai', 'us')['policies'] as List),
+            {
+              'id': 'old_global',
+              'label': 'Old all traffic',
+              'targetId': localPolicyTargetId,
+              'scope': {'type': 'global'},
+              'choices': [
+                {'type': 'nodeSet', 'id': 'hk'},
+              ],
+            },
+          ],
+        },
+      });
+      final firstId = (first.value['proposal'] as Map)['id'] as String;
+      final duplicate = await execute('policies_propose', {
+        'draftId': firstId,
+        'patch': {
+          'policies': [
+            {
+              'id': 'new_global',
+              'label': 'New all traffic',
+              'targetId': localPolicyTargetId,
+              'scope': {'type': 'global'},
+              'choices': [
+                {'type': 'nodeSet', 'id': 'hk'},
+              ],
+            },
+          ],
+        },
+      });
+      expect(duplicate.value['status'], 'failed');
+      expect((await database.readChange(firstId))!.status, 'draft');
+      final revised = await execute('policies_propose', {
+        'draftId': firstId,
+        'removePolicyIds': ['old_global'],
+        'patch': {
+          'policies': [
+            {
+              'id': 'domestic',
+              'label': 'Domestic direct',
+              'targetId': localPolicyTargetId,
+              'scope': {
+                'type': 'destinationRegion',
+                'values': ['CN'],
+              },
+              'action': 'direct',
+            },
+            {
+              'id': 'new_global',
+              'label': 'Other to HK',
+              'targetId': localPolicyTargetId,
+              'scope': {'type': 'global'},
+              'choices': [
+                {'type': 'nodeSet', 'id': 'hk'},
+              ],
+            },
+          ],
+        },
+      });
+      expect(revised.isError, false, reason: '${revised.value}');
+      final id = (revised.value['proposal'] as Map)['id'] as String;
+      expect(revised.value['supersedesId'], firstId);
+      final read = await execute('policies_draft_read', {'id': id});
+      expect((read.value['validation'] as Map)['valid'], true);
+      final summary = read.value['businessSummary'] as Map;
+      expect(summary['ruleCount'], 3);
+      expect((summary['rules'] as List).map((row) => (row as Map)['id']), [
+        'ai',
+        'domestic',
+        'new_global',
+      ]);
+      expect((summary['rules'] as List)[1]['match'], contains('GeoIP'));
+      expect(
+        summary['reply'],
+        (revised.value['businessSummary'] as Map)['reply'],
+      );
+      expect(backend.writes, 0);
+      expect(approvals, 0);
+    },
+  );
 }

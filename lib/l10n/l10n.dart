@@ -9643,6 +9643,131 @@ class AppLocalizations {
       args: [],
     );
   }
+
+  /// `Local rule plan`
+  String get aiPolicyPlanTitle {
+    return Intl.message(
+      'Local rule plan',
+      name: 'aiPolicyPlanTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `{ruleCount} rules · {nodeSetCount} node groups`
+  String aiPolicyPlanCounts(String ruleCount, String nodeSetCount) {
+    return Intl.message(
+      '$ruleCount rules · $nodeSetCount node groups',
+      name: 'aiPolicyPlanCounts',
+      desc: '',
+      args: [ruleCount, nodeSetCount],
+    );
+  }
+
+  /// `Resulting rule order`
+  String get aiPolicyPlanOrder {
+    return Intl.message(
+      'Resulting rule order',
+      name: 'aiPolicyPlanOrder',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Plan ready, not applied`
+  String get aiPolicyPlanReady {
+    return Intl.message(
+      'Plan ready, not applied',
+      name: 'aiPolicyPlanReady',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `{kind}: {added} added, {updated} changed, {removed} removed`
+  String aiPolicyPlanChanges(
+    String kind,
+    String added,
+    String updated,
+    String removed,
+  ) {
+    return Intl.message(
+      '$kind: $added added, $updated changed, $removed removed',
+      name: 'aiPolicyPlanChanges',
+      desc: '',
+      args: [kind, added, updated, removed],
+    );
+  }
+
+  /// `Disabled`
+  String get aiPolicyPlanDisabled {
+    return Intl.message(
+      'Disabled',
+      name: 'aiPolicyPlanDisabled',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Matches all traffic; later rules are checked only when this rule is inactive or has no available nodes`
+  String get aiPolicyPlanShadow {
+    return Intl.message(
+      'Matches all traffic; later rules are checked only when this rule is inactive or has no available nodes',
+      name: 'aiPolicyPlanShadow',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `No rules configured`
+  String get aiPolicyPlanNoRules {
+    return Intl.message(
+      'No rules configured',
+      name: 'aiPolicyPlanNoRules',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `The plan has conflicts and needs revision before applying`
+  String get aiPolicyPlanNeedsRevision {
+    return Intl.message(
+      'The plan has conflicts and needs revision before applying',
+      name: 'aiPolicyPlanNeedsRevision',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Duplicate rule: {label}`
+  String aiPolicyPlanDuplicate(String label) {
+    return Intl.message(
+      'Duplicate rule: $label',
+      name: 'aiPolicyPlanDuplicate',
+      desc: '',
+      args: [label],
+    );
+  }
+
+  /// `Exclude nodes with unknown multiplier`
+  String get aiPolicyUnknownMultiplierExcluded {
+    return Intl.message(
+      'Exclude nodes with unknown multiplier',
+      name: 'aiPolicyUnknownMultiplierExcluded',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Include nodes with unknown region`
+  String get aiPolicyUnknownRegionAllowed {
+    return Intl.message(
+      'Include nodes with unknown region',
+      name: 'aiPolicyUnknownRegionAllowed',
+      desc: '',
+      args: [],
+    );
+  }
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<AppLocalizations> {

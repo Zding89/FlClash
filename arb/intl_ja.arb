@@ -1152,5 +1152,50 @@
   "policyLessFirst": "少ない順",
   "policyMoreFirst": "多い順",
   "policyLowerFirst": "低い順",
-  "policyHigherFirst": "高い順"
+  "policyHigherFirst": "高い順",
+  "aiPolicyPlanTitle": "ローカルルール案",
+  "aiPolicyPlanCounts": "ルール {ruleCount} 件 · ノードグループ {nodeSetCount} 件",
+  "@aiPolicyPlanCounts": {
+    "placeholders": {
+      "ruleCount": {
+        "type": "String"
+      },
+      "nodeSetCount": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyPlanOrder": "変更後のルール順序",
+  "aiPolicyPlanReady": "案を作成しました。未適用です",
+  "aiPolicyPlanChanges": "{kind}: 追加 {added}、変更 {updated}、削除 {removed}",
+  "@aiPolicyPlanChanges": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "added": {
+        "type": "String"
+      },
+      "updated": {
+        "type": "String"
+      },
+      "removed": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyPlanDisabled": "無効",
+  "aiPolicyPlanShadow": "全通信に一致。このルールが無効か利用可能ノードがない場合のみ後続を確認",
+  "aiPolicyPlanNoRules": "ルールは未設定です",
+  "aiPolicyPlanNeedsRevision": "競合があるため、適用前に修正が必要です",
+  "aiPolicyPlanDuplicate": "重複ルール: {label}",
+  "@aiPolicyPlanDuplicate": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyUnknownMultiplierExcluded": "倍率不明のノードを除外",
+  "aiPolicyUnknownRegionAllowed": "地域不明のノードも含める"
 }

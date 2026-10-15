@@ -6,6 +6,8 @@ import 'package:fl_clash/policy/source_change.dart';
 import 'package:fl_clash/views/policy/source_change_summary.dart';
 import 'package:flutter/material.dart';
 
+import 'policy_plan.dart';
+
 Object? _redact(Object? value) {
   if (value is Map) {
     return value.map(
@@ -99,10 +101,16 @@ class AiConfigurationApprovalDialog extends StatelessWidget {
             proposal.validation[localSourceChangeValidationKey],
           )
         : null;
+    final plan =
+        executionOnly || sourceChange != null || finalDifferences.isNotEmpty
+        ? null
+        : aiPolicyPlan(context, proposal);
     return AlertDialog(
       title: Text(
         sourceChange != null
             ? strings.policySourceChangeTitle
+            : plan != null
+            ? strings.aiPolicyPlanTitle
             : executionOnly
             ? strings.confirm
             : strings.aiApprovalTitle,
@@ -114,7 +122,8 @@ class AiConfigurationApprovalDialog extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (sourceChange == null) SelectableText(proposal.summary),
+              if (sourceChange == null && plan == null)
+                SelectableText(proposal.summary),
               if (executionOnly) ...[
                 const SizedBox(height: 12),
                 Text(
@@ -122,16 +131,22 @@ class AiConfigurationApprovalDialog extends StatelessWidget {
                   style: TextStyle(color: colors.error),
                 ),
               ],
-              if (proposal.highRisk && sourceChange == null) ...[
+              if (proposal.highRisk &&
+                  sourceChange == null &&
+                  plan == null) ...[
                 const SizedBox(height: 12),
                 Text(strings.aiHighRisk, style: TextStyle(color: colors.error)),
               ],
-              if (sourceChange == null) const SizedBox(height: 16),
+              if (sourceChange == null && plan == null)
+                const SizedBox(height: 16),
               if (sourceChange != null)
                 LocalSourceChangeSummaryView(summary: sourceChange),
-              if (sourceChange == null && proposal.differences.isEmpty)
+              if (plan != null) AiPolicyPlanView(plan: plan),
+              if (sourceChange == null &&
+                  plan == null &&
+                  proposal.differences.isEmpty)
                 Text(strings.aiNoDifferences),
-              if (sourceChange == null)
+              if (sourceChange == null && plan == null)
                 for (final difference in proposal.differences) ...[
                   Text(
                     difference.path,

@@ -1166,5 +1166,50 @@
   "policyLessFirst": "Less first",
   "policyMoreFirst": "More first",
   "policyLowerFirst": "Lower first",
-  "policyHigherFirst": "Higher first"
+  "policyHigherFirst": "Higher first",
+  "aiPolicyPlanTitle": "Local rule plan",
+  "aiPolicyPlanCounts": "{ruleCount} rules · {nodeSetCount} node groups",
+  "@aiPolicyPlanCounts": {
+    "placeholders": {
+      "ruleCount": {
+        "type": "String"
+      },
+      "nodeSetCount": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyPlanOrder": "Resulting rule order",
+  "aiPolicyPlanReady": "Plan ready, not applied",
+  "aiPolicyPlanChanges": "{kind}: {added} added, {updated} changed, {removed} removed",
+  "@aiPolicyPlanChanges": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "added": {
+        "type": "String"
+      },
+      "updated": {
+        "type": "String"
+      },
+      "removed": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyPlanDisabled": "Disabled",
+  "aiPolicyPlanShadow": "Matches all traffic; later rules are checked only when this rule is inactive or has no available nodes",
+  "aiPolicyPlanNoRules": "No rules configured",
+  "aiPolicyPlanNeedsRevision": "The plan has conflicts and needs revision before applying",
+  "aiPolicyPlanDuplicate": "Duplicate rule: {label}",
+  "@aiPolicyPlanDuplicate": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyUnknownMultiplierExcluded": "Exclude nodes with unknown multiplier",
+  "aiPolicyUnknownRegionAllowed": "Include nodes with unknown region"
 }

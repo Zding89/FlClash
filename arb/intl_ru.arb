@@ -1152,5 +1152,50 @@
   "policyLessFirst": "Меньше в приоритете",
   "policyMoreFirst": "Больше в приоритете",
   "policyLowerFirst": "Ниже в приоритете",
-  "policyHigherFirst": "Выше в приоритете"
+  "policyHigherFirst": "Выше в приоритете",
+  "aiPolicyPlanTitle": "План локальных правил",
+  "aiPolicyPlanCounts": "Правил: {ruleCount} · Групп узлов: {nodeSetCount}",
+  "@aiPolicyPlanCounts": {
+    "placeholders": {
+      "ruleCount": {
+        "type": "String"
+      },
+      "nodeSetCount": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyPlanOrder": "Порядок правил после изменений",
+  "aiPolicyPlanReady": "План готов, ещё не применён",
+  "aiPolicyPlanChanges": "{kind}: добавлено {added}, изменено {updated}, удалено {removed}",
+  "@aiPolicyPlanChanges": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "added": {
+        "type": "String"
+      },
+      "updated": {
+        "type": "String"
+      },
+      "removed": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyPlanDisabled": "Отключено",
+  "aiPolicyPlanShadow": "Совпадает со всем трафиком; следующие правила проверяются, если правило неактивно или нет доступных узлов",
+  "aiPolicyPlanNoRules": "Правила ещё не настроены",
+  "aiPolicyPlanNeedsRevision": "В плане есть конфликты; исправьте перед применением",
+  "aiPolicyPlanDuplicate": "Повторяющееся правило: {label}",
+  "@aiPolicyPlanDuplicate": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyUnknownMultiplierExcluded": "Исключать узлы с неизвестным множителем",
+  "aiPolicyUnknownRegionAllowed": "Включать узлы с неизвестным регионом"
 }

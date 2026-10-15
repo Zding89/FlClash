@@ -1152,5 +1152,50 @@
   "policyLessFirst": "较少优先",
   "policyMoreFirst": "较多优先",
   "policyLowerFirst": "较低优先",
-  "policyHigherFirst": "较高优先"
+  "policyHigherFirst": "较高优先",
+  "aiPolicyPlanTitle": "本地规则方案",
+  "aiPolicyPlanCounts": "{ruleCount} 条规则 · {nodeSetCount} 个节点组",
+  "@aiPolicyPlanCounts": {
+    "placeholders": {
+      "ruleCount": {
+        "type": "String"
+      },
+      "nodeSetCount": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyPlanOrder": "调整后的规则顺序",
+  "aiPolicyPlanReady": "方案已生成，尚未应用",
+  "aiPolicyPlanChanges": "{kind}：新增 {added}，调整 {updated}，删除 {removed}",
+  "@aiPolicyPlanChanges": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "added": {
+        "type": "String"
+      },
+      "updated": {
+        "type": "String"
+      },
+      "removed": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyPlanDisabled": "已停用",
+  "aiPolicyPlanShadow": "匹配全部流量；仅在本条未生效或没有可用节点时检查后续规则",
+  "aiPolicyPlanNoRules": "尚未设置规则",
+  "aiPolicyPlanNeedsRevision": "方案存在冲突，需要调整后再应用",
+  "aiPolicyPlanDuplicate": "重复的规则：{label}",
+  "@aiPolicyPlanDuplicate": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyUnknownMultiplierExcluded": "排除未标注倍率的节点",
+  "aiPolicyUnknownRegionAllowed": "允许地区未知的节点入组"
 }

@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart' show Response;
 
 import 'package:fl_clash/ai/credentials.dart';
+import 'package:fl_clash/ai/policy_summary.dart';
 import 'package:fl_clash/ai/runtime.dart';
 import 'package:fl_clash/ai/settings.dart';
 import 'package:fl_clash/common/common.dart';
@@ -964,6 +965,26 @@ class FlutterConfigurationBackend
       'networkChanged': true,
       'finalConfigValidated': true,
       'policyCount': activePolicies.length,
+      'localPolicyPlan': {
+        'before': policyBusinessSummary(
+          LocalPolicyDocument.fromJson(
+            policyObject(current['policies'], 'policies'),
+          ),
+          currentAppLocalizations,
+          sourceLabels: {
+            for (final profile in allProfiles)
+              '${profile.id}': profile.realLabel,
+          },
+        ),
+        'after': policyBusinessSummary(
+          document,
+          currentAppLocalizations,
+          sourceLabels: {
+            for (final profile in allProfiles)
+              '${profile.id}': profile.realLabel,
+          },
+        ),
+      },
       if (sourceChange != null)
         localSourceChangeValidationKey: sourceChange.toJson(),
     };

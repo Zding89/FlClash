@@ -6,6 +6,8 @@ import { envelope } from '../src/protocol.mjs';
 const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
 const call = (id, name, args = {}) => ({ type: 'toolCall', id, name, arguments: args });
 const text = value => ({ type: 'text', text: value });
+const draftRead = (id, callId = 'verified') => [call(callId, 'policies_draft_read', { id })];
+const draftValue = (id, extra = {}) => ({ id, status: 'draft', validation: { valid: true, issues: [], warnings: [] }, ...extra });
 const definition = name => ({ name, description: name, parameters: { type: 'object', properties: {}, additionalProperties: true } });
 const input = (overrides = {}) => ({ version: 1, sessionId: 'workflow', generation: 1, requestId: 'prompt', type: 'prompt', data: { settings: { provider: 'deepseek', model: 'mock', timeoutSeconds: 5 }, key: 'mock-secret', user: '先弄一套本地规则草稿', tools: ['application_catalog', 'policies_catalog', 'policies_read', 'policies_propose', 'policies_draft_read', 'changes_commit', 'changes_status'].map(definition), ...overrides } });
 async function waitFor(predicate) { for (let i = 0; i < 1000; i++) { if (predicate()) return; await new Promise(resolve => setTimeout(resolve, 1)); } throw new Error('mock deadline'); }
@@ -52,11 +54,12 @@ test('bundled skill guides create and continue a real draft without committing',
     [call('create', 'policies_propose', { patch: { policies: [] } })],
     [call('draft-read', 'policies_draft_read', { id: 'draft-1' })],
     [call('edit', 'policies_propose', { draftId: 'draft-1', patch: { nodeSets: [] } })],
-    [call('finish', 'task_finish', { status: 'draft_ready', summary: '草稿已生成，可本地审阅。', evidenceToolCallIds: ['edit'] })],
+    draftRead('draft-1'),
+    [call('finish', 'task_finish', { status: 'draft_ready', summary: '草稿已生成，可本地审阅。', evidenceToolCallIds: ['verified'] })],
   ], {
     policies_catalog: () => ({ value: { patchSchema: {}, contract: {} } }), policies_read: () => ({ value: { document: { nodeSets: [] } } }),
     policies_propose: () => ({ value: { proposal: { id: 'draft-1', differences: [] } } }),
-    policies_draft_read: () => ({ value: { id: 'draft-1', status: 'draft', document: {} } }),
+    policies_draft_read: () => ({ value: draftValue('draft-1', { document: {} }) }),
   });
   f.host.receive(input()); await f.done();
   assert.equal(f.events.at(-1).data.taskStatus, 'draft_ready');
@@ -69,7 +72,7 @@ test('bundled skill guides create and continue a real draft without committing',
 });
 
 test('canonical context restores actual tool pairs and excludes thinking and provider signatures', async () => {
-  const first = fixture([[call('write', 'policies_propose', { patch: { label: 'mock-secret' } })], [{ type: 'thinking', thinking: 'hidden', thinkingSignature: 'opaque' }, call('finish', 'task_finish', { status: 'draft_ready', summary: '草稿', evidenceToolCallIds: ['write'] })]], { policies_propose: () => ({ value: { proposal: { id: 'draft-2' } } }) });
+  const first = fixture([[call('write', 'policies_propose', { patch: { label: 'mock-secret' } })], draftRead('draft-2'), [{ type: 'thinking', thinking: 'hidden', thinkingSignature: 'opaque' }, call('finish', 'task_finish', { status: 'draft_ready', summary: '草稿', evidenceToolCallIds: ['verified'] })]], { policies_propose: () => ({ value: { proposal: { id: 'draft-2' } } }), policies_draft_read: () => ({ value: draftValue('draft-2') }) });
   first.host.receive(input()); await first.done();
   const context = first.events.find(event => event.type === 'context').data.messages;
   assert.ok(!JSON.stringify(context).includes('mock-secret'));
@@ -169,7 +172,7 @@ test('approval wait pauses only total watchdog, ignores stale identity, and rema
 });
 
 test('large result context keeps actual draft evidence under a bounded frame', async () => {
-  const f = fixture([[call('write', 'policies_propose')], [call('finish', 'task_finish', { status: 'draft_ready', summary: '草稿', evidenceToolCallIds: ['write'] })]], { policies_propose: () => ({ value: { proposal: { id: 'large-draft', differences: ['a'.repeat(700000)] } } }) });
+  const f = fixture([[call('write', 'policies_propose')], draftRead('large-draft'), [call('finish', 'task_finish', { status: 'draft_ready', summary: '草稿', evidenceToolCallIds: ['verified'] })]], { policies_propose: () => ({ value: { proposal: { id: 'large-draft', differences: ['a'.repeat(700000)] } } }), policies_draft_read: () => ({ value: draftValue('large-draft') }) });
   f.host.receive(input()); await f.done();
   const context = f.events.find(event => event.type === 'context').data;
   assert.ok(Buffer.byteLength(JSON.stringify(context.messages)) <= MAX_CONTEXT_BYTES);
@@ -218,7 +221,7 @@ test('recovery flag adds trusted instructions to inspect real state before resum
     assert.ok(prompt.includes('先查询实际状态、已有草稿和 operation 状态'));
     assert.ok(prompt.includes('不能自动重放写入'));
     return [call('read-draft', 'policies_draft_read', { id: 'existing-draft' })];
-  }, [call('finish', 'task_finish', { status: 'draft_ready', summary: '原草稿仍可审阅', evidenceToolCallIds: ['read-draft'] })]], { policies_draft_read: () => ({ value: { id: 'existing-draft', status: 'draft', document: {} } }) });
+  }, [call('finish', 'task_finish', { status: 'draft_ready', summary: '原草稿仍可审阅', evidenceToolCallIds: ['read-draft'] })]], { policies_draft_read: () => ({ value: draftValue('existing-draft', { document: {} }) }) });
   f.host.receive(input({ recoveryRequired: true, user: '继续' })); await f.done();
   assert.equal(f.events.at(-1).data.taskStatus, 'draft_ready');
   assert.ok(!f.events.some(event => event.type === 'toolRequest' && event.data.name === 'policies_propose'));
@@ -242,8 +245,8 @@ test('real usage_history shape can end as a read-only chat outcome', async () =>
 test('chat cannot conceal an unfinished write task', async () => {
   const f = fixture([[call('write', 'policies_propose')], [call('chat', 'task_finish', { status: 'chat', summary: '随便聊聊' })], context => {
     assert.equal(context.messages.find(message => message.role === 'toolResult' && message.toolCallId === 'chat').isError, true);
-    return [call('finish', 'task_finish', { status: 'draft_ready', summary: '草稿可审阅', evidenceToolCallIds: ['write'] })];
-  }], { policies_propose: () => ({ value: { proposal: { id: 'draft-chat' } } }) });
+    return draftRead('draft-chat');
+  }, [call('finish', 'task_finish', { status: 'draft_ready', summary: '草稿可审阅' })]], { policies_propose: () => ({ value: { proposal: { id: 'draft-chat' } } }), policies_draft_read: () => ({ value: draftValue('draft-chat') }) });
   f.host.receive(input()); await f.done();
   assert.equal(f.events.at(-1).data.taskStatus, 'draft_ready');
 });
@@ -251,10 +254,10 @@ test('chat cannot conceal an unfinished write task', async () => {
 test('draft completion automatically binds provider call IDs and summarizes only once', async () => {
   for (const withText of [false, true]) {
     const summary = '草稿已生成，可以审阅。';
-    const f = fixture([[call('provider-assigned-unseen-id', 'policies_propose', { patch: { policies: [] } })], [...(withText ? [text(summary)] : []), call('finish', 'task_finish', { status: 'draft_ready', summary })]], { policies_propose: () => ({ value: { proposal: { id: 'auto-draft' } } }) });
+    const f = fixture([[call('provider-assigned-unseen-id', 'policies_propose', { patch: { policies: [] } })], draftRead('auto-draft'), [...(withText ? [text(summary)] : []), call('finish', 'task_finish', { status: 'draft_ready', summary })]], { policies_propose: () => ({ value: { proposal: { id: 'auto-draft' } } }), policies_draft_read: () => ({ value: draftValue('auto-draft') }) });
     f.host.receive(input()); await f.done();
     assert.equal(f.events.at(-1).data.taskStatus, 'draft_ready');
-    assert.equal(f.contexts.length, 2);
+    assert.equal(f.contexts.length, 3);
     assert.equal(f.events.filter(event => event.type === 'text').map(event => event.data.text).join(''), summary);
     assert.ok(!JSON.stringify(f.events).includes('completionEvidenceRequired'));
     const transcript = f.events.find(event => event.type === 'context').data.messages;
@@ -275,7 +278,7 @@ test('automatic evidence cannot reuse a success before a later failed write', as
 });
 
 test('visible proposal and operation IDs select genuine evidence without internal IDs', async () => {
-  const draft = fixture([[call('write', 'policies_propose')], [call('wrong', 'task_finish', { status: 'draft_ready', summary: '不能用错误资源', proposalId: 'missing' })], [call('finish', 'task_finish', { status: 'draft_ready', summary: '草稿可审阅', proposalId: 'visible-draft' })]], { policies_propose: () => ({ value: { status: 'pending_confirmation', operationId: 'visible-draft', result: { proposal: { id: 'visible-draft' } } } }) });
+  const draft = fixture([[call('write', 'policies_propose')], draftRead('visible-draft'), [call('wrong', 'task_finish', { status: 'draft_ready', summary: '不能用错误资源', proposalId: 'missing' })], [call('finish', 'task_finish', { status: 'draft_ready', summary: '草稿可审阅', proposalId: 'visible-draft' })]], { policies_propose: () => ({ value: { status: 'pending_confirmation', operationId: 'visible-draft', result: { proposal: { id: 'visible-draft' } } } }), policies_draft_read: () => ({ value: draftValue('visible-draft') }) });
   draft.host.receive(input()); await draft.done();
   assert.equal(draft.events.at(-1).data.taskStatus, 'draft_ready');
   const applied = fixture([[call('commit', 'changes_commit')], [call('query', 'changes_status')], [call('finish', 'task_finish', { status: 'completed', summary: '操作已完成', operationId: 'visible-operation' })]], { changes_commit: () => ({ value: { status: 'accepted', operationId: 'visible-operation' } }), changes_status: () => ({ value: { operationId: 'visible-operation', status: 'completed' } }) });
@@ -292,16 +295,18 @@ test('rename and node-set revisions send only requested fields and retain origin
       const system = context.messages.find(message => message.role === 'system').content;
       assert.ok(system.includes('所有对用户输出都使用自然、简洁的中文'));
       assert.ok(system.includes('不使用英文开场'));
+      assert.ok(system.includes('给用户的进度最多一句自然中文，不展示工具名、内部ID或JSON'));
       assert.ok(!system.includes('必须提供本次真实工具返回的 evidenceToolCallIds'));
       const guide = context.messages.find(message => message.role === 'toolResult' && message.toolName === 'builtin_workflow_read').content[0].text;
-      for (const contract of ['3–5 条简单分流规则', '未请求时不添加广告屏蔽', '改名只传 id/label', '换节点组只传 id/choices', '只有用户明确改顺序时才传 priority', '不能为保持原序而补传 priority: 0']) assert.ok(guide.includes(contract), contract);
+      for (const contract of ['3–5 条简单分流规则', '未请求时不添加广告屏蔽', '改名只传 id/label', '换节点组只传 id/choices', '只有用户明确改顺序时才传 priority', '不能为保持原序而补传 priority: 0', '规则只按匹配范围和节点组命名', '不要自行用“首选”“备用”“兜底”给规则命名']) assert.ok(guide.includes(contract), contract);
       return [call('read', 'policies_draft_read', { id: 'revision-draft' })];
     },
     [call('node-edit', 'policies_propose', { draftId: 'revision-draft', patch: { policies: [{ id: 'rule-1', choices: [{ kind: 'nodeSet', id: 'low' }] }] } })],
     [call('rename', 'policies_propose', { draftId: 'revision-draft', patch: { policies: [{ id: 'rule-1', label: '新名称' }] } })],
+    draftRead('revision-draft'),
     [call('finish', 'task_finish', { status: 'draft_ready', summary: '节点组和名称已更新，规则顺序保持原样。' })],
   ], {
-    policies_draft_read: () => ({ value: { id: 'revision-draft', status: 'draft', document: { policies: [draft] } } }),
+    policies_draft_read: () => ({ value: draftValue('revision-draft', { document: { policies: [draft] } }) }),
     policies_propose: request => {
       const patch = request.arguments.patch.policies[0];
       assert.deepEqual(Object.keys(patch).sort(), ++edits === 1 ? ['choices', 'id'] : ['id', 'label']);
@@ -316,4 +321,133 @@ test('rename and node-set revisions send only requested fields and retain origin
   assert.deepEqual(draft.choices, [{ kind: 'nodeSet', id: 'low' }]);
   assert.equal(edits, 2);
   assert.equal(f.events.filter(event => event.type === 'text').length, 1);
+});
+
+test('local draft completion requires a fresh matching validated read after every edit', async () => {
+  let reads = 0;
+  const f = fixture([
+    draftRead('latest', 'before-edit'),
+    [call('edit', 'policies_propose', { draftId: 'latest', patch: { policies: [{ id: 'cn', label: '国内直连' }] } })],
+    [call('stale', 'task_finish', { status: 'draft_ready', summary: '未经复读', evidenceToolCallIds: ['before-edit'] })],
+    draftRead('other', 'wrong-draft'),
+    [call('wrong-proof', 'task_finish', { status: 'draft_ready', summary: '另一草稿' })],
+    draftRead('latest', 'invalid-draft'),
+    [call('invalid-proof', 'task_finish', { status: 'draft_ready', summary: '校验未通过' })],
+    draftRead('latest', 'valid-draft'),
+    context => {
+      assert.equal(context.messages.filter(message => message.role === 'toolResult' && message.toolName === 'task_finish' && message.isError).length, 3);
+      return [call('finish', 'task_finish', { status: 'draft_ready', summary: '可审阅', evidenceToolCallIds: ['before-edit', 'valid-draft'] })];
+    },
+  ], {
+    policies_propose: () => ({ value: { proposal: { id: 'latest' } } }),
+    policies_draft_read: request => ({ value: draftValue(request.arguments.id, { businessSummary: { reply: reads === 0 ? '过时说明' : '可审阅' }, validation: { valid: ++reads !== 3, issues: reads === 3 ? [{ code: 'invalid_scope' }] : [], warnings: [] } }) }),
+  });
+  f.host.receive(input()); await f.done();
+  assert.equal(f.events.at(-1).data.taskStatus, 'draft_ready');
+  assert.deepEqual(f.events.filter(event => event.type === 'text').map(event => event.data.text), ['可审阅']);
+});
+
+test('progress keeps its own message while only the actual latest draft becomes the final Markdown', async () => {
+  const reply = '草稿共 4 条规则，可本地审阅。\n\n1. AI优先指定来源美区\n2. AI备用低倍率美区（≤0.1）\n3. 国内直连\n4. 国外香港';
+  const f = fixture([
+    [text('正在核对现有草稿。'), call('read', 'policies_draft_read', { id: 'final-draft' })],
+    [call('edit', 'policies_propose', { draftId: 'final-draft', patch: {} })],
+    draftRead('final-draft'),
+    [text('我已创建5条规则，以下是很长的最终说明。')],
+    [text('重复总结：草稿5条。'), call('finish', 'task_finish', { status: 'draft_ready', summary: '草稿5条。' })],
+  ], { policies_propose: () => ({ value: { proposal: { id: 'final-draft' } } }), policies_draft_read: () => ({ value: draftValue('final-draft', { businessSummary: { ruleCount: 4, reply } }) }) });
+  f.host.receive(input()); await f.done();
+  const messages = f.events.filter(event => event.type === 'text').map(event => event.data);
+  assert.deepEqual(messages.map(message => [message.phase, message.text]), [['progress', '正在核对现有草稿。'], ['final', reply]]);
+  assert.notEqual(messages[0].messageId, messages[1].messageId);
+  assert.ok(!messages[1].text.includes('\\n'));
+  assert.equal(messages[1].text.split('\n').length, 6);
+});
+
+test('restored SDK history never replays earlier progress across three prompts', async () => {
+  let context = [];
+  for (let turn = 0; turn < 3; turn++) {
+    const f = fixture([
+      ctx => {
+        assert.equal(ctx.messages[0].role, 'system');
+        assert.ok(ctx.messages[0].content.includes('你是 FlClash 配置助手'));
+        assert.ok(JSON.stringify(ctx.messages[0]).includes('"name":"policies_read"'));
+        assert.equal(ctx.messages.filter(message => message.role === 'user').length, turn + 1);
+        assert.equal(ctx.messages.filter(message => message.role === 'toolResult').length, turn * 2);
+        return [text('正在核对本轮草稿。'), call(`read-${turn}`, 'policies_read')];
+      },
+      [call(`finish-${turn}`, 'task_finish', { status: 'chat', summary: `第${turn + 1}轮核对完成。` })],
+    ], { policies_read: () => ({ value: { document: { policies: [] } } }) });
+    f.host.receive(input({ context, user: `核对第${turn + 1}轮草稿` })); await f.done();
+    const output = f.events.filter(event => event.type === 'text').map(event => event.data);
+    assert.deepEqual(output.map(message => [message.phase, message.text]), [['progress', '正在核对本轮草稿。'], ['final', `第${turn + 1}轮核对完成。`]]);
+    context = f.events.find(event => event.type === 'context').data.messages;
+    assert.equal(context.filter(message => message.role === 'user').length, turn + 1);
+    const calls = context.flatMap(message => message.role === 'assistant' ? message.content.filter(part => part.type === 'toolCall') : []);
+    assert.equal(calls.length, (turn + 1) * 2);
+    assert.equal(context.filter(message => message.role === 'toolResult').length, calls.length);
+    assert.ok(context.length <= 100);
+    assert.ok(Buffer.byteLength(JSON.stringify(context)) <= MAX_CONTEXT_BYTES);
+  }
+});
+
+test('large catalog capabilities and the latest draft business state survive request and multi-turn compaction', async () => {
+  const catalog = {
+    contract: { targetId: 'integration:flclash_local', semantics: { destinationRegion: 'CN compiles GEOIP,CN; !CN excludes China; GEOSITE provider is separate' } },
+    patchSchema: { type: 'object', properties: { scope: { type: 'string', enum: ['destinationRegion'] }, maxMultiplier: { type: 'number', exclusiveMinimum: 0 } } },
+    examples: ['catalog-data'.repeat(4500)],
+  };
+  assert.ok(Buffer.byteLength(JSON.stringify(catalog)) > 8192);
+  assert.ok(Buffer.byteLength(JSON.stringify(catalog)) < 65536);
+  const businessSummary = { version: 1, targetId: 'integration:flclash_local', ruleCount: 4, rules: [{ id: 'cn', order: 3, match: { type: 'destinationRegion', values: ['CN'] }, action: 'direct' }], nodeSets: [{ id: 'us', maxMultiplier: 0.1 }], reply: '4条草稿\n\n国内直连，国外香港。' };
+  const first = fixture([
+    [call('catalog', 'policies_catalog')],
+    [call('write', 'policies_propose')],
+    draftRead('remembered'),
+    context => {
+      const remembered = JSON.parse(context.messages.find(message => message.role === 'toolResult' && message.toolName === 'policies_draft_read').content[0].text);
+      assert.deepEqual(remembered.businessSummary, businessSummary);
+      assert.equal(remembered.validation.valid, true);
+      assert.equal(remembered.contextTruncated, true);
+      assert.ok(!JSON.stringify(remembered).includes('large-node-details'));
+      return [call('finish', 'task_finish', { status: 'draft_ready', summary: '草稿' })];
+    },
+  ], {
+    policies_catalog: () => ({ value: catalog }),
+    policies_propose: () => ({ value: { proposal: { id: 'remembered' } } }),
+    policies_draft_read: () => ({ value: draftValue('remembered', { businessSummary, document: { nodes: ['large-node-details'.repeat(5000)] } }) }),
+  });
+  first.host.receive(input({ user: 'AI先谜之屋美区再0.1倍率美区，国内直连国外香港' })); await first.done();
+  let context = first.events.find(event => event.type === 'context').data.messages;
+  for (let turn = 0; turn < 3; turn++) {
+    const revision = fixture([ctx => {
+      const restored = JSON.parse(ctx.messages.find(message => message.role === 'toolResult' && message.toolName === 'policies_catalog').content[0].text);
+      assert.deepEqual(restored, catalog);
+      const draft = JSON.parse(ctx.messages.findLast(message => message.role === 'toolResult' && message.toolName === 'policies_draft_read').content[0].text);
+      assert.equal(draft.businessSummary.nodeSets[0].maxMultiplier, 0.1);
+      assert.equal(draft.businessSummary.rules[0].match.type, 'destinationRegion');
+      assert.equal(ctx.messages.filter(message => message.role === 'user').length, turn + 2);
+      return [text('保留之前的倍率与国内外分流。')];
+    }]);
+    revision.host.receive(input({ context, user: `只修改第${turn + 1}个名称` })); await revision.done();
+    context = revision.events.find(event => event.type === 'context').data.messages;
+    assert.ok(context.length <= 100);
+    assert.ok(Buffer.byteLength(JSON.stringify(context)) <= MAX_CONTEXT_BYTES);
+  }
+  context.push({ role: 'user', content: 'older detail '.repeat(10000), timestamp: Date.now() }, { role: 'assistant', content: [text('已记录。')], timestamp: Date.now() });
+  assert.ok(Buffer.byteLength(JSON.stringify(context)) <= MAX_CONTEXT_BYTES);
+  const bounded = fixture([ctx => {
+    assert.ok(!ctx.messages.some(message => message.role === 'user' && typeof message.content === 'string' && message.content.startsWith('older detail')));
+    const restoredCatalog = JSON.parse(ctx.messages.find(message => message.role === 'toolResult' && message.toolName === 'policies_catalog').content[0].text);
+    assert.deepEqual(restoredCatalog.contract, catalog.contract);
+    assert.deepEqual(restoredCatalog.patchSchema, catalog.patchSchema);
+    const restoredDraft = JSON.parse(ctx.messages.find(message => message.role === 'toolResult' && message.toolName === 'policies_draft_read').content[0].text);
+    assert.deepEqual(restoredDraft.businessSummary, businessSummary);
+    return [text('已保留能力和草稿摘要，其他详情可重新读取。')];
+  }]);
+  bounded.host.receive(input({ context, user: 'new detail '.repeat(7500) })); await bounded.done();
+  const boundedContext = bounded.events.find(event => event.type === 'context').data;
+  assert.equal(boundedContext.truncated, true);
+  assert.ok(boundedContext.messages.length <= 100);
+  assert.ok(Buffer.byteLength(JSON.stringify(boundedContext.messages)) <= MAX_CONTEXT_BYTES);
 });

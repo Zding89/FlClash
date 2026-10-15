@@ -324,6 +324,18 @@ final class AgentPolicyContract {
     return {
       'targetId': localPolicyTargetId,
       'integrationId': localPolicyProfileId,
+      'matchingCapabilities': {
+        'geoIp': {
+          'type': 'destinationRegion',
+          'domesticValues': ['CN'],
+          'foreignValues': ['!CN'],
+          'compilesTo': 'GEOIP,CN',
+          'requiresSubscriptionProfile': false,
+        },
+        'geoSiteOrRuleProviderReference': false,
+        'note':
+            'GeoIP country matching is supported independently. Lack of GEOSITE/RULE-SET provider references does not mean GeoIP is unsupported. Never approximate domestic traffic with example IP ranges or move the task to subscription rules.',
+      },
       'semantics': {
         'independentLocalConfiguration': true,
         'subscriptionProfileSelectionRequired': false,
@@ -336,6 +348,10 @@ final class AgentPolicyContract {
             'Policies match by ascending priority; new AI rules append after existing rules. choices are selection references; default to one existing nodeSet. Node-set preferences are ordered sort criteria.',
         'compatibilityFields':
             'candidateNodeIds and fallback are persisted compatibility fields. Do not set them when creating or editing rules; preserve existing omitted values. Integration fallback is the fixed safe reject default.',
+        'verification':
+            'After each final edit read policies_draft_read for actual ordered rules, businessSummary and validation. Describe only those real results. Remove obsolete rule IDs explicitly; an old global rule is not replaced by appending a differently named global rule.',
+        'multiplier':
+            'A precise multiplier cap such as 0.1 must not be relaxed to 0.5. Prefer lower multiplier means order nodeSet preferences by multiplier ascending; it does not require a separate fallback rule.',
         'drafts':
             'Use policies_propose to save a draft, policies_draft_read to inspect it, then policies_propose with draftId and the same stable rule IDs for edits. Only changes_commit can request local approval and apply.',
       },

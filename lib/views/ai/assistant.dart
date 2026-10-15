@@ -39,6 +39,7 @@ class _ConversationMessage {
   _ConversationMessage(this.role, this.text);
   final String role;
   String text;
+  String? streamMessageId;
   Map<String, Object?>? result;
   ConfigurationProposal? proposal;
   bool failed = false;
@@ -69,7 +70,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
   bool _contextScheduled = false;
   String? _error;
   String? _status;
-  int _assistantIndex = -1;
+  _ConversationMessage? _assistantMessage;
   int _responseBytes = 0;
   int _epoch = 0;
 
@@ -279,6 +280,23 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
   }
 
   void _appendToolMessage(_ConversationMessage message) {
+    _assistantMessage = null;
+    final proposalId = message.proposal?.id;
+    final result = message.result;
+    final nested = result?['result'];
+    final supersedesId =
+        result?['supersedesId'] ??
+        (nested is Map ? nested['supersedesId'] : null);
+    if (proposalId != null) {
+      _messages.removeWhere(
+        (entry) =>
+            entry.role == 'tool' &&
+            entry.proposal != null &&
+            (entry.approval == null || entry.approval!.isCompleted) &&
+            (entry.proposal!.id == proposalId ||
+                entry.proposal!.id == supersedesId),
+      );
+    }
     _messages.add(message);
     while (_messages.where((entry) => entry.role == 'tool').length > 32) {
       final index = _messages.indexWhere(
@@ -288,7 +306,6 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       );
       if (index < 0) break;
       _messages.removeAt(index);
-      if (_assistantIndex > index) _assistantIndex--;
     }
   }
 
@@ -361,14 +378,22 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
         case 'task':
           _recordDiagnostic('task', status: event.data['status'] as String?);
         case 'text':
+          if (event.data['phase'] == 'progress') break;
           final text = event.data['text'] as String;
           _responseBytes += utf8.encode(text).length;
           if (_responseBytes > 256 * 1024) {
             _runtime?.cancel();
             _error = context.appLocalizations.aiHistoryLimit;
-          } else if (_assistantIndex >= 0 &&
-              _assistantIndex < _messages.length) {
-            _messages[_assistantIndex].text += text;
+          } else if (text.isNotEmpty) {
+            final messageId = event.data['messageId'] as String?;
+            if (_assistantMessage == null ||
+                (messageId != null &&
+                    _assistantMessage!.streamMessageId != messageId)) {
+              _assistantMessage = _ConversationMessage('assistant', '')
+                ..streamMessageId = messageId;
+              _messages.add(_assistantMessage!);
+            }
+            _assistantMessage!.text += text;
           }
         case 'status':
           _recordDiagnostic(
@@ -494,8 +519,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
           _targetLabel = ref.read(currentProfileProvider)?.label;
         }
         _messages.add(_ConversationMessage('user', user));
-        _messages.add(_ConversationMessage('assistant', ''));
-        _assistantIndex = _messages.length - 1;
+        _assistantMessage = null;
         _responseBytes = 0;
         _input.clear();
       });
@@ -558,7 +582,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
         if (mounted && _epoch == epoch) {
           setState(() {
             _busy = false;
-            _assistantIndex = -1;
+            _assistantMessage = null;
             if (_status != context.appLocalizations.aiCancelled) _status = null;
           });
           _scheduleComposerContext();
@@ -582,7 +606,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     if (mounted && _epoch == epoch) {
       setState(() {
         _busy = false;
-        _assistantIndex = -1;
+        _assistantMessage = null;
       });
       _scheduleComposerContext();
     }
@@ -676,7 +700,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       _busy = true;
       _error = null;
       _status = null;
-      _assistantIndex = -1;
+      _assistantMessage = null;
     });
     await _subscription?.cancel();
     _subscription = null;

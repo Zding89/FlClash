@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'policy_contract.dart';
+import 'policy_summary.dart';
 import 'runtime.dart';
 
 abstract interface class AgentResourceGateway {
@@ -259,7 +260,7 @@ final class AgentTools {
     ),
     _definition(
       'policies_draft_read',
-      'Read only the policy document of an existing pending policy draft for continued edits. Credentials and application configuration are withheld.',
+      'Read an existing pending local policy draft, including authoritative businessSummary with actual rule order and validation. Always read after the last write before reporting draft_ready; summarize businessSummary rather than remembering earlier plans. Credentials and application configuration are withheld.',
       {'id': _string},
       ['id'],
     ),
@@ -295,7 +296,7 @@ final class AgentTools {
     ),
     _definition(
       'policies_simulate',
-      'Run a read-only cold-start scenario using supplied health assumptions and local usage. Existing live selection, probe age, latency, cooldown and recovery state are not restored; this does not predict current runtime behavior.',
+      'Run a read-only cold-start scenario of the committed policy document, never an uncommitted draft. Read policies_draft_read to inspect drafts. Use supplied health assumptions and local usage. Existing live selection, probe age, latency, cooldown and recovery state are not restored; this does not predict current runtime behavior.',
       {
         'targetId': _string,
         'health': _object,
@@ -797,6 +798,15 @@ final class AgentTools {
           'status': 'draft',
           'document': document.toJson(),
           'contract': AgentPolicyContract.describe(document),
+          'businessSummary': policyBusinessSummary(
+            document,
+            currentAppLocalizations,
+            sourceLabels: {
+              for (final profile in await gateway.readProfiles())
+                '${profile.id}': profile.realLabel,
+            },
+          ),
+          'validation': policyPlanValidation(document),
         };
       case 'nodes_list':
         final nodes = await controller.loadNodes(
@@ -927,12 +937,56 @@ final class AgentTools {
               .where((value) => !ids.contains((value as Map)['id']))
               .toList();
         }
-        return _proposal(
-          await controller.proposePolicies(
-            LocalPolicyDocument.fromJson(candidate).asStandalone(),
-            draftId: draftId,
+        final next = LocalPolicyDocument.fromJson(candidate).asStandalone();
+        final validation = policyPlanValidation(next);
+        if (validation['valid'] != true) {
+          return {
+            'status': 'failed',
+            'code': 'configuration_policy_plan_invalid',
+            'validation': validation,
+          };
+        }
+        final labels = {
+          for (final profile in await gateway.readProfiles())
+            '${profile.id}': profile.realLabel,
+        };
+        final before = await controller.readPolicies();
+        _current(request);
+        final proposal = await controller.proposePolicies(
+          next,
+          draftId: draftId,
+        );
+        final summary = policyBusinessSummary(
+          next,
+          currentAppLocalizations,
+          sourceLabels: labels,
+        );
+        final value = _proposal(
+          ConfigurationProposal(
+            id: proposal.id,
+            summary: proposal.summary,
+            highRisk: proposal.highRisk,
+            expiresAt: proposal.expiresAt,
+            differences: proposal.differences,
+            validation: {
+              ...proposal.validation,
+              'localPolicyPlan': {
+                'before': policyBusinessSummary(
+                  before,
+                  currentAppLocalizations,
+                  sourceLabels: labels,
+                ),
+                'after': summary,
+              },
+            },
           ),
         );
+        return {
+          ...value,
+          'supersedesId': ?draftId,
+          'businessSummary': summary,
+          'validation': validation,
+        };
       case 'policies_simulate':
         final document = await controller.readPolicies();
         _current(request);
@@ -987,6 +1041,7 @@ final class AgentTools {
         );
         _current(request);
         return {
+          'documentSource': 'committed',
           'simulation': true,
           'mode': 'cold_start',
           'predictsCurrentRuntime': false,

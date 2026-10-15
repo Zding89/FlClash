@@ -5,6 +5,7 @@ import 'package:fl_clash/configuration/changes.dart';
 import 'package:flutter/material.dart';
 
 import 'approval.dart';
+import 'policy_plan.dart';
 
 ConfigurationProposal? aiResultProposal(Map<String, Object?> result) {
   final nested = result['result'];
@@ -321,6 +322,13 @@ class AiToolResultCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final strings = context.appLocalizations;
     final colors = Theme.of(context).colorScheme;
+    final plan = proposal == null ? null : aiPolicyPlan(context, proposal!);
+    final localPolicyChanges =
+        proposal != null &&
+        proposal!.differences.isNotEmpty &&
+        proposal!.differences.every(
+          (difference) => difference.path.startsWith('policies.'),
+        );
     final nested = result?['result'];
     final fields = <String, Object?>{
       if (nested is Map)
@@ -350,7 +358,9 @@ class AiToolResultCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    proposal?.summary ?? strings.aiCheckResult,
+                    plan != null
+                        ? strings.aiPolicyPlanTitle
+                        : proposal?.summary ?? strings.aiCheckResult,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
@@ -358,54 +368,63 @@ class AiToolResultCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             if (proposal != null) ...[
-              for (final difference
-                  in expanded
-                      ? proposal!.differences
-                      : proposal!.differences.take(8))
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        difference.path,
-                        style: Theme.of(context).textTheme.labelLarge,
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${strings.aiBefore}: ${_differenceValue(difference.path, difference.before)}',
-                              maxLines: expanded ? null : 3,
-                              overflow: expanded
-                                  ? TextOverflow.visible
-                                  : TextOverflow.ellipsis,
+              if (plan != null)
+                AiPolicyPlanView(plan: plan, compact: !expanded),
+              if (plan == null && localPolicyChanges)
+                AiPolicyChangeOverview(proposal: proposal!),
+              if (plan == null && !localPolicyChanges)
+                for (final difference
+                    in expanded
+                        ? proposal!.differences
+                        : proposal!.differences.take(8))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          difference.path,
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${strings.aiBefore}: ${_differenceValue(difference.path, difference.before)}',
+                                maxLines: expanded ? null : 3,
+                                overflow: expanded
+                                    ? TextOverflow.visible
+                                    : TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 8),
-                            child: Icon(Icons.arrow_forward, size: 16),
-                          ),
-                          Expanded(
-                            child: Text(
-                              '${strings.aiAfter}: ${_differenceValue(difference.path, difference.after)}',
-                              maxLines: expanded ? null : 3,
-                              overflow: expanded
-                                  ? TextOverflow.visible
-                                  : TextOverflow.ellipsis,
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 8),
+                              child: Icon(Icons.arrow_forward, size: 16),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                            Expanded(
+                              child: Text(
+                                '${strings.aiAfter}: ${_differenceValue(difference.path, difference.after)}',
+                                maxLines: expanded ? null : 3,
+                                overflow: expanded
+                                    ? TextOverflow.visible
+                                    : TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
               if (awaitingApproval ||
                   result == null ||
                   result!['status'] == 'pending_confirmation')
-                Text(strings.aiAwaitingApproval)
+                Text(
+                  awaitingApproval
+                      ? strings.aiAwaitingApproval
+                      : strings.aiPolicyPlanReady,
+                )
               else
                 Text(_status(context)),
             ] else if (result != null) ...[
