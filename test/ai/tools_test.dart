@@ -72,6 +72,7 @@ class _Controller extends Mock implements WorkbenchController {
   Future<ConfigurationProposal> proposePolicies(
     LocalPolicyDocument document, {
     String? draftId,
+    String? expectedPolicyDigest,
   }) async {
     proposedDocument = document;
     final changes = policyChanges;
@@ -82,6 +83,7 @@ class _Controller extends Mock implements WorkbenchController {
       summary: 'Local rules',
       candidate: {...state, 'policies': document.toJson()},
       baseDraftId: draftId,
+      expectedPolicyDigest: expectedPolicyDigest,
     );
   }
 
@@ -103,6 +105,7 @@ class _Controller extends Mock implements WorkbenchController {
     required DateTime now,
     Map<String, int> localUsage = const {},
     List<Map<String, Object?>> steps = const [],
+    List<Map<String, Object?>> flows = const [],
   }) async {
     simulations++;
     simulationSteps = steps;

@@ -611,7 +611,9 @@ func (e *localPolicyEngine) evaluateChoicesLocked(r *localPolicyRuntime, now tim
 		r.recoverySince = time.Time{}
 	}
 	r.selectedChoice = index
-	if index >= 0 {
+	if reason == "manual_override" {
+		r.activeNodeIDs = []string{desired}
+	} else if index >= 0 {
 		choice := r.definition.Choices[index]
 		if choice.Type == "nodeSet" {
 			selection := r.choiceSelections[index]

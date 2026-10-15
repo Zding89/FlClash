@@ -169,6 +169,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiChangeCompleted": MessageLookupByLibrary.simpleMessage("完了"),
     "aiChangeExpired": MessageLookupByLibrary.simpleMessage("期限切れ"),
     "aiChangeFailed": MessageLookupByLibrary.simpleMessage("失敗または中断"),
+    "aiChangeSavedPending": MessageLookupByLibrary.simpleMessage("保存済み、適用待ち"),
     "aiChangesUnavailable": MessageLookupByLibrary.simpleMessage(
       "一部の関連記録は利用できません。",
     ),
@@ -206,6 +207,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "aiDisabled": MessageLookupByLibrary.simpleMessage("AI アシスタントは無効です"),
     "aiDiscardChanges": MessageLookupByLibrary.simpleMessage("変更を破棄"),
+    "aiDraftInvalid": MessageLookupByLibrary.simpleMessage(
+      "下書きは無効になりました。現在の設定を読み直してプランを作成してください。",
+    ),
     "aiEditConnection": MessageLookupByLibrary.simpleMessage("接続を編集"),
     "aiEmptyConversation": MessageLookupByLibrary.simpleMessage(
       "現在の設定を確認して、変更をプレビューできます",
@@ -244,6 +248,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "aiKeyShow": MessageLookupByLibrary.simpleMessage("キーを表示"),
     "aiKeyStored": MessageLookupByLibrary.simpleMessage("設定に暗号化して保存済み。空欄で保持"),
+    "aiLatestMessage": MessageLookupByLibrary.simpleMessage("最新のメッセージへ"),
     "aiLinkedChanges": MessageLookupByLibrary.simpleMessage("関連する変更"),
     "aiLinkedChangesHint": MessageLookupByLibrary.simpleMessage(
       "既存の変更履歴の最新状態と差分を表示します。取り消しや復旧は変更履歴で行います。",
@@ -910,11 +915,17 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyCandidates": MessageLookupByLibrary.simpleMessage("ノードの順序"),
     "policyCheckCapacityHint": m29,
+    "policyCheckCoreStopped": MessageLookupByLibrary.simpleMessage(
+      "Core が停止中のためノードをチェックできません。接続を開始してから、このノードグループを開き直してください。",
+    ),
     "policyCheckFrequencyHint": MessageLookupByLibrary.simpleMessage(
       "間隔は実行目安です。ノード数が多い場合は待機が発生します",
     ),
     "policyCheckFrequencySection": MessageLookupByLibrary.simpleMessage(
       "チェック頻度",
+    ),
+    "policyCheckLocalInactive": MessageLookupByLibrary.simpleMessage(
+      "ローカル設定が読み込まれていないため、このグループをチェックできません。ローカルルールでローカル設定を有効にして選択し、開き直してください。",
     ),
     "policyCheckMeasurementHint": MessageLookupByLibrary.simpleMessage(
       "接続性と応答遅延を測定します。ダウンロード速度ではありません",
@@ -923,8 +934,21 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyCheckNow": MessageLookupByLibrary.simpleMessage("今すぐチェック"),
     "policyCheckPending": MessageLookupByLibrary.simpleMessage("チェック待ち"),
     "policyCheckPreset": MessageLookupByLibrary.simpleMessage("チェック先のプリセット"),
+    "policyCheckReadFailed": MessageLookupByLibrary.simpleMessage(
+      "チェック状態を取得できません。ノードの利用可否は不明です。再試行し、失敗が続く場合はグループを開き直してください。",
+    ),
+    "policyCheckReadTimeout": MessageLookupByLibrary.simpleMessage(
+      "チェック状態の取得がタイムアウトしました。ノードの利用可否は未確認です。再試行してください。",
+    ),
+    "policyCheckRetry": MessageLookupByLibrary.simpleMessage("状態を再取得"),
     "policyCheckSave": MessageLookupByLibrary.simpleMessage("確認して保存"),
     "policyCheckStatusSection": MessageLookupByLibrary.simpleMessage("チェック状態"),
+    "policyCheckUnsaved": MessageLookupByLibrary.simpleMessage(
+      "未保存の下書きです。メンバーは下書き条件で抽出され、未チェックです。先に確認して保存し、ノードをチェックしてください。",
+    ),
+    "policyCheckVersionMismatch": MessageLookupByLibrary.simpleMessage(
+      "実行中のバージョンがグループと一致しないため、古い結果を非表示にしました。設定の適用後にグループを開き直してください。",
+    ),
     "policyChecksInFlight": MessageLookupByLibrary.simpleMessage("確認中"),
     "policyChecksWaiting": MessageLookupByLibrary.simpleMessage("待機中の確認"),
     "policyChoiceSection": MessageLookupByLibrary.simpleMessage("処理方法"),

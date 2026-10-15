@@ -204,6 +204,7 @@ class _FixtureWorkbench extends Mock implements WorkbenchController {
   Future<ConfigurationProposal> proposePolicies(
     LocalPolicyDocument document, {
     String? draftId,
+    String? expectedPolicyDigest,
   }) async {
     proposed = document;
     return const ConfigurationProposal(

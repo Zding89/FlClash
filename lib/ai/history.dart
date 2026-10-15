@@ -41,6 +41,7 @@ class AiConversation {
     required this.messages,
     this.targetLabel,
     this.changeIds = const [],
+    this.changeReferences = const {},
     this.context = const [],
     this.diagnostics = const [],
     this.recoveryRequired = false,
@@ -51,6 +52,7 @@ class AiConversation {
   final List<Map<String, String>> messages;
   final String? targetLabel;
   final List<String> changeIds;
+  final Map<String, int> changeReferences;
   final List<Map<String, Object?>> context;
   final List<Map<String, Object?>> diagnostics;
   final bool recoveryRequired;
@@ -69,6 +71,7 @@ class AiConversation {
     'messages': messages,
     if (targetLabel != null) 'targetLabel': targetLabel,
     'changeIds': changeIds,
+    if (changeReferences.isNotEmpty) 'changeReferences': changeReferences,
     if (context.isNotEmpty) 'context': context,
     if (diagnostics.isNotEmpty) 'diagnostics': diagnostics,
     if (recoveryRequired) 'recoveryRequired': true,
@@ -96,7 +99,18 @@ class AiConversation {
       messages.insert(0, {'role': message['role'] as String, 'content': text});
     }
     if (messages.isEmpty) return null;
+    final removedMessages =
+        (value['messages'] as List)
+            .where(
+              (message) =>
+                  message is Map &&
+                  const ['user', 'assistant'].contains(message['role']) &&
+                  message['content'] is String,
+            )
+            .length -
+        messages.length;
     final ids = value['changeIds'];
+    final references = value['changeReferences'];
     List<Map<String, Object?>> context = const [];
     try {
       context = aiContextMessages(value['context'] ?? const []);
@@ -116,6 +130,16 @@ class AiConversation {
       context: context,
       diagnostics: aiDiagnosticEvents(value['diagnostics']),
       recoveryRequired: value['recoveryRequired'] == true,
+      changeReferences: {
+        if (references is Map)
+          for (final entry in references.entries.take(96))
+            if (entry.key is String &&
+                (entry.key as String).length <= 160 &&
+                entry.value is int &&
+                (entry.value as int) >= 0)
+              entry.key as String: ((entry.value as int) - removedMessages)
+                  .clamp(0, messages.length),
+      },
       changeIds: ids is List
           ? ids
                 .whereType<String>()

@@ -41,6 +41,13 @@ final workbenchDatabaseProvider = Provider<WorkbenchDatabase>(
 
 var _sourceRefreshSequence = 0;
 
+final class PreparedSourceUpdate {
+  const PreparedSourceUpdate({required this.publish, required this.rollback});
+
+  final Future<void> Function() publish;
+  final Future<void> Function() rollback;
+}
+
 int _nextSourceRefreshSequence() {
   final now = DateTime.now().microsecondsSinceEpoch;
   _sourceRefreshSequence = now > _sourceRefreshSequence
@@ -235,7 +242,7 @@ class WorkbenchController {
     return request.getBoundedFileResponse(url, proxyDirective: route);
   }
 
-  Future<void> validateSourceUpdate(
+  Future<PreparedSourceUpdate?> validateSourceUpdate(
     Profile profile,
     Uint8List bytes, {
     required bool Function() isCurrent,
@@ -243,7 +250,7 @@ class WorkbenchController {
     final document = await readPolicies();
     if (!(document.moduleEnabled && document.integrationEnabled) ||
         !document.localProfile.sourceProfileIds.contains(profile.id)) {
-      return;
+      return null;
     }
     final content = utf8.decode(bytes);
     final raw = policyObject(normalizePolicyYaml(loadYaml(content)), 'source');
@@ -259,31 +266,78 @@ class WorkbenchController {
     }
     final loader = profiles.loader;
     final sourcePath = await loader.profilePath(profile.id);
+    final staged = <String, String>{};
+    final previous = <String, String?>{};
     final candidateLoader = PolicySourceLoader(
       store: store,
-      readFile: (path) async =>
-          path == sourcePath ? content : await loader.readFile(path),
+      readFile: (path) async => path == sourcePath
+          ? content
+          : staged[path] ?? await loader.readFile(path),
       fetchFile: loader.fetchFile,
-      writeFile: loader.writeFile,
-      commitFile: loader.commitFile,
+      writeFile: (path, content) async => staged[path] = content,
+      commitFile: (path, content, {isCurrent}) async {
+        if (isCurrent?.call() == false) {
+          throw StateError('profile_update_superseded');
+        }
+        staged[path] = content;
+      },
       profilePath: loader.profilePath,
       providerCachePath: loader.providerCachePath,
       homePath: loader.homePath,
     );
-    final source = (await candidateLoader.load(
-      [profile],
-      allowNetwork: true,
-      isCurrent: isCurrent,
-    )).single;
-    final nodes = profiles.compiler.extractNodes(source);
-    final identities = <String, String>{};
-    for (final node in nodes) {
-      final prior = identities[node.label];
-      if (prior != null && prior != node.id) {
-        throw const PolicySourceException('duplicate-node-name');
-      }
-      identities[node.label] = node.id;
+    final selected = profiles.requiredProfiles(
+      document: document,
+      profiles: ref.read(profilesProvider),
+      profileId: ref.read(currentProfileIdProvider),
+    );
+    final sources = <PolicySource>[];
+    for (final selectedProfile in selected) {
+      sources.addAll(
+        await candidateLoader.load(
+          [selectedProfile],
+          allowNetwork: selectedProfile.id == profile.id,
+          isCurrent: isCurrent,
+        ),
+      );
     }
+    for (final source in sources) {
+      if (source.id == '${profile.id}' && source.warning == 'cached_snapshot') {
+        throw const FormatException('Updated source could not be loaded');
+      }
+      final identities = <String, String>{};
+      for (final node in profiles.compiler.extractNodes(source)) {
+        final prior = identities[node.label];
+        if (prior != null && prior != node.id) {
+          throw const PolicySourceException('duplicate-node-name');
+        }
+        identities[node.label] = node.id;
+      }
+    }
+    profiles.compiler.compile(
+      document: document,
+      profileId: ref.read(currentProfileIdProvider),
+      baseConfig: const {},
+      sources: sources,
+    );
+    if (!isCurrent()) throw StateError('profile_update_superseded');
+    return PreparedSourceUpdate(
+      publish: () async {
+        for (final entry in staged.entries) {
+          previous[entry.key] = await loader.readFile(entry.key);
+          await loader.commitFile(entry.key, entry.value, isCurrent: isCurrent);
+        }
+      },
+      rollback: () async {
+        for (final entry in previous.entries) {
+          if (entry.value case final content?) {
+            await loader.commitFile(entry.key, content);
+          } else {
+            final file = File(entry.key);
+            if (await file.exists()) await file.delete();
+          }
+        }
+      },
+    );
   }
 
   Future<void> refreshSourceMetadata(
@@ -365,9 +419,11 @@ class WorkbenchController {
   Future<ConfigurationProposal> proposePolicies(
     LocalPolicyDocument document, {
     String? draftId,
+    String? expectedPolicyDigest,
   }) async {
     document = LocalPolicyDocument.fromJson(document.toJson()).asStandalone();
     final snapshot = await backend.readState();
+    final expectedStateDigest = configurationDigest(snapshot);
     final current = LocalPolicyDocument.fromJson(
       policyObject(snapshot['policies'], 'policies'),
     ).asStandalone();
@@ -396,6 +452,8 @@ class WorkbenchController {
       summary: currentAppLocalizations.localPolicies,
       candidate: snapshot,
       baseDraftId: draftId,
+      expectedPolicyDigest: expectedPolicyDigest,
+      expectedStateDigest: expectedStateDigest,
     );
   }
 
@@ -558,6 +616,7 @@ class WorkbenchController {
     required DateTime now,
     Map<String, int> localUsage = const {},
     List<Map<String, Object?>> steps = const [],
+    List<Map<String, Object?>> flows = const [],
   }) {
     if (ref.read(coreStatusProvider) != CoreStatus.connected) {
       throw const ConfigurationChangeException(
@@ -572,6 +631,7 @@ class WorkbenchController {
       localUsage: localUsage,
       now: now,
       steps: steps,
+      flows: flows,
     );
   }
 

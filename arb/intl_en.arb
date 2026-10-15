@@ -1211,5 +1211,15 @@
     }
   },
   "aiPolicyUnknownMultiplierExcluded": "Exclude nodes with unknown multiplier",
-  "aiPolicyUnknownRegionAllowed": "Include nodes with unknown region"
+  "aiPolicyUnknownRegionAllowed": "Include nodes with unknown region",
+  "aiLatestMessage": "Latest message",
+  "aiDraftInvalid": "This draft is out of date. Read the current configuration and create a new plan.",
+  "aiChangeSavedPending": "Saved; application pending",
+  "policyCheckUnsaved": "This is an unsaved draft. Members match draft conditions and have not been checked. Check and save first, then check nodes.",
+  "policyCheckCoreStopped": "Core is stopped, so nodes cannot be checked. Start the connection, then reopen this node group.",
+  "policyCheckLocalInactive": "The local configuration is not loaded, so this node group cannot be checked. Enable and select the local configuration in Local policies, then reopen this group.",
+  "policyCheckReadFailed": "Check status could not be read; node availability is unknown. Retry, or reopen this group if it still fails.",
+  "policyCheckReadTimeout": "Reading check status timed out. Node availability is unconfirmed. Retry.",
+  "policyCheckVersionMismatch": "The running version does not match this node group. Old results are hidden. Wait for configuration application to finish, then reopen the group.",
+  "policyCheckRetry": "Retry reading status"
 }

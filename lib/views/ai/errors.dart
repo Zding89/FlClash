@@ -50,6 +50,8 @@ String aiErrorText(BuildContext context, Object? error) {
     'runtimeClosed' ||
     'runtimeUnavailable' => strings.aiHostUnavailable,
     'cancelled' || 'configuration_cancelled' => strings.aiCancelled,
+    'configuration_version_conflict' ||
+    'configuration_snapshot_expired' => strings.aiDraftInvalid,
     'source_update_proxy_unavailable' => strings.policyUpdateProxyUnavailable,
     'source_download_network_failed' => strings.networkException,
     _ => strings.aiRequestFailed,

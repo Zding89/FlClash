@@ -9768,6 +9768,106 @@ class AppLocalizations {
       args: [],
     );
   }
+
+  /// `Latest message`
+  String get aiLatestMessage {
+    return Intl.message(
+      'Latest message',
+      name: 'aiLatestMessage',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `This draft is out of date. Read the current configuration and create a new plan.`
+  String get aiDraftInvalid {
+    return Intl.message(
+      'This draft is out of date. Read the current configuration and create a new plan.',
+      name: 'aiDraftInvalid',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Saved; application pending`
+  String get aiChangeSavedPending {
+    return Intl.message(
+      'Saved; application pending',
+      name: 'aiChangeSavedPending',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `This is an unsaved draft. Members match draft conditions and have not been checked. Check and save first, then check nodes.`
+  String get policyCheckUnsaved {
+    return Intl.message(
+      'This is an unsaved draft. Members match draft conditions and have not been checked. Check and save first, then check nodes.',
+      name: 'policyCheckUnsaved',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Core is stopped, so nodes cannot be checked. Start the connection, then reopen this node group.`
+  String get policyCheckCoreStopped {
+    return Intl.message(
+      'Core is stopped, so nodes cannot be checked. Start the connection, then reopen this node group.',
+      name: 'policyCheckCoreStopped',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `The local configuration is not loaded, so this node group cannot be checked. Enable and select the local configuration in Local policies, then reopen this group.`
+  String get policyCheckLocalInactive {
+    return Intl.message(
+      'The local configuration is not loaded, so this node group cannot be checked. Enable and select the local configuration in Local policies, then reopen this group.',
+      name: 'policyCheckLocalInactive',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Check status could not be read; node availability is unknown. Retry, or reopen this group if it still fails.`
+  String get policyCheckReadFailed {
+    return Intl.message(
+      'Check status could not be read; node availability is unknown. Retry, or reopen this group if it still fails.',
+      name: 'policyCheckReadFailed',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Reading check status timed out. Node availability is unconfirmed. Retry.`
+  String get policyCheckReadTimeout {
+    return Intl.message(
+      'Reading check status timed out. Node availability is unconfirmed. Retry.',
+      name: 'policyCheckReadTimeout',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `The running version does not match this node group. Old results are hidden. Wait for configuration application to finish, then reopen the group.`
+  String get policyCheckVersionMismatch {
+    return Intl.message(
+      'The running version does not match this node group. Old results are hidden. Wait for configuration application to finish, then reopen the group.',
+      name: 'policyCheckVersionMismatch',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Retry reading status`
+  String get policyCheckRetry {
+    return Intl.message(
+      'Retry reading status',
+      name: 'policyCheckRetry',
+      desc: '',
+      args: [],
+    );
+  }
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<AppLocalizations> {

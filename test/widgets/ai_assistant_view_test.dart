@@ -106,6 +106,16 @@ class _Transport implements AgentTransport {
   }
 }
 
+class _StreamingTransport extends _Transport {
+  @override
+  Future<void> write(List<int> bytes) async {
+    final frame = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+    if (frame['type'] != 'prompt') return;
+    prompt = frame;
+    promptCalls++;
+  }
+}
+
 class _MarkdownTransport extends _Transport {
   _MarkdownTransport(this.content);
   final String content;
@@ -284,6 +294,7 @@ class _CapabilityService extends Mock implements ApplicationCapabilityService {
   Completer<Map<String, Object?>>? readPending;
   Map<String, Object?>? runtimeReadResult;
   Map<String, Object?>? mutationResult;
+  Map<String, Object?>? operationQueryResult;
   final pending = Completer<void>();
   @override
   List<Map<String, Object?>> get manifest =>
@@ -308,6 +319,7 @@ class _CapabilityService extends Mock implements ApplicationCapabilityService {
       };
     }
     if (command == 'operation_query') {
+      if (operationQueryResult != null) return operationQueryResult!;
       return {
         'operationId': 'other-conversation-change',
         'status': 'completed',
@@ -434,7 +446,300 @@ Future<void> _tapAi(WidgetTester tester, Finder target) async {
   await tester.pump(const Duration(milliseconds: 300));
 }
 
+Future<ProviderContainer> _mountMixedHeightHistory(WidgetTester tester) async {
+  final controller = _Controller(
+    AgentRuntime(launcher: () async => _Transport()),
+    _Credentials(),
+  );
+  final container = await _mount(tester, controller);
+  await container
+      .read(aiHistoryStoreProvider)
+      .save(
+        AiConversation(
+          id: 'c' * 32,
+          updatedAt: 1,
+          messages: [
+            for (var turn = 0; turn < 36; turn++) ...[
+              {'role': 'user', 'content': 'mixed history question $turn'},
+              {
+                'role': 'assistant',
+                'content':
+                    'answer $turn\n\n${List.generate(turn.isEven ? 2 : 40 + turn, (index) => 'mixed height paragraph $turn / $index').join('\n\n')}${turn == 35 ? '\n\nFINAL ANSWER END' : ''}',
+              },
+            ],
+          ],
+        ),
+      );
+  await _tapAi(
+    tester,
+    find.byTooltip(AppLocalizations.current.aiConversationHistory),
+  );
+  await tester.pumpAndSettle();
+  await _tapAi(tester, find.text('mixed history question 0'));
+  await tester.pumpAndSettle();
+  return container;
+}
+
 void main() {
+  testWidgets(
+    'latest message reaches the real tail of lazy mixed-height history',
+    (tester) async {
+      final container = await _mountMixedHeightHistory(tester);
+      addTearDown(container.dispose);
+      final listFinder = find.byKey(const ValueKey('ai-conversation-list'));
+      final list = tester.widget<ListView>(listFinder);
+      list.controller!.jumpTo(0);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('ai-latest-message')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('ai-latest-message')));
+      await tester.pumpAndSettle();
+      final finalAnswer = find.byWidgetPredicate(
+        (widget) =>
+            widget is AiAssistantMarkdown &&
+            widget.text.endsWith('FINAL ANSWER END'),
+      );
+      expect(finalAnswer, findsOneWidget);
+      final tail = tester.getRect(finalAnswer).bottom;
+      final viewport = tester.getRect(listFinder);
+      expect(tail, lessThanOrEqualTo(viewport.bottom));
+      expect(tail, greaterThan(viewport.top));
+      expect(list.controller!.position.extentAfter, lessThan(1));
+      expect(find.byKey(const ValueKey('ai-latest-message')), findsNothing);
+      expect(tester.binding.hasScheduledFrame, false);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('reader drag cancels a pending lazy-history follow convergence', (
+    tester,
+  ) async {
+    final container = await _mountMixedHeightHistory(tester);
+    addTearDown(container.dispose);
+    final listFinder = find.byKey(const ValueKey('ai-conversation-list'));
+    final list = tester.widget<ListView>(listFinder);
+    list.controller!.jumpTo(0);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('ai-latest-message')));
+    await tester.pump();
+    final gesture = await tester.startGesture(tester.getCenter(listFinder));
+    await gesture.moveBy(const Offset(0, 300));
+    await tester.pump();
+    final readingOffset = list.controller!.offset;
+    for (var frame = 0; frame < 20; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(list.controller!.offset, readingOffset);
+    expect(find.byKey(const ValueKey('ai-latest-message')), findsOneWidget);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('ai-latest-message')), findsOneWidget);
+    expect(tester.binding.hasScheduledFrame, false);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('reading position survives text, status and completion events', (
+    tester,
+  ) async {
+    final transport = _StreamingTransport();
+    final container = await _mount(
+      tester,
+      _Controller(
+        AgentRuntime(launcher: () async => transport),
+        _Credentials(),
+      ),
+      capabilities: _CapabilityService()
+        ..runtimeReadResult = const {'status': 'failed'},
+    );
+    addTearDown(container.dispose);
+    await tester.enterText(
+      find.byKey(const ValueKey('ai-prompt')),
+      'long task',
+    );
+    await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+    transport.event('text', {
+      'text': List.generate(100, (index) => 'paragraph $index').join('\n\n'),
+    });
+    await tester.pump();
+    await tester.pump();
+    final list = tester.widget<ListView>(
+      find.byKey(const ValueKey('ai-conversation-list')),
+    );
+    expect(list.controller!.position.extentAfter, lessThan(1));
+    list.controller!.jumpTo(0);
+    await tester.pump();
+    for (final event in [
+      ('status', <String, Object?>{'status': 'thinking'}),
+      ('text', <String, Object?>{'text': '\nnew output'}),
+      (
+        'toolRequest',
+        <String, Object?>{
+          'requestId': 'scroll-check',
+          'toolCallId': 'scroll-tool',
+          'name': 'application_invoke',
+          'arguments': {
+            'command': 'runtime_read',
+            'params': <String, Object?>{},
+          },
+        },
+      ),
+      ('done', <String, Object?>{'cancelled': false, 'failed': false}),
+    ]) {
+      transport.event(event.$1, event.$2);
+      await tester.pump();
+      await tester.pump();
+      expect(list.controller!.offset, 0);
+    }
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('ai-latest-message')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('ai-latest-message')));
+    await tester.pumpAndSettle();
+    expect(list.controller!.position.extentAfter, lessThan(1));
+    expect(find.byKey(const ValueKey('ai-latest-message')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'history queries the same operation without restoring approval or raw parameters',
+    (tester) async {
+      final controller = _Controller(
+        AgentRuntime(launcher: () async => _Transport()),
+        _Credentials(),
+      );
+      final capabilities = _CapabilityService()
+        ..operationQueryResult = const {
+          'operationId': 'recover-operation',
+          'status': 'requires_recovery',
+        };
+      final container = await _mount(
+        tester,
+        controller,
+        capabilities: capabilities,
+      );
+      addTearDown(container.dispose);
+      await controller.store.saveChange(
+        id: 'recover-operation',
+        category: 'capability:resource_update',
+        summary: 'Refresh resources',
+        highRisk: false,
+        fingerprint: 'operation',
+        before: const {},
+        after: const {
+          'command': 'resource_update',
+          'params': {'private': 'hidden-parameter'},
+        },
+        createdAt: 1,
+        expiresAt: 9999999999999,
+      );
+      await controller.store.changeStatus('recover-operation', 'running');
+      await container
+          .read(aiHistoryStoreProvider)
+          .save(
+            AiConversation(
+              id: 'b' * 32,
+              updatedAt: 1,
+              messages: const [
+                {'role': 'user', 'content': 'recover operation'},
+              ],
+              changeIds: const ['recover-operation'],
+              changeReferences: const {'recover-operation': 1},
+            ),
+          );
+      await _tapAi(
+        tester,
+        find.byTooltip(AppLocalizations.current.aiConversationHistory),
+      );
+      await tester.pumpAndSettle();
+      await _tapAi(tester, find.text('recover operation'));
+      await tester.pumpAndSettle();
+      final card = tester.widget<AiToolResultCard>(
+        find.byType(AiToolResultCard),
+      );
+      expect(card.proposal, isNull);
+      expect(card.result!['status'], 'requires_recovery');
+      expect(card.summary, 'Refresh resources');
+      expect(card.onApprove, isNull);
+      expect(find.textContaining('hidden-parameter'), findsNothing);
+      expect(find.textContaining('resource_update'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'history restores authoritative current cards without approvals',
+    (tester) async {
+      final controller = _Controller(
+        AgentRuntime(launcher: () async => _Transport()),
+        _Credentials(),
+      );
+      final container = await _mount(tester, controller);
+      addTearDown(container.dispose);
+      final store = container.read(aiHistoryStoreProvider);
+      for (final id in ['old-draft', 'latest-draft', 'applied-change']) {
+        await controller.store.saveChange(
+          id: id,
+          category: 'policies',
+          summary: id,
+          highRisk: false,
+          fingerprint: 'old',
+          before: const {
+            'settings': {'mode': 'rule'},
+          },
+          after: const {
+            'settings': {'mode': 'global'},
+          },
+          createdAt: 1,
+          expiresAt: 2,
+        );
+      }
+      await controller.store.changeStatus('old-draft', 'superseded');
+      await controller.store.changeStatus('applied-change', 'applied');
+      await store.save(
+        AiConversation(
+          id: 'a' * 32,
+          updatedAt: 1,
+          messages: const [
+            {'role': 'user', 'content': 'recover draft'},
+            {'role': 'assistant', 'content': 'review plan'},
+            {'role': 'user', 'content': 'continue later'},
+          ],
+          changeIds: const ['old-draft', 'latest-draft', 'applied-change'],
+          changeReferences: const {
+            'old-draft': 1,
+            'latest-draft': 2,
+            'applied-change': 2,
+          },
+        ),
+      );
+      await _tapAi(
+        tester,
+        find.byTooltip(AppLocalizations.current.aiConversationHistory),
+      );
+      await tester.pumpAndSettle();
+      await _tapAi(tester, find.text('recover draft'));
+      await tester.pumpAndSettle();
+      final cards = tester
+          .widgetList<AiToolResultCard>(find.byType(AiToolResultCard))
+          .toList();
+      expect(cards.map((card) => card.proposal!.id), [
+        'latest-draft',
+        'applied-change',
+      ]);
+      expect(cards.map((card) => card.result!['status']), [
+        'expired',
+        'applied',
+      ]);
+      expect(
+        cards.every((card) => !card.awaitingApproval && card.onApprove == null),
+        true,
+      );
+      final list = tester.widget<ListView>(
+        find.byKey(const ValueKey('ai-conversation-list')),
+      );
+      expect(list.semanticChildCount, 5);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'successful mutation receipt stays hidden while result and link persist',
     (tester) async {
@@ -469,7 +774,10 @@ void main() {
             find.byKey(const ValueKey('ai-send')).evaluate().isNotEmpty,
         'Mutation result must return to the model and finish',
       );
-      expect(transport.returnedToolFrame!['data']['value'], result);
+      expect(transport.returnedToolFrame!['data']['value'], {
+        ...result,
+        'taskEffect': 'mutation',
+      });
       expect(transport.returnedToolFrame!['data']['isError'], false);
       expect(find.byType(AiToolResultCard), findsNothing);
       expect(find.text('raw mutation receipt'), findsNothing);

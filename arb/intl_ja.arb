@@ -1197,5 +1197,15 @@
     }
   },
   "aiPolicyUnknownMultiplierExcluded": "倍率不明のノードを除外",
-  "aiPolicyUnknownRegionAllowed": "地域不明のノードも含める"
+  "aiPolicyUnknownRegionAllowed": "地域不明のノードも含める",
+  "aiLatestMessage": "最新のメッセージへ",
+  "aiDraftInvalid": "下書きは無効になりました。現在の設定を読み直してプランを作成してください。",
+  "aiChangeSavedPending": "保存済み、適用待ち",
+  "policyCheckUnsaved": "未保存の下書きです。メンバーは下書き条件で抽出され、未チェックです。先に確認して保存し、ノードをチェックしてください。",
+  "policyCheckCoreStopped": "Core が停止中のためノードをチェックできません。接続を開始してから、このノードグループを開き直してください。",
+  "policyCheckLocalInactive": "ローカル設定が読み込まれていないため、このグループをチェックできません。ローカルルールでローカル設定を有効にして選択し、開き直してください。",
+  "policyCheckReadFailed": "チェック状態を取得できません。ノードの利用可否は不明です。再試行し、失敗が続く場合はグループを開き直してください。",
+  "policyCheckReadTimeout": "チェック状態の取得がタイムアウトしました。ノードの利用可否は未確認です。再試行してください。",
+  "policyCheckVersionMismatch": "実行中のバージョンがグループと一致しないため、古い結果を非表示にしました。設定の適用後にグループを開き直してください。",
+  "policyCheckRetry": "状態を再取得"
 }

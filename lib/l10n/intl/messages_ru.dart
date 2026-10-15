@@ -201,6 +201,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiChangeFailed": MessageLookupByLibrary.simpleMessage(
       "Ошибка или прерывание",
     ),
+    "aiChangeSavedPending": MessageLookupByLibrary.simpleMessage(
+      "Сохранено; ожидает применения",
+    ),
     "aiChangesUnavailable": MessageLookupByLibrary.simpleMessage(
       "Некоторые связанные записи недоступны.",
     ),
@@ -250,6 +253,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiDiscardChanges": MessageLookupByLibrary.simpleMessage(
       "Отменить изменения",
     ),
+    "aiDraftInvalid": MessageLookupByLibrary.simpleMessage(
+      "Черновик устарел. Прочитайте текущую конфигурацию и создайте новый план.",
+    ),
     "aiEditConnection": MessageLookupByLibrary.simpleMessage(
       "Изменить подключение",
     ),
@@ -297,6 +303,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiKeyShow": MessageLookupByLibrary.simpleMessage("Показать ключ"),
     "aiKeyStored": MessageLookupByLibrary.simpleMessage(
       "Зашифрован в настройках; оставьте пустым, чтобы сохранить",
+    ),
+    "aiLatestMessage": MessageLookupByLibrary.simpleMessage(
+      "К последнему сообщению",
     ),
     "aiLinkedChanges": MessageLookupByLibrary.simpleMessage(
       "Связанные изменения",
@@ -1200,11 +1209,17 @@ class MessageLookup extends MessageLookupByLibrary {
       "Точный порядок узлов",
     ),
     "policyCheckCapacityHint": m29,
+    "policyCheckCoreStopped": MessageLookupByLibrary.simpleMessage(
+      "Core остановлен: проверка узлов недоступна. Запустите подключение и снова откройте группу узлов.",
+    ),
     "policyCheckFrequencyHint": MessageLookupByLibrary.simpleMessage(
       "Интервалы задают цель планирования; большое число узлов может создать очередь",
     ),
     "policyCheckFrequencySection": MessageLookupByLibrary.simpleMessage(
       "Частота проверки",
+    ),
+    "policyCheckLocalInactive": MessageLookupByLibrary.simpleMessage(
+      "Локальная конфигурация не загружена: группа недоступна для проверки. Включите и выберите её в локальных правилах, затем снова откройте группу.",
     ),
     "policyCheckMeasurementHint": MessageLookupByLibrary.simpleMessage(
       "Измеряется доступность и задержка запроса, а не скорость загрузки",
@@ -1219,11 +1234,26 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyCheckPreset": MessageLookupByLibrary.simpleMessage(
       "Предустановка адреса проверки",
     ),
+    "policyCheckReadFailed": MessageLookupByLibrary.simpleMessage(
+      "Не удалось прочитать статус проверки; доступность узлов неизвестна. Повторите попытку или снова откройте группу.",
+    ),
+    "policyCheckReadTimeout": MessageLookupByLibrary.simpleMessage(
+      "Время ожидания статуса проверки истекло. Доступность узлов не подтверждена. Повторите попытку.",
+    ),
+    "policyCheckRetry": MessageLookupByLibrary.simpleMessage(
+      "Повторить чтение статуса",
+    ),
     "policyCheckSave": MessageLookupByLibrary.simpleMessage(
       "Проверить и сохранить",
     ),
     "policyCheckStatusSection": MessageLookupByLibrary.simpleMessage(
       "Статус проверки",
+    ),
+    "policyCheckUnsaved": MessageLookupByLibrary.simpleMessage(
+      "Это несохранённый черновик. Узлы отобраны по его условиям и ещё не проверены. Сначала проверьте и сохраните настройки, затем проверьте узлы.",
+    ),
+    "policyCheckVersionMismatch": MessageLookupByLibrary.simpleMessage(
+      "Рабочая версия не соответствует этой группе. Старые результаты скрыты. Дождитесь применения конфигурации и снова откройте группу.",
     ),
     "policyChecksInFlight": MessageLookupByLibrary.simpleMessage(
       "Проверки выполняются",

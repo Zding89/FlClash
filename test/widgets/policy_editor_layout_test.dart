@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -147,6 +148,184 @@ void main() {
       'MaterialIcons',
     )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
   });
+  for (final scenario in [
+    (
+      'stopped',
+      <String, Object?>{'state': 'core_disconnected'},
+      'policyCheckCoreStopped',
+    ),
+    (
+      'inactive',
+      <String, Object?>{'enabled': false},
+      'policyCheckLocalInactive',
+    ),
+    (
+      'version',
+      <String, Object?>{'revision': 7, 'documentRevision': 1},
+      'policyCheckVersionMismatch',
+    ),
+  ]) {
+    testWidgets('node check explains ${scenario.$1} without loading', (
+      tester,
+    ) async {
+      var reads = 0;
+      await _mount(
+        tester,
+        PolicyNodeSetEditor(
+          existing: _set,
+          targetId: localPolicyTargetId,
+          savedRevision: 2,
+          sources: const {'1': 'source'},
+          nodes: _nodes,
+          snapshot: scenario.$2,
+          loadStatus: (_) async {
+            reads++;
+            return {};
+          },
+          onCheck: (_, _) async {},
+        ),
+        const Size(1100, 850),
+      );
+      final strings = AppLocalizations.current;
+      final expected = switch (scenario.$3) {
+        'policyCheckCoreStopped' => strings.policyCheckCoreStopped,
+        'policyCheckLocalInactive' => strings.policyCheckLocalInactive,
+        _ => strings.policyCheckVersionMismatch,
+      };
+      expect(find.text(expected), findsOneWidget);
+      expect(reads, 0);
+      expect(
+        tester
+            .widget<OutlinedButton>(
+              find.byKey(const ValueKey('node-members-check')),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('failed status can retry and check without prior results', (
+    tester,
+  ) async {
+    var reads = 0;
+    var checks = 0;
+    await _mount(
+      tester,
+      PolicyNodeSetEditor(
+        existing: _set,
+        targetId: localPolicyTargetId,
+        sources: const {'1': 'source'},
+        nodes: _nodes,
+        snapshot: const {'revision': 7},
+        loadStatus: (_) async {
+          reads++;
+          if (reads == 1) throw TimeoutException('status');
+          return {
+            'revision': 7,
+            'nodeSetId': _set.id,
+            'offset': 0,
+            'probe': _set.probe.toJson(),
+            'total': 0,
+            'nodes': <Object?>[],
+          };
+        },
+        onCheck: (_, _) async {
+          checks++;
+        },
+      ),
+      const Size(1100, 850),
+    );
+    expect(
+      find.text(AppLocalizations.current.policyCheckReadTimeout),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.byKey(const ValueKey('node-members-check')),
+          )
+          .onPressed,
+      isNotNull,
+    );
+    await _tap(tester, find.byKey(const ValueKey('node-set-status-retry')));
+    expect(reads, 2);
+    expect(
+      find.text(AppLocalizations.current.policyCheckReadTimeout),
+      findsNothing,
+    );
+    await _tap(tester, find.byKey(const ValueKey('node-members-check')));
+    expect(checks, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('snapshot read retry refreshes the revision used for checking', (
+    tester,
+  ) async {
+    int? checkedRevision;
+    await _mount(
+      tester,
+      PolicyNodeSetEditor(
+        existing: _set,
+        targetId: localPolicyTargetId,
+        savedRevision: 2,
+        sources: const {'1': 'source'},
+        nodes: _nodes,
+        snapshot: const {'state': 'status_unavailable'},
+        loadSnapshot: () async => {
+          'revision': 8,
+          'documentRevision': 2,
+          'targetId': localPolicyTargetId,
+          'enabled': true,
+        },
+        loadStatus: (_) async => {
+          'revision': 8,
+          'nodeSetId': _set.id,
+          'offset': 0,
+          'probe': _set.probe.toJson(),
+          'total': 0,
+          'nodes': <Object?>[],
+        },
+        onCheck: (_, revision) async {
+          checkedRevision = revision;
+        },
+      ),
+      const Size(1100, 850),
+    );
+    expect(
+      find.text(AppLocalizations.current.policyCheckReadFailed),
+      findsOneWidget,
+    );
+    await _tap(tester, find.byKey(const ValueKey('node-set-status-retry')));
+    expect(
+      find.text(AppLocalizations.current.policyCheckReadFailed),
+      findsNothing,
+    );
+    await _tap(tester, find.byKey(const ValueKey('node-members-check')));
+    expect(checkedRevision, 8);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('unsaved node group explains why checks are unavailable', (
+    tester,
+  ) async {
+    await _mount(
+      tester,
+      PolicyNodeSetEditor(
+        targetId: localPolicyTargetId,
+        sources: const {'1': 'source'},
+        nodes: _nodes,
+      ),
+      const Size(1100, 850),
+    );
+    expect(
+      find.text(AppLocalizations.current.policyCheckUnsaved),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('node-members-check')), findsNothing);
+  });
+
   for (final size in [
     const Size(1100, 850),
     const Size(390, 700),

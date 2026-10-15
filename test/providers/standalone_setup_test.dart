@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart' show RequestOptions, Response;
 import 'package:drift/native.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/configuration/changes.dart';
@@ -73,6 +74,19 @@ class _AirportCore extends CoreHandlerInterface {
         }
         as T;
   }
+}
+
+class _SourceWorkbench extends WorkbenchController {
+  _SourceWorkbench(super.ref, {required super.store});
+
+  @override
+  Future<Response<Uint8List>> fetchSourceResponse(String url) async => Response(
+    requestOptions: RequestOptions(path: url),
+    data: Uint8List.fromList(
+      'proxies: [{name: New, type: ss, server: new.invalid, port: 443}]'
+          .codeUnits,
+    ),
+  );
 }
 
 void main() {
@@ -171,6 +185,7 @@ void main() {
         ...buildConfigOverrides(config),
         workbenchDatabaseProvider.overrideWithValue(store),
         profilesProvider.overrideWithBuild((_, _) => const [airport]),
+        profileWriterProvider.overrideWithValue((_) async {}),
         proxiesCoreProvider.overrideWithValue(CoreController.test(handler)),
         coreStatusProvider.overrideWithBuild((_, _) => CoreStatus.disconnected),
       ],
@@ -320,6 +335,106 @@ void main() {
         ),
       );
       expect(container.read(profilesProvider), const [airport]);
+    },
+  );
+  test(
+    'provider files remain staged until source publish and restore on rollback',
+    () async {
+      final candidateContainer = ProviderContainer(
+        overrides: [
+          profilesProvider.overrideWithBuild((_, _) => const [airport]),
+          currentProfileIdProvider.overrideWithBuild((_, _) => 1),
+          workbenchControllerProvider.overrideWith(
+            (ref) => _SourceWorkbench(ref, store: store),
+          ),
+        ],
+      );
+      addTearDown(candidateContainer.dispose);
+      final controller = candidateContainer.read(workbenchControllerProvider);
+      const url = 'https://provider.invalid/nodes';
+      final file = File(
+        await controller.profiles.loader.providerCachePath(1, url),
+      );
+      await file.parent.create(recursive: true);
+      await file.writeAsString('old-provider-cache');
+      addTearDown(() async {
+        if (await file.exists()) await file.delete();
+      });
+      final bytes = Uint8List.fromList(
+        'proxy-providers: {remote: {type: http, url: "$url"}}'.codeUnits,
+      );
+      final candidate = await controller.validateSourceUpdate(
+        airport,
+        bytes,
+        isCurrent: () => true,
+      );
+      expect(await file.readAsString(), 'old-provider-cache');
+      await candidate!.publish();
+      expect(await file.readAsString(), contains('new.invalid'));
+      await candidate.rollback();
+      expect(await file.readAsString(), 'old-provider-cache');
+      await expectLater(
+        controller.validateSourceUpdate(
+          airport,
+          Uint8List.fromList(
+            'proxy-providers: {remote: {type: http, url: "$url"}, broken: {type: inline, payload: [], filter: unsupported}}'
+                .codeUnits,
+          ),
+          isCurrent: () => true,
+        ),
+        throwsA(isA<PolicySourceException>()),
+      );
+      expect(await file.readAsString(), 'old-provider-cache');
+    },
+  );
+  test(
+    'source update validates all selected sources before publishing',
+    () async {
+      final firstFile = File(await appPath.getProfilePath('1'));
+      final previous = await firstFile.readAsString();
+      final secondFile = File(await appPath.getProfilePath('2'));
+      addTearDown(() async {
+        await firstFile.writeAsString(previous);
+        if (await secondFile.exists()) await secondFile.delete();
+      });
+      String nodes(int count, String source) =>
+          'proxies:\n${List.generate(count, (i) => '  - {name: $source-$i, type: ss, server: $source-$i.invalid, port: 443}\n').join()}';
+      await firstFile.writeAsString(nodes(2999, 'first'));
+      await secondFile.writeAsString(nodes(2000, 'second'));
+      await container
+          .read(profilesProvider.notifier)
+          .putAndWait(airport.copyWith(id: 2, label: 'Second'));
+      final selected = document(selected: true);
+      await store.writeSection('policies', {
+        ...selected.toJson(),
+        'integrations': [
+          {
+            ...selected.localProfile.toJson(),
+            'sourceProfileIds': [1, 2],
+          },
+        ],
+      });
+      final controller = container.read(workbenchControllerProvider);
+      await controller.validateSourceUpdate(
+        airport,
+        Uint8List.fromList(nodes(2999, 'first').codeUnits),
+        isCurrent: () => true,
+      );
+      await expectLater(
+        controller.validateSourceUpdate(
+          airport,
+          Uint8List.fromList(nodes(3001, 'first').codeUnits),
+          isCurrent: () => true,
+        ),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            contains('5000'),
+          ),
+        ),
+      );
+      expect(await firstFile.readAsString(), nodes(2999, 'first'));
     },
   );
   test(

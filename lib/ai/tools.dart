@@ -5,12 +5,15 @@ import 'package:collection/collection.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/configuration/changes.dart';
 import 'package:fl_clash/capabilities/service.dart';
+import 'package:fl_clash/capabilities/manifest.dart';
 import 'package:fl_clash/configuration/resources.dart';
+import 'package:fl_clash/configuration/settings.dart';
 import 'package:fl_clash/core/controller.dart';
 import 'package:fl_clash/database/workbench_database.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/policy/models.dart';
+import 'package:fl_clash/policy/compiler.dart';
 import 'package:fl_clash/providers/usage.dart';
 import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/providers/workbench.dart';
@@ -21,6 +24,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'policy_contract.dart';
 import 'policy_summary.dart';
+import 'business_tools.dart';
 import 'runtime.dart';
 
 abstract interface class AgentResourceGateway {
@@ -157,6 +161,7 @@ final class AgentTools {
   final bool exposeApplication;
   late final ResourceChangeService resources;
   late final AgentResourceGateway gateway;
+  late final AgentBusinessTools business;
 
   AgentTools({
     required this.controller,
@@ -174,6 +179,27 @@ final class AgentTools {
           environment: environment as FlutterResourceEnvironment,
           controller: controller,
         );
+    business = AgentBusinessTools(
+      controller: controller,
+      readProfiles: this.gateway.readProfiles,
+      delegate: _execute,
+      propose: _proposePolicyDraft,
+      simulate: _simulatePolicyPreview,
+      readRuntime: exposeApplication
+          ? () async {
+              final reply = await controller.ref
+                  .read(applicationCapabilityServiceProvider)
+                  .execute('runtime_read', {}, origin: 'agent');
+              final result = reply['result'];
+              return result is Map<String, Object?>
+                  ? {
+                      for (final key in ['running', 'coreStatus', 'suspended'])
+                        if (result.containsKey(key)) key: result[key],
+                    }
+                  : {'status': reply['status'], 'code': reply['errorCode']};
+            }
+          : null,
+    );
   }
 
   static const _object = <String, Object?>{'type': 'object'};
@@ -217,11 +243,16 @@ final class AgentTools {
   );
 
   List<AgentToolDefinition> get definitions => [
+    ...AgentBusinessTools.definitions,
     if (exposeApplication) ...[
       _definition(
         'application_catalog',
-        'Discover all typed macOS capabilities, input schemas, authorization and completion contracts.',
-        {},
+        'Read a compact macOS capability directory. Supply commands to fetch at most four exact input schemas; use cursor for more entries.',
+        {
+          'commands': {'type': 'array', 'items': _string, 'maxItems': 4},
+          'cursor': _string,
+          'limit': {'type': 'integer', 'minimum': 1, 'maximum': 100},
+        },
       ),
       _definition(
         'application_invoke',
@@ -241,7 +272,18 @@ final class AgentTools {
       'Read validated setting capabilities and types.',
       {},
     ),
-    _definition('settings_read', 'Read redacted local settings.', {}),
+    _definition(
+      'settings_read',
+      'Read a bounded page of redacted setting fields, optionally by section. For one exact path, read bounded JSON fragments with offset/nextOffset. Secrets remain redacted.',
+      {
+        'section': _string,
+        'settingPath': _string,
+        'offset': _offset,
+        'cursor': _string,
+        'version': _string,
+        'limit': {'type': 'integer', 'minimum': 1, 'maximum': 100},
+      },
+    ),
     _definition(
       'settings_propose',
       'Create a validated settings draft. No application occurs.',
@@ -299,10 +341,13 @@ final class AgentTools {
       'Run a read-only cold-start scenario of the committed policy document, never an uncommitted draft. Read policies_draft_read to inspect drafts. Use supplied health assumptions and local usage. Existing live selection, probe age, latency, cooldown and recovery state are not restored; this does not predict current runtime behavior.',
       {
         'targetId': _string,
+        'draftId': _string,
+        'version': _string,
         'health': _object,
         'localUsage': _object,
         'now': {'type': 'integer', 'minimum': 1, 'maximum': 9007199254740991},
         'steps': {'type': 'array', 'items': _object, 'maxItems': 32},
+        'flows': {'type': 'array', 'items': _object, 'maxItems': 8},
       },
       ['targetId'],
     ),
@@ -625,7 +670,65 @@ final class AgentTools {
     }).toList();
   }
 
+  List<Map<String, Object?>> _simulationFlows(Object? value) {
+    if (value == null) return const [];
+    if (value is! List || value.length > 8) {
+      throw const FormatException('Invalid flows');
+    }
+    return value.map((item) {
+      final flow = policyObject(item, 'flow');
+      policyKeys(flow, {
+        'host',
+        'destinationIp',
+        'processName',
+        'processPath',
+        'network',
+      });
+      for (final entry in flow.entries) {
+        if (entry.value is! String || (entry.value as String).length > 1024) {
+          throw const FormatException('Invalid flow value');
+        }
+      }
+      if (flow['network'] != null &&
+          !{'tcp', 'udp'}.contains(flow['network'])) {
+        throw const FormatException('Invalid network');
+      }
+      return flow;
+    }).toList();
+  }
+
+  static bool _mutating(String name, Map<String, Object?> args) {
+    if (name == 'application_invoke') {
+      final command = args['command'];
+      final capability = applicationCapabilities.firstWhereOrNull(
+        (entry) => entry.command == command,
+      );
+      return capability?.mutating ??
+          (command is String && _mutating(command, const {}));
+    }
+    return name == 'policy_draft_edit' ||
+        name == 'backup_panel' ||
+        name == 'profile_import_panel' ||
+        RegExp(
+          r'(_propose|_commit|_undo|_clear|_update|_set_enabled|_set_disabled|_select)$',
+        ).hasMatch(name);
+  }
+
   Future<AgentToolResult> execute(AgentToolRequest request) async {
+    final effect = _mutating(request.name, request.arguments)
+        ? 'mutation'
+        : 'read';
+    AgentToolResult error(String code) => AgentToolResult({
+      'code': code,
+      'taskEffect': effect,
+      if (request.name == 'policy_draft_edit' &&
+          code == 'configuration_version_conflict')
+        'recovery': {
+          'writeApplied': false,
+          'instruction':
+              'For an unapplied draft, reread policy_draft_read(id) and supply BOTH draftId=returned.id and version=returned.version. Without draftId, reread workspace_overview and use its version for the saved document.',
+        },
+    }, isError: true);
     try {
       _current(request);
       if (jsonEncode(request.arguments).length > 1024 * 1024) {
@@ -654,29 +757,19 @@ final class AgentTools {
       }
       final value = await _execute(request);
       _current(request);
-      return AgentToolResult(redactResource(value));
-    } on ConfigurationChangeException catch (error) {
-      return AgentToolResult({
-        'code': _safeErrorCode(error.code),
-      }, isError: true);
-    } on ScriptExecutionException catch (error) {
-      return AgentToolResult({
-        'code': _safeErrorCode(error.code),
-      }, isError: true);
+      return AgentToolResult({...redactResource(value), 'taskEffect': effect});
+    } on ConfigurationChangeException catch (failure) {
+      return error(_safeErrorCode(failure.code));
+    } on ScriptExecutionException catch (failure) {
+      return error(_safeErrorCode(failure.code));
     } on PolicySourceException {
-      return const AgentToolResult({
-        'code': 'source_option_unsupported',
-      }, isError: true);
+      return error('source_option_unsupported');
     } on FormatException {
-      return const AgentToolResult({
-        'code': 'tool_invalid_arguments',
-      }, isError: true);
+      return error('tool_invalid_arguments');
     } on ArgumentError {
-      return const AgentToolResult({
-        'code': 'tool_invalid_arguments',
-      }, isError: true);
+      return error('tool_invalid_arguments');
     } catch (_) {
-      return const AgentToolResult({'code': 'tool_failed'}, isError: true);
+      return error('tool_failed');
     }
   }
 
@@ -717,19 +810,165 @@ final class AgentTools {
     },
   };
 
+  Future<Map<String, Object?>> _proposePolicyDraft(
+    LocalPolicyDocument next,
+    String? draftId,
+    AgentToolRequest request, [
+    String? expectedPolicyDigest,
+  ]) async {
+    final validation = policyPlanValidation(next);
+    if (validation['valid'] != true) {
+      return {
+        'status': 'failed',
+        'code': 'configuration_policy_plan_invalid',
+        'validation': validation,
+      };
+    }
+    final labels = {
+      for (final profile in await gateway.readProfiles())
+        '${profile.id}': profile.realLabel,
+    };
+    final before = await controller.readPolicies();
+    _current(request);
+    final proposal = await controller.proposePolicies(
+      next,
+      draftId: draftId,
+      expectedPolicyDigest: expectedPolicyDigest,
+    );
+    final row = await controller.store.readChange(proposal.id);
+    final saved = row == null
+        ? next
+        : LocalPolicyDocument.fromJson(
+            policyObject(
+              policyObject(jsonDecode(row.afterPayload), 'after')['policies'],
+              'policies',
+            ),
+          );
+    final summary = policyBusinessSummary(
+      saved,
+      currentAppLocalizations,
+      sourceLabels: labels,
+    );
+    final value = _proposal(
+      ConfigurationProposal(
+        id: proposal.id,
+        summary: proposal.summary,
+        highRisk: proposal.highRisk,
+        expiresAt: proposal.expiresAt,
+        differences: proposal.differences,
+        validation: {
+          ...proposal.validation,
+          'localPolicyPlan': {
+            'before': policyBusinessSummary(
+              before,
+              currentAppLocalizations,
+              sourceLabels: labels,
+            ),
+            'after': summary,
+          },
+        },
+      ),
+    );
+    return {
+      ...value,
+      'supersedesId': ?draftId,
+      'businessSummary': summary,
+      'validation': validation,
+      'version': AgentBusinessTools.version(saved),
+    };
+  }
+
+  Future<Map<String, Object?>> _simulatePolicyPreview(
+    LocalPolicyDocument document,
+    List<PolicySource> sources,
+    AgentToolRequest request,
+  ) async {
+    final args = request.arguments;
+    final rawHealth = policyObject(
+      args['health'] ?? <String, Object?>{},
+      'health',
+    );
+    if (rawHealth.values.any((value) => value != null && value is! bool)) {
+      throw const FormatException('Invalid health');
+    }
+    final health = rawHealth.map((key, value) => MapEntry(key, value as bool?));
+    final rawUsage = policyObject(
+      args['localUsage'] ?? <String, Object?>{},
+      'localUsage',
+    );
+    if (rawUsage.values.any(
+      (value) => value is! int || value < 0 || value > 9007199254740991,
+    )) {
+      throw const FormatException('Invalid usage');
+    }
+    final simulation = await controller.simulatePolicies(
+      document: document,
+      targetId: args['targetId'] as String? ?? localPolicyTargetId,
+      sources: sources,
+      health: health,
+      now: args['now'] == null
+          ? DateTime.now()
+          : DateTime.fromMillisecondsSinceEpoch(
+              policyInt(args, 'now', minimum: 1),
+            ),
+      localUsage: rawUsage.map((key, value) => MapEntry(key, value as int)),
+      steps: _simulationSteps(args['steps']),
+      flows: _simulationFlows(args['flows']),
+    );
+    _current(request);
+    return {
+      'documentSource': args['draftId'] == null ? 'committed' : 'draft',
+      'simulation': true,
+      'mode': 'cold_start',
+      'predictsCurrentRuntime': false,
+      'results': simulation.results,
+      if (simulation.flowResults.isNotEmpty)
+        'flowResults': simulation.flowResults,
+      if (simulation.timeline.isNotEmpty) 'timeline': simulation.timeline,
+    };
+  }
+
   Future<Map<String, Object?>> _execute(AgentToolRequest request) async {
     final args = request.arguments;
+    if (AgentBusinessTools.names.contains(request.name)) {
+      return business.execute(request);
+    }
     switch (request.name) {
       case 'application_catalog':
-        return controller.ref
-            .read(applicationCapabilityServiceProvider)
-            .execute(
-              'capabilities',
-              {},
-              origin: 'agent',
-              isCurrent: request.isCurrent,
-              approve: approve,
-            );
+        final commands = args['commands'] as List?;
+        if (commands != null) {
+          if (commands.any(
+            (name) => !applicationCapabilities.any(
+              (capability) => capability.command == name,
+            ),
+          )) {
+            throw const ConfigurationChangeException('tool_unknown_command');
+          }
+          return {
+            'capabilities': applicationCapabilities
+                .where((capability) => commands.contains(capability.command))
+                .map((capability) => capability.toJson())
+                .toList(),
+          };
+        }
+        return agentPage(
+          'commands',
+          [
+            for (final capability in applicationCapabilities)
+              {
+                'id': capability.command,
+                'name': capability.command,
+                'description': agentShortText(capability.description, 120),
+                'requiresConfirmation': capability.mutating,
+              },
+          ],
+          args,
+          version: policyDigest(
+            applicationCapabilities
+                .map((capability) => capability.toJson())
+                .toList(),
+          ),
+        );
       case 'application_invoke':
         return controller.ref
             .read(applicationCapabilityServiceProvider)
@@ -769,11 +1008,65 @@ final class AgentTools {
       case 'settings_read':
         final state = await controller.backend.readState();
         _current(request);
-        return {
-          'settings': controller.backend.catalog.redact(
-            policyObject(state['config'], 'config'),
-          ),
-        };
+        final settings = controller.backend.catalog.redact(
+          policyObject(state['config'], 'config'),
+        );
+        if (!exposeApplication && args.isEmpty) {
+          return {'settings': settings};
+        }
+        final settingsVersion = policyDigest(settings);
+        if (args['version'] != null && args['version'] != settingsVersion) {
+          throw const ConfigurationChangeException(
+            'configuration_version_conflict',
+          );
+        }
+        if (args['settingPath'] case final String path) {
+          if (!controller.backend.catalog.capabilities.containsKey(path)) {
+            throw const FormatException('Unknown setting');
+          }
+          final text = jsonEncode(
+            controller.backend.catalog.readPath(settings, path),
+          ).runes.toList();
+          final offset = policyInt(
+            args,
+            'offset',
+            fallback: 0,
+            maximum: text.length,
+          );
+          final fragment = String.fromCharCodes(text.skip(offset).take(650));
+          final next = offset + fragment.runes.length;
+          return {
+            'settingPath': path,
+            'version': settingsVersion,
+            'encoding': 'json_fragment',
+            'content': fragment,
+            'complete': next == text.length,
+            if (next < text.length) 'nextOffset': next,
+          };
+        }
+        final section = args['section'] as String?;
+        return agentPage(
+          'settings',
+          [
+            for (final capability
+                in controller.backend.catalog.capabilities.values)
+              if (section == null ||
+                  capability.path == section ||
+                  capability.path.startsWith('$section.'))
+                {
+                  'id': capability.path,
+                  'path': capability.path,
+                  'type': capability.type,
+                  'value': controller.backend.catalog.readPath(
+                    settings,
+                    capability.path,
+                  ),
+                  'detailsTool': 'settings_read',
+                },
+          ],
+          args,
+          version: settingsVersion,
+        );
       case 'settings_propose':
         final patch = policyObject(args['patch'], 'patch');
         if (patch.containsKey('currentProfileId') &&
@@ -942,57 +1235,17 @@ final class AgentTools {
               .toList();
         }
         final next = LocalPolicyDocument.fromJson(candidate).asStandalone();
-        final validation = policyPlanValidation(next);
-        if (validation['valid'] != true) {
-          return {
-            'status': 'failed',
-            'code': 'configuration_policy_plan_invalid',
-            'validation': validation,
-          };
-        }
-        final labels = {
-          for (final profile in await gateway.readProfiles())
-            '${profile.id}': profile.realLabel,
-        };
-        final before = await controller.readPolicies();
-        _current(request);
-        final proposal = await controller.proposePolicies(
-          next,
-          draftId: draftId,
-        );
-        final summary = policyBusinessSummary(
-          next,
-          currentAppLocalizations,
-          sourceLabels: labels,
-        );
-        final value = _proposal(
-          ConfigurationProposal(
-            id: proposal.id,
-            summary: proposal.summary,
-            highRisk: proposal.highRisk,
-            expiresAt: proposal.expiresAt,
-            differences: proposal.differences,
-            validation: {
-              ...proposal.validation,
-              'localPolicyPlan': {
-                'before': policyBusinessSummary(
-                  before,
-                  currentAppLocalizations,
-                  sourceLabels: labels,
-                ),
-                'after': summary,
-              },
-            },
-          ),
-        );
-        return {
-          ...value,
-          'supersedesId': ?draftId,
-          'businessSummary': summary,
-          'validation': validation,
-        };
+        return _proposePolicyDraft(next, draftId, request);
       case 'policies_simulate':
-        final document = await controller.readPolicies();
+        final document = args['draftId'] == null
+            ? await controller.readPolicies()
+            : await controller.readPolicyDraft(policyString(args, 'draftId'));
+        if (args['version'] != null &&
+            args['version'] != AgentBusinessTools.version(document)) {
+          throw const ConfigurationChangeException(
+            'configuration_version_conflict',
+          );
+        }
         _current(request);
         final target = policyString(args, 'targetId');
         final profiles = await gateway.readProfiles();
@@ -1011,47 +1264,7 @@ final class AgentTools {
         }
         final sources = await controller.profiles.loader.load(selected);
         _current(request);
-        final rawHealth = policyObject(
-          args['health'] ?? <String, Object?>{},
-          'health',
-        );
-        if (rawHealth.values.any((value) => value != null && value is! bool)) {
-          throw const FormatException('Invalid health');
-        }
-        final health = rawHealth.map(
-          (key, value) => MapEntry(key, value as bool?),
-        );
-        final rawUsage = policyObject(
-          args['localUsage'] ?? <String, Object?>{},
-          'localUsage',
-        );
-        if (rawUsage.values.any(
-          (value) => value is! int || value < 0 || value > 9007199254740991,
-        )) {
-          throw const FormatException('Invalid usage');
-        }
-        final simulation = await controller.simulatePolicies(
-          document: document,
-          targetId: target,
-          sources: sources,
-          health: health,
-          now: args['now'] == null
-              ? DateTime.now()
-              : DateTime.fromMillisecondsSinceEpoch(
-                  policyInt(args, 'now', minimum: 1),
-                ),
-          localUsage: rawUsage.map((key, value) => MapEntry(key, value as int)),
-          steps: _simulationSteps(args['steps']),
-        );
-        _current(request);
-        return {
-          'documentSource': 'committed',
-          'simulation': true,
-          'mode': 'cold_start',
-          'predictsCurrentRuntime': false,
-          'results': simulation.results,
-          if (simulation.timeline.isNotEmpty) 'timeline': simulation.timeline,
-        };
+        return _simulatePolicyPreview(document, sources, request);
       case 'changes_recover_propose':
         final id = policyString(args, 'id');
         final row = await controller.store.readChange(id);
@@ -1152,7 +1365,17 @@ final class AgentTools {
           final row = await controller.store.readChange(
             policyString(args, 'id'),
           );
-          return {'change': row == null ? null : _status(row)};
+          return {
+            'change': row == null ? null : _status(row),
+            if (row != null &&
+                row.status == 'applied' &&
+                {'policies', 'settings', 'ai'}.contains(row.category))
+              'currentStateMatches':
+                  configurationDigest(
+                    await controller.changes.backend.readState(),
+                  ) ==
+                  configurationDigest(jsonDecode(row.afterPayload)),
+          };
         }
         return {
           'changes': (await controller.store.watchChanges().first)

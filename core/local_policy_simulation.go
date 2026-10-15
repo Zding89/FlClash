@@ -1,14 +1,20 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/netip"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/metacubex/mihomo/adapter"
 	"github.com/metacubex/mihomo/adapter/outbound"
 	"github.com/metacubex/mihomo/config"
 	C "github.com/metacubex/mihomo/constant"
+	"github.com/metacubex/mihomo/rules"
+	RC "github.com/metacubex/mihomo/rules/common"
 	"github.com/metacubex/mihomo/tunnel"
 )
 
@@ -29,6 +35,34 @@ type LocalPolicySimulationInput struct {
 	Health           map[string]*bool            `json:"health"`
 	LocalUsage       map[string]int64            `json:"localUsage"`
 	Steps            []LocalPolicySimulationStep `json:"steps"`
+	Rules            []string                    `json:"rules"`
+	Flows            []LocalPolicySimulationFlow `json:"flows"`
+}
+type LocalPolicySimulationFlow struct {
+	Host          string `json:"host"`
+	DestinationIP string `json:"destinationIp"`
+	ProcessName   string `json:"processName"`
+	ProcessPath   string `json:"processPath"`
+	Network       string `json:"network"`
+}
+type LocalPolicySimulationTrace struct {
+	RuleIndex int      `json:"ruleIndex"`
+	Type      string   `json:"type"`
+	Target    string   `json:"target"`
+	Outcome   string   `json:"outcome"`
+	Reason    string   `json:"reason,omitempty"`
+	Needs     []string `json:"needs,omitempty"`
+}
+type LocalPolicySimulationFlowResult struct {
+	FlowIndex      int                          `json:"flowIndex"`
+	Status         string                       `json:"status"`
+	Target         string                       `json:"target,omitempty"`
+	PolicyID       string                       `json:"policyId,omitempty"`
+	SelectedNodeID string                       `json:"selectedNodeId,omitempty"`
+	Reason         string                       `json:"reason"`
+	Needs          []string                     `json:"needs"`
+	Trace          []LocalPolicySimulationTrace `json:"trace"`
+	TraceTruncated bool                         `json:"traceTruncated"`
 }
 type LocalPolicySimulationDecision struct {
 	PolicyID       string `json:"policyId"`
@@ -41,20 +75,27 @@ type LocalPolicySimulationFrame struct {
 	Decisions []LocalPolicySimulationDecision `json:"decisions"`
 }
 type LocalPolicySimulationResult struct {
-	Snapshot LocalPolicySnapshot          `json:"snapshot"`
-	Steps    []LocalPolicySimulationFrame `json:"steps"`
+	Snapshot    LocalPolicySnapshot               `json:"snapshot"`
+	Steps       []LocalPolicySimulationFrame      `json:"steps"`
+	FlowResults []LocalPolicySimulationFlowResult `json:"flowResults"`
 }
 
 func simulateLocalPolicies(input LocalPolicySimulationInput) (LocalPolicySimulationResult, error) {
-	result := LocalPolicySimulationResult{Steps: []LocalPolicySimulationFrame{}}
+	result := LocalPolicySimulationResult{Steps: []LocalPolicySimulationFrame{}, FlowResults: []LocalPolicySimulationFlowResult{}}
 	if err := validateLocalPolicyConfig(&input.Config); err != nil {
 		return result, err
 	}
 	if input.Now < 1 || input.Now > 9007199254740991 || len(input.Steps) > 32 || len(input.Health) > 5000 || len(input.AvailableNodeIDs) > 5000 || len(input.LocalUsage) > 20 {
 		return result, errors.New("simulation capacity or time is invalid")
 	}
+	if err := validateLocalSimulationFlows(input); err != nil {
+		return result, err
+	}
 	if !input.Config.Enabled {
 		result.Snapshot = LocalPolicySnapshot{Revision: input.Config.Revision, Policies: []LocalPolicyStatus{}, Budgets: []LocalBudgetStatus{}}
+		for index := range input.Flows {
+			result.FlowResults = append(result.FlowResults, LocalPolicySimulationFlowResult{FlowIndex: index, Status: "unknown", Reason: "local_policy_disabled", Needs: []string{"enabledPolicyConfiguration"}, Trace: []LocalPolicySimulationTrace{}})
+		}
 		return result, nil
 	}
 	available := map[string]bool{}
@@ -180,5 +221,245 @@ func simulateLocalPolicies(input LocalPolicySimulationInput) (LocalPolicySimulat
 		result.Steps = append(result.Steps, frame())
 	}
 	result.Snapshot = e.snapshot()
+	for index, flow := range input.Flows {
+		trace, err := traceLocalSimulationFlow(e, input.Rules, flow, index)
+		if err != nil {
+			return result, err
+		}
+		result.FlowResults = append(result.FlowResults, trace)
+	}
+	return result, nil
+}
+
+func validateLocalSimulationFlows(input LocalPolicySimulationInput) error {
+	if len(input.Flows) > 8 || len(input.Rules) > 2048 || len(input.Flows) > 0 && len(input.Rules) == 0 {
+		return errors.New("invalid simulation flow capacity")
+	}
+	total := 0
+	for _, line := range input.Rules {
+		total += len(line)
+		if len(line) > 16384 || total > 512*1024 || strings.ContainsAny(line, "\x00\n\r") {
+			return errors.New("invalid simulation rule capacity")
+		}
+		tp, _, target, _ := RC.ParseRulePayload(line, true)
+		if len(tp) == 0 || len(tp) > 64 || len(target) == 0 || len(target) > 256 {
+			return errors.New("invalid simulation rule target")
+		}
+		depth := 0
+		escaped := false
+		for _, value := range line {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if value == '\\' {
+				escaped = true
+				continue
+			}
+			if value == '(' {
+				depth++
+			}
+			if value == ')' {
+				depth--
+			}
+			if depth > 24 || depth < 0 {
+				return errors.New("invalid simulation rule nesting")
+			}
+		}
+		if depth != 0 {
+			return errors.New("invalid simulation rule nesting")
+		}
+	}
+	for _, flow := range input.Flows {
+		if len(flow.Host) > 1024 || len(flow.ProcessName) > 256 || len(flow.ProcessPath) > 4096 || len(flow.DestinationIP) > 64 || flow.Network != "" && flow.Network != "tcp" && flow.Network != "udp" {
+			return errors.New("invalid simulation flow")
+		}
+		if flow.DestinationIP != "" {
+			if _, err := netip.ParseAddr(flow.DestinationIP); err != nil {
+				return errors.New("invalid simulation destination IP")
+			}
+		}
+	}
+	return nil
+}
+
+var localSimulationRuleTokens = regexp.MustCompile(`(?i)(?:^|[,(])\s*([A-Z][A-Z0-9-]*)\s*,`)
+var localSimulationGeoTokens = regexp.MustCompile(`(?i)(?:^|[,(])\s*GEOIP\s*,\s*([^,()]+)`)
+
+func localSimulationNeeds(line string, flow LocalPolicySimulationFlow) []string {
+	needs := []string{}
+	hasRegex := false
+	add := func(value string) {
+		if !localContains(needs, value) {
+			needs = append(needs, value)
+		}
+	}
+	_, _, _, params := RC.ParseRulePayload(line, true)
+	if source, _ := RC.ParseParams(params); source {
+		add("sourceIp")
+	}
+	for _, token := range localSimulationRuleTokens.FindAllStringSubmatch(line, -1) {
+		kind := strings.ToUpper(token[1])
+		if strings.HasSuffix(kind, "-REGEX") {
+			hasRegex = true
+		}
+		switch kind {
+		case "DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD", "DOMAIN-WILDCARD", "DOMAIN-REGEX":
+			if flow.Host == "" {
+				add("host")
+			}
+		case "PROCESS-NAME", "PROCESS-NAME-WILDCARD", "PROCESS-NAME-REGEX":
+			if flow.ProcessName == "" {
+				add("processName")
+			}
+		case "PROCESS-PATH", "PROCESS-PATH-WILDCARD", "PROCESS-PATH-REGEX":
+			if flow.ProcessPath == "" {
+				add("processPath")
+			}
+		case "IP-CIDR", "IP-CIDR6", "IP-SUFFIX", "GEOIP":
+			if flow.DestinationIP == "" {
+				add("destinationIp")
+			}
+		case "NETWORK":
+			if flow.Network == "" {
+				add("network")
+			}
+		case "AND", "OR", "NOT", "MATCH":
+		default:
+			add("unsupported_rule_context")
+		}
+	}
+	for _, token := range localSimulationGeoTokens.FindAllStringSubmatch(line, -1) {
+		if !strings.EqualFold(strings.TrimSpace(token[1]), "LAN") {
+			add("geoData")
+		}
+	}
+	if hasRegex {
+		value := strings.NewReplacer("/Contents/.*$", "/Contents/", "(?:/|$)", "/", "(?i)", "", "(?:", "(").Replace(line)
+		escaped := false
+		for _, char := range value {
+			if escaped {
+				escaped = false
+				if char >= '0' && char <= '9' {
+					add("bounded_regex_evaluation")
+				}
+				continue
+			}
+			if char == '\\' {
+				escaped = true
+				continue
+			}
+			if strings.ContainsRune("*+?{|", char) {
+				add("bounded_regex_evaluation")
+			}
+		}
+	}
+	return needs
+}
+
+func traceLocalSimulationFlow(e *localPolicyEngine, lines []string, flow LocalPolicySimulationFlow, index int) (LocalPolicySimulationFlowResult, error) {
+	result := LocalPolicySimulationFlowResult{FlowIndex: index, Status: "unmatched", Reason: "no_matching_rule", Needs: []string{}, Trace: []LocalPolicySimulationTrace{}}
+	metadata := &C.Metadata{Host: flow.Host, Process: flow.ProcessName, ProcessPath: flow.ProcessPath, NetWork: C.TCP}
+	if flow.Network == "udp" {
+		metadata.NetWork = C.UDP
+	}
+	if flow.DestinationIP != "" {
+		metadata.DstIP = netip.MustParseAddr(flow.DestinationIP)
+	}
+	appendTrace := func(value LocalPolicySimulationTrace) {
+		if len(result.Trace) < 16 {
+			result.Trace = append(result.Trace, value)
+		} else {
+			result.TraceTruncated = true
+		}
+	}
+	for ruleIndex, line := range lines {
+		tp, payload, target, params := RC.ParseRulePayload(line, true)
+		trace := LocalPolicySimulationTrace{RuleIndex: ruleIndex, Type: tp, Target: target, Outcome: "not_matched"}
+		needs := localSimulationNeeds(line, flow)
+		if len(needs) > 0 {
+			trace.Outcome, trace.Reason, trace.Needs = "unknown", "missing_or_unsupported_facts", needs
+			for _, need := range needs {
+				if !localContains(result.Needs, need) {
+					result.Needs = append(result.Needs, need)
+				}
+			}
+			result.Status, result.Reason = "unknown", "earlier_rule_needs_facts"
+			appendTrace(trace)
+			continue
+		}
+		rule, err := rules.ParseRule(tp, payload, target, params, nil)
+		if err != nil {
+			return result, errors.New("invalid compiled simulation rule")
+		}
+		matched, target := rule.Match(metadata, C.RuleMatchHelper{})
+		if !matched {
+			appendTrace(trace)
+			continue
+		}
+		trace.Target = target
+		if target == "PASS" || target == "PASS-RULE" {
+			trace.Outcome, trace.Reason = "skipped", "pass"
+			appendTrace(trace)
+			continue
+		}
+		policyID := ""
+		for id, runtime := range e.policies {
+			if runtime.definition.GroupName == target {
+				policyID = id
+				break
+			}
+		}
+		selectedID, reason := "", "rule_matched"
+		if policyID != "" {
+			managed := &localManagedAdapter{engine: e, policyID: policyID}
+			if managed.Type() == C.Pass {
+				trace.Outcome, trace.Reason = "skipped", e.policies[policyID].reason
+				appendTrace(trace)
+				continue
+			}
+			_, selectedID, err = e.selectProxyForRequest(policyID, metadata, true)
+			reason = e.policies[policyID].reason
+			if err != nil {
+				reason = err.Error()
+			}
+			if selectedID != "" {
+				ctx := context.WithValue(context.Background(), localPolicyAdmissionKey{}, e.policies[policyID].definition.Guard.UnknownBehavior)
+				if admission := (&localSourceAdapter{engine: e, node: e.nodes[selectedID]}).admission(ctx); admission != nil {
+					reason = admission.Error()
+				}
+			}
+		} else if target != "DIRECT" && target != "REJECT" && target != "REJECT-DROP" {
+			found := false
+			for id, node := range e.nodes {
+				if node.ProxyName == target {
+					found, selectedID = true, id
+					if admission := (&localSourceAdapter{engine: e, node: node}).admission(context.Background()); admission != nil {
+						reason = admission.Error()
+					}
+					break
+				}
+			}
+			if !found {
+				trace.Outcome, trace.Reason, trace.Needs = "unknown", "target_not_in_simulation", []string{"targetContext"}
+				result.Status, result.Reason = "unknown", "target_not_in_simulation"
+				if !localContains(result.Needs, "targetContext") {
+					result.Needs = append(result.Needs, "targetContext")
+				}
+				appendTrace(trace)
+				continue
+			}
+		}
+		trace.Outcome, trace.Reason = "matched", reason
+		appendTrace(trace)
+		if result.Status != "unknown" {
+			result.Status = "matched"
+		}
+		result.Target, result.PolicyID, result.SelectedNodeID = target, policyID, selectedID
+		if result.Status == "matched" {
+			result.Reason = reason
+		}
+		return result, nil
+	}
 	return result, nil
 }

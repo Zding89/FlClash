@@ -224,6 +224,8 @@ extension ProfileExtension on Profile {
     bool Function()? isCurrent,
     Future<void> Function(Profile metadata)? onMetadata,
     Future<void> Function(Uint8List bytes)? validateSource,
+    Future<void> Function(Profile profile)? onPublished,
+    Future<void> Function()? onRollback,
   }) async {
     final uri = Uri.tryParse(url);
     if (uri == null ||
@@ -253,19 +255,29 @@ extension ProfileExtension on Profile {
     await onMetadata?.call(metadata);
     final bytes = response.data ?? Uint8List.fromList([]);
     await validateSource?.call(bytes);
-    return metadata.saveFile(bytes, isCurrent: isCurrent);
+    return metadata.saveFile(
+      bytes,
+      isCurrent: isCurrent,
+      onPublished: onPublished,
+      onRollback: onRollback,
+    );
   }
 
   Future<Profile> saveFile(
     Uint8List bytes, {
     bool Function()? isCurrent,
+    Future<void> Function(Profile profile)? onPublished,
+    Future<void> Function()? onRollback,
+    Future<String> Function(String path)? validateConfig,
   }) async {
     final path = await appPath.tempFilePath;
     final tempFile = File(path);
     File? staging;
     try {
       await tempFile.safeWriteAsBytes(bytes);
-      final message = await coreController.validateConfig(path);
+      final message = await (validateConfig ?? coreController.validateConfig)(
+        path,
+      );
       if (message.isNotEmpty) throw message;
       final target = await appPath.getProfilePath('$id');
       await File(target).parent.create(recursive: true);
@@ -274,8 +286,37 @@ extension ProfileExtension on Profile {
       if (isCurrent?.call() == false) {
         throw StateError('profile_update_superseded');
       }
+      final targetFile = File(target);
+      final previous = await targetFile.exists()
+          ? await targetFile.readAsBytes()
+          : null;
+      if (isCurrent?.call() == false) {
+        throw StateError('profile_update_superseded');
+      }
       staging.renameSync(target);
-      return copyWith(lastUpdateDate: DateTime.now());
+      final updated = copyWith(lastUpdateDate: DateTime.now());
+      try {
+        await onPublished?.call(updated);
+        if (isCurrent?.call() == false) {
+          throw StateError('profile_update_superseded');
+        }
+        return updated;
+      } catch (error) {
+        try {
+          if (previous == null) {
+            if (await targetFile.exists()) await targetFile.delete();
+          } else {
+            await staging.writeAsBytes(previous, flush: true);
+            staging.renameSync(target);
+          }
+          await onRollback?.call();
+        } catch (rollbackError) {
+          throw StateError(
+            'profile_update_rollback_failed: $error; $rollbackError',
+          );
+        }
+        rethrow;
+      }
     } finally {
       await tempFile.safeDelete();
       if (staging != null && await staging.exists()) await staging.delete();

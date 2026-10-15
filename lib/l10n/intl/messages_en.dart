@@ -197,6 +197,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiChangeFailed": MessageLookupByLibrary.simpleMessage(
       "Failed or interrupted",
     ),
+    "aiChangeSavedPending": MessageLookupByLibrary.simpleMessage(
+      "Saved; application pending",
+    ),
     "aiChangesUnavailable": MessageLookupByLibrary.simpleMessage(
       "Some related records are no longer available.",
     ),
@@ -246,6 +249,9 @@ class MessageLookup extends MessageLookupByLibrary {
       "AI assistant is disabled",
     ),
     "aiDiscardChanges": MessageLookupByLibrary.simpleMessage("Discard changes"),
+    "aiDraftInvalid": MessageLookupByLibrary.simpleMessage(
+      "This draft is out of date. Read the current configuration and create a new plan.",
+    ),
     "aiEditConnection": MessageLookupByLibrary.simpleMessage("Edit connection"),
     "aiEmptyConversation": MessageLookupByLibrary.simpleMessage(
       "Inspect the current configuration, then preview changes",
@@ -292,6 +298,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiKeyStored": MessageLookupByLibrary.simpleMessage(
       "Encrypted in app configuration; leave blank to keep",
     ),
+    "aiLatestMessage": MessageLookupByLibrary.simpleMessage("Latest message"),
     "aiLinkedChanges": MessageLookupByLibrary.simpleMessage("Related changes"),
     "aiLinkedChangesHint": MessageLookupByLibrary.simpleMessage(
       "Live records from the existing change journal. Review differences here; use change history for available undo or recovery.",
@@ -1156,11 +1163,17 @@ class MessageLookup extends MessageLookupByLibrary {
       "Exact candidate order",
     ),
     "policyCheckCapacityHint": m29,
+    "policyCheckCoreStopped": MessageLookupByLibrary.simpleMessage(
+      "Core is stopped, so nodes cannot be checked. Start the connection, then reopen this node group.",
+    ),
     "policyCheckFrequencyHint": MessageLookupByLibrary.simpleMessage(
       "Intervals are scheduling targets; many nodes may queue",
     ),
     "policyCheckFrequencySection": MessageLookupByLibrary.simpleMessage(
       "Check frequency",
+    ),
+    "policyCheckLocalInactive": MessageLookupByLibrary.simpleMessage(
+      "The local configuration is not loaded, so this node group cannot be checked. Enable and select the local configuration in Local policies, then reopen this group.",
     ),
     "policyCheckMeasurementHint": MessageLookupByLibrary.simpleMessage(
       "Measures connectivity and request latency, not download speed",
@@ -1175,9 +1188,24 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyCheckPreset": MessageLookupByLibrary.simpleMessage(
       "Check endpoint preset",
     ),
+    "policyCheckReadFailed": MessageLookupByLibrary.simpleMessage(
+      "Check status could not be read; node availability is unknown. Retry, or reopen this group if it still fails.",
+    ),
+    "policyCheckReadTimeout": MessageLookupByLibrary.simpleMessage(
+      "Reading check status timed out. Node availability is unconfirmed. Retry.",
+    ),
+    "policyCheckRetry": MessageLookupByLibrary.simpleMessage(
+      "Retry reading status",
+    ),
     "policyCheckSave": MessageLookupByLibrary.simpleMessage("Check and save"),
     "policyCheckStatusSection": MessageLookupByLibrary.simpleMessage(
       "Check status",
+    ),
+    "policyCheckUnsaved": MessageLookupByLibrary.simpleMessage(
+      "This is an unsaved draft. Members match draft conditions and have not been checked. Check and save first, then check nodes.",
+    ),
+    "policyCheckVersionMismatch": MessageLookupByLibrary.simpleMessage(
+      "The running version does not match this node group. Old results are hidden. Wait for configuration application to finish, then reopen the group.",
     ),
     "policyChecksInFlight": MessageLookupByLibrary.simpleMessage(
       "Checks in progress",

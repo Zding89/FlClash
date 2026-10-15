@@ -21,6 +21,7 @@ final class PolicyNodeSetEdit {
 class PolicyNodeSetEditor extends StatefulWidget {
   final PolicyNodeSet? existing;
   final String targetId;
+  final int? savedRevision;
   final Map<String, String> sources;
   final List<LocalNode> nodes;
   final Map<String, QuotaSourceSummary> sourceSummaries;
@@ -29,7 +30,8 @@ class PolicyNodeSetEditor extends StatefulWidget {
   final Map<String, Object?> snapshot;
   final List<String> referencedRules;
   final Future<void> Function(PolicyNodeSetEdit)? onSave;
-  final Future<void> Function(String)? onCheck;
+  final Future<void> Function(String, int)? onCheck;
+  final Future<Map<String, Object?>> Function()? loadSnapshot;
   final Future<Map<String, Object?>> Function(Map<String, Object?>)? loadStatus;
   final Future<Map<String, String>> Function()? onManageSources;
   final Future<List<LocalNode>> Function()? loadNodes;
@@ -37,6 +39,7 @@ class PolicyNodeSetEditor extends StatefulWidget {
     super.key,
     this.existing,
     required this.targetId,
+    this.savedRevision,
     required this.sources,
     required this.nodes,
     this.sourceSummaries = const {},
@@ -46,6 +49,7 @@ class PolicyNodeSetEditor extends StatefulWidget {
     this.referencedRules = const [],
     this.onSave,
     this.onCheck,
+    this.loadSnapshot,
     this.loadStatus,
     this.onManageSources,
     this.loadNodes,
@@ -88,13 +92,16 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
   late List<LocalNode> _nodes;
   Timer? _statusTimer;
   Map<String, Object?>? _details;
+  late Map<String, Object?> _snapshot;
   int _statusEpoch = 0;
   int _statusTicks = 0;
   bool _statusLoading = false;
+  String? _statusFailure;
   static const _pageSize = 200;
   @override
   void initState() {
     super.initState();
+    _snapshot = widget.snapshot;
     final set = widget.existing;
     _sourceOptions = {...widget.sources};
     _nodes = [...widget.nodes];
@@ -168,10 +175,65 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
     });
   }
 
+  String? get _runtimeBlocker {
+    if (_snapshot['state'] == 'core_disconnected') {
+      return 'core_disconnected';
+    }
+    if (_snapshot['state'] == 'status_unavailable') {
+      return 'status_unavailable';
+    }
+    if (_snapshot['enabled'] == false ||
+        _snapshot['targetId'] != null &&
+            _snapshot['targetId'] != widget.targetId ||
+        _snapshot['revision'] is! int) {
+      return 'inactive';
+    }
+    if (widget.savedRevision != null &&
+        _snapshot['documentRevision'] != widget.savedRevision) {
+      return 'version_mismatch';
+    }
+    return null;
+  }
+
+  Future<void> _retryStatus() async {
+    if (_statusLoading) return;
+    final load = widget.loadSnapshot;
+    if (load != null) {
+      final epoch = ++_statusEpoch;
+      setState(() {
+        _statusLoading = true;
+        _statusFailure = null;
+      });
+      try {
+        final snapshot = await load().timeout(const Duration(seconds: 10));
+        if (!mounted || epoch != _statusEpoch) return;
+        setState(() {
+          _snapshot = snapshot;
+          _details = null;
+        });
+      } on TimeoutException {
+        if (mounted && epoch == _statusEpoch) {
+          setState(() => _statusFailure = 'timeout');
+        }
+      } catch (_) {
+        if (mounted && epoch == _statusEpoch) {
+          setState(() => _statusFailure = 'read_failed');
+        }
+      } finally {
+        if (mounted && epoch == _statusEpoch) {
+          setState(() => _statusLoading = false);
+        }
+      }
+      if (!mounted || epoch != _statusEpoch || _statusFailure != null) return;
+    }
+    await _refreshStatus();
+  }
+
   Future<void> _refreshStatus() async {
     final load = widget.loadStatus;
-    final revision = widget.snapshot['revision'];
-    if (load == null ||
+    final revision = _snapshot['revision'];
+    if (_runtimeBlocker != null ||
+        load == null ||
         widget.existing == null ||
         revision is! int ||
         _fingerprint != _initial ||
@@ -183,7 +245,10 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
     bool current() =>
         mounted && epoch == _statusEpoch && fingerprint == _fingerprint;
     _statusTicks = 0;
-    setState(() => _statusLoading = true);
+    setState(() {
+      _statusLoading = true;
+      _statusFailure = null;
+    });
     try {
       Map<String, Object?>? first;
       final rows = <Map<String, Object?>>[];
@@ -195,7 +260,7 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
           'offset': offset,
           'limit': _pageSize,
           'includeUnavailable': true,
-        });
+        }).timeout(const Duration(seconds: 10));
         if (!current()) return;
         final probe = result['probe'];
         final page = result['nodes'];
@@ -211,7 +276,10 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
             first != null && pageTotal != total ||
             policyDigest(probe) !=
                 policyDigest(widget.existing!.probe.toJson())) {
-          setState(() => _details = null);
+          setState(() {
+            _details = null;
+            _statusFailure = 'version_mismatch';
+          });
           return;
         }
         first ??= result;
@@ -224,7 +292,10 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
       if (!current()) return;
       if (rows.length != total ||
           rows.map((row) => row['nodeId']).toSet().length != total) {
-        setState(() => _details = null);
+        setState(() {
+          _details = null;
+          _statusFailure = 'version_mismatch';
+        });
         return;
       }
       setState(
@@ -235,8 +306,23 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
           'hasMore': false,
         },
       );
-    } catch (_) {
-      if (current()) setState(() => _details = null);
+    } on TimeoutException {
+      if (current()) {
+        setState(() {
+          _details = null;
+          _statusFailure = 'timeout';
+        });
+      }
+    } catch (error) {
+      if (current()) {
+        setState(() {
+          _details = null;
+          _statusFailure =
+              error.toString().contains('local_policy_revision_conflict')
+              ? 'version_mismatch'
+              : 'read_failed';
+        });
+      }
     } finally {
       if (current()) setState(() => _statusLoading = false);
     }
@@ -246,7 +332,9 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
     if (_busy ||
         widget.onCheck == null ||
         widget.existing == null ||
-        _fingerprint != _initial) {
+        _fingerprint != _initial ||
+        _runtimeBlocker != null ||
+        _statusFailure == 'version_mismatch') {
       return;
     }
     setState(() {
@@ -254,7 +342,7 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
       _error = null;
     });
     try {
-      await widget.onCheck!(widget.existing!.id);
+      await widget.onCheck!(widget.existing!.id, _snapshot['revision'] as int);
       if (mounted) await _refreshStatus();
     } catch (_) {
       if (mounted) {
@@ -280,9 +368,9 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
   }
 
   int get _recommendedValidity {
-    final sameTarget = widget.snapshot['targetId'] == widget.targetId;
+    final sameTarget = _snapshot['targetId'] == widget.targetId;
     int snapshotNumber(String key, int maximum) {
-      final value = widget.snapshot[key];
+      final value = _snapshot[key];
       return sameTarget && value is int ? value.clamp(0, maximum) : 0;
     }
 
@@ -366,6 +454,14 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
   @override
   void didUpdateWidget(covariant PolicyNodeSetEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.snapshot != widget.snapshot) {
+      _snapshot = widget.snapshot;
+      _details = null;
+      _statusEpoch++;
+      _statusLoading = false;
+      _statusFailure = null;
+      unawaited(_refreshStatus());
+    }
     _updateDefaultValidity();
   }
 
@@ -595,7 +691,7 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
         else ...[
           if (_statusLoading) const LinearProgressIndicator(),
           Text(
-            '${strings.policyChecksWaiting}: ${live?['checksWaiting'] ?? widget.snapshot['checksWaiting'] ?? '—'} · ${strings.policyChecksInFlight}: ${live?['checksInFlight'] ?? widget.snapshot['checksInFlight'] ?? '—'}',
+            '${strings.policyChecksWaiting}: ${live?['checksWaiting'] ?? _snapshot['checksWaiting'] ?? '—'} · ${strings.policyChecksInFlight}: ${live?['checksInFlight'] ?? _snapshot['checksInFlight'] ?? '—'}',
           ),
           if (live?['sampleAt'] is int)
             Padding(
@@ -613,7 +709,10 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
                     : () async {
                         setState(() => _busy = true);
                         try {
-                          await widget.onCheck!(widget.existing!.id);
+                          await widget.onCheck!(
+                            widget.existing!.id,
+                            _snapshot['revision'] as int,
+                          );
                         } catch (_) {
                           if (mounted) {
                             setState(
@@ -1009,7 +1108,7 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
     final matches = allNodes
         .where((node) => set != null && set.exclusion(node) == null)
         .toList();
-    final snapshot = widget.snapshot['nodeSets'];
+    final snapshot = _snapshot['nodeSets'];
     final matching = snapshot is List
         ? snapshot
               .whereType<Map>()
@@ -1026,12 +1125,28 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
         policyDigest(set.probe.toJson()) ==
             policyDigest(widget.existing!.probe.toJson());
     final states = <String, Map<String, Object?>>{
-      if (rows is List && probeUnchanged && _fingerprint == _initial)
+      if (rows is List &&
+          probeUnchanged &&
+          _fingerprint == _initial &&
+          _runtimeBlocker == null &&
+          _statusFailure == null)
         for (final row in rows.whereType<Map>())
           if (row['nodeId'] is String)
             row['nodeId'] as String: Map<String, Object?>.from(row),
     };
-    return PolicyNodeSetMembersView(
+    final draft = widget.existing == null || _fingerprint != _initial;
+    final problem = draft ? 'draft' : _statusFailure ?? _runtimeBlocker;
+    final strings = context.appLocalizations;
+    final explanation = switch (problem) {
+      'draft' => strings.policyCheckUnsaved,
+      'core_disconnected' => strings.policyCheckCoreStopped,
+      'inactive' => strings.policyCheckLocalInactive,
+      'status_unavailable' || 'read_failed' => strings.policyCheckReadFailed,
+      'timeout' => strings.policyCheckReadTimeout,
+      'version_mismatch' => strings.policyCheckVersionMismatch,
+      _ => null,
+    };
+    final members = PolicyNodeSetMembersView(
       key: _membersKey,
       nodes: matches,
       states: states,
@@ -1039,16 +1154,43 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
           widget.loadSourceSummaries?.call() ?? widget.sourceSummaries,
       assumeUnknownMultiplier: _unknown == UnknownMultiplier.assumeOne,
       loading: _statusLoading,
-      draft: widget.existing == null || _fingerprint != _initial,
+      draft: draft,
       busy: _busy || _managingSources,
       onCheck:
           _fingerprint == _initial &&
-              (live != null || matching != null) &&
+              _runtimeBlocker == null &&
+              _statusFailure != 'version_mismatch' &&
               widget.onCheck != null &&
               widget.existing != null
           ? _checkNow
           : null,
       onEditAttributes: _busy || _managingSources ? null : _editAttributes,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (explanation != null)
+          Padding(
+            key: const ValueKey('node-set-check-explanation'),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(explanation),
+                if (!draft &&
+                    (widget.loadSnapshot != null ||
+                        _runtimeBlocker == null && _statusFailure != null))
+                  TextButton.icon(
+                    key: const ValueKey('node-set-status-retry'),
+                    onPressed: _statusLoading ? null : _retryStatus,
+                    icon: const Icon(Icons.refresh),
+                    label: Text(strings.policyCheckRetry),
+                  ),
+              ],
+            ),
+          ),
+        Expanded(child: members),
+      ],
     );
   }
 

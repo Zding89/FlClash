@@ -152,6 +152,14 @@ class _TransactionalBackend extends _Backend
   }
 }
 
+class _ConcurrentValidationBackend extends _Backend {
+  @override
+  Future<Map<String, Object?>> validate(Map<String, Object?> candidate) async {
+    state['other'] = 2;
+    return super.validate(candidate);
+  }
+}
+
 class _JournalFailureDatabase extends WorkbenchDatabase {
   _JournalFailureDatabase() : super(NativeDatabase.memory());
   @override
@@ -176,6 +184,47 @@ void main() {
     summary: 'change',
     candidate: {'value': 2, 'other': 1},
   );
+  test('stale full state cannot produce a policy draft', () async {
+    final expected = configurationDigest(await backend.readState());
+    backend.state['other'] = 2;
+    await expectLater(
+      service.propose(
+        category: 'policies',
+        summary: 'stale snapshot',
+        candidate: {'value': 2, 'other': 1},
+        expectedStateDigest: expected,
+      ),
+      throwsA(
+        isA<ConfigurationChangeException>().having(
+          (error) => error.code,
+          'code',
+          'configuration_version_conflict',
+        ),
+      ),
+    );
+    expect(backend.writes, 0);
+  });
+  test('full state changes during draft validation are rejected', () async {
+    final concurrent = _ConcurrentValidationBackend();
+    service = ConfigurationChangeService(backend: concurrent, store: database);
+    await expectLater(
+      service.propose(
+        category: 'policies',
+        summary: 'concurrent validation',
+        candidate: {'value': 2, 'other': 1},
+        expectedStateDigest: configurationDigest(await concurrent.readState()),
+      ),
+      throwsA(
+        isA<ConfigurationChangeException>().having(
+          (error) => error.code,
+          'code',
+          'configuration_version_conflict',
+        ),
+      ),
+    );
+    expect(concurrent.writes, 0);
+    expect(concurrent.state, {'value': 1, 'other': 2});
+  });
   test(
     'all services sharing one store serialize overlapping approved writes',
     () async {

@@ -86,6 +86,28 @@ void main() {
   });
 
   test(
+    'change anchors round trip while older histories remain compatible',
+    () async {
+      final conversation = AiConversation(
+        id: _id(1),
+        updatedAt: 1,
+        messages: const [
+          {'role': 'user', 'content': 'draft request'},
+        ],
+        changeIds: const ['draft-a', 'operation-a'],
+        changeReferences: const {'draft-a': 1, 'operation-a': 1},
+      );
+      await store.save(conversation);
+      expect(
+        (await store.list()).single.changeReferences,
+        conversation.changeReferences,
+      );
+      final older = conversation.toJson()..remove('changeReferences');
+      expect(AiConversation.parse(older)!.changeReferences, isEmpty);
+    },
+  );
+
+  test(
     'restored conversations can be updated after an earlier local deletion',
     () async {
       await store.save(_conversation(1));

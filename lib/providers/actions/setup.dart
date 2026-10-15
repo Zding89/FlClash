@@ -290,6 +290,26 @@ class SetupAction extends _$SetupAction {
     }
   }
 
+  Future<T> runSourceUpdate<T>(
+    Future<T> Function(Future<void> Function() apply) update,
+  ) => _setupScheduler.run(() async {
+    await configurationWriteBarrier.wait();
+    return update(() async {
+      final result = await _setupConfig(
+        force: true,
+        silence: true,
+        useApprovedProfile: false,
+        onUpdated: () async {
+          await ref.read(proxiesActionProvider.notifier).updateGroups();
+          await ref.read(providersProvider.notifier).syncProviders();
+        },
+      );
+      if (result == _SetupTaskResult.handoffToCoreRestart) {
+        throw StateError('source_update_restart_required');
+      }
+    });
+  });
+
   Future<void> _runSetup({
     bool requireTunAuthorization = false,
     bool silence = false,
@@ -494,6 +514,7 @@ class SetupAction extends _$SetupAction {
 
   Future<_SetupTaskResult> _setupConfig({
     bool requireTunAuthorization = false,
+    bool useApprovedProfile = true,
     bool force = false,
     bool silence = false,
     Future<void> Function()? preloadInvoke,
@@ -535,7 +556,7 @@ class SetupAction extends _$SetupAction {
                 .readActivationState(),
           )
         : null;
-    final String? approved = _approvedProfileYaml;
+    final String? approved = useApprovedProfile ? _approvedProfileYaml : null;
     final VM2<String, String> vm2;
     if (approved != null) {
       if (_approvedProfileSignature != _profileSignature(document)) {

@@ -10,16 +10,19 @@ import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/capabilities/service.dart';
 import 'package:fl_clash/capabilities/manifest.dart';
 import 'package:fl_clash/configuration/changes.dart';
+import 'package:fl_clash/configuration/settings.dart';
 import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/providers/ai_history.dart';
 import 'package:fl_clash/providers/state.dart';
 import 'package:fl_clash/providers/workbench.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'approval.dart';
+import 'change_record.dart';
 import 'composer_context.dart';
 import 'errors.dart';
 import 'settings.dart';
@@ -38,8 +41,11 @@ class AiAssistantView extends ConsumerStatefulWidget {
 class _ConversationMessage {
   _ConversationMessage(this.role, this.text);
   final String role;
+  final viewKey = GlobalKey();
   String text;
   String? streamMessageId;
+  String? changeId;
+  String? operationSummary;
   Map<String, Object?>? result;
   ConfigurationProposal? proposal;
   bool failed = false;
@@ -54,9 +60,14 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
   late final AiHistoryStore _historyStore;
   int _historyGeneration = 0;
   StreamSubscription<int>? _historyRestores;
+  Timer? _changeTimer;
+  int _cardGeneration = 0;
+  int? _cardRefreshEpoch;
+  bool _linkedChangesPending = false;
   String _conversationId = aiConversationId();
   String? _targetLabel;
   final _changeIds = <String>{};
+  final _changeReferences = <String, int>{};
   final _historySecrets = <String>{};
   List<Map<String, Object?>> _context = [];
   final _diagnostics = <Map<String, Object?>>[];
@@ -68,6 +79,11 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
   StreamSubscription<AgentRuntimeEvent>? _subscription;
   bool _busy = false;
   bool _contextScheduled = false;
+  bool _followLatest = true;
+  bool _scrollingToLatest = false;
+  bool _seekingLatest = false;
+  bool _userScrolling = false;
+  int _followGeneration = 0;
   String? _error;
   String? _status;
   _ConversationMessage? _assistantMessage;
@@ -84,6 +100,12 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       if (!mounted) return;
       _historyGeneration = generation;
       unawaited(_clear(persist: false));
+    });
+    _scroll.addListener(_readingPositionChanged);
+    _changeTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (mounted && _linkedChangesPending && _changeIds.isNotEmpty) {
+        unawaited(_refreshLinkedCards());
+      }
     });
     _input.text = widget.initialPrompt ?? '';
     ref.listenManual(aiComposerContextProvider, (_, next) {
@@ -119,9 +141,11 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
   void dispose() {
     if (_busy) _recoveryRequired = true;
     _epoch++;
+    _followGeneration++;
     _cancelApprovals();
     _runtime?.cancel();
     _historyTimer?.cancel();
+    _changeTimer?.cancel();
     unawaited(_historyRestores?.cancel() ?? Future<void>.value());
     unawaited(_persistConversation());
     unawaited(_subscription?.cancel() ?? Future<void>.value());
@@ -151,6 +175,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
           ? null
           : aiHistoryText(_targetLabel!, _historySecrets),
       changeIds: _changeIds.toList(),
+      changeReferences: {..._changeReferences},
       context: aiContextMessages(
         _context,
         sanitize: (text) => aiHistoryText(text, _historySecrets),
@@ -205,6 +230,8 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       _conversationId = entry.id;
       _targetLabel = entry.targetLabel;
       _changeIds.addAll(entry.changeIds);
+      _linkedChangesPending = entry.changeIds.isNotEmpty;
+      _changeReferences.addAll(entry.changeReferences);
       _context = entry.context;
       _recoveryRequired = entry.recoveryRequired;
       _diagnostics.addAll(entry.diagnostics);
@@ -216,7 +243,8 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
         ),
       );
     });
-    _followOutput();
+    await _refreshLinkedCards(restoring: true);
+    if (mounted) _followOutput(force: true);
   }
 
   bool _showToolResult(AgentToolResult result) =>
@@ -260,13 +288,154 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
       if (!mutating) return;
     }
     final proposal = aiResultProposal(value);
-    if (proposal != null) _changeIds.add(proposal.id);
+    if (proposal != null) _linkChange(proposal.id);
     final operation = value['operationId'];
-    if (operation is String) _changeIds.add(operation);
+    if (operation is String) _linkChange(operation);
     final nested = value['result'];
     if (nested is Map<String, Object?>) {
       final nestedProposal = aiResultProposal({'proposal': nested['proposal']});
-      if (nestedProposal != null) _changeIds.add(nestedProposal.id);
+      if (nestedProposal != null) _linkChange(nestedProposal.id);
+    }
+  }
+
+  void _linkChange(String id) {
+    _changeIds.add(id);
+    _linkedChangesPending = true;
+    _changeReferences.putIfAbsent(
+      id,
+      () => _messages.where((message) => message.role != 'tool').length,
+    );
+  }
+
+  Future<void> _refreshLinkedCards({bool restoring = false}) async {
+    if (_cardRefreshEpoch == _epoch) return;
+    final generation = ++_cardGeneration;
+    final epoch = _epoch;
+    _cardRefreshEpoch = epoch;
+    final ids = _changeIds.toList();
+    try {
+      final rows = await Future.wait(ids.map(_controller.store.readChange));
+      final operationStates = <String, String>{};
+      await Future.wait([
+        for (final row in rows)
+          if (row != null && row.category.startsWith('capability:'))
+            () async {
+              try {
+                final result = await ref
+                    .read(applicationCapabilityServiceProvider)
+                    .execute('operation_query', {
+                      'operationId': row.id,
+                    }, origin: 'agent')
+                    .timeout(const Duration(seconds: 5));
+                operationStates[row.id] =
+                    result['operationId'] == row.id &&
+                        result['status'] is String
+                    ? result['status'] as String
+                    : 'unverified';
+              } catch (_) {
+                operationStates[row.id] = 'unverified';
+              }
+            }(),
+      ]);
+      Map<String, Object?>? currentState;
+      if (rows.any(
+        (row) =>
+            row?.status == 'draft' &&
+            row!.expiresAt > DateTime.now().millisecondsSinceEpoch &&
+            !row.category.startsWith('resource:') &&
+            !row.category.startsWith('capability:'),
+      )) {
+        try {
+          currentState = await _controller.backend.readState().timeout(
+            const Duration(seconds: 5),
+          );
+        } catch (_) {}
+      }
+      if (!mounted || epoch != _epoch || generation != _cardGeneration) return;
+      setState(() {
+        _linkedChangesPending = rows.any(
+          (row) =>
+              const {
+                'draft',
+                'committing',
+                'persisted',
+                'restoring',
+                'running',
+                'accepted',
+                'queued',
+              }.contains(
+                row == null
+                    ? null
+                    : operationStates[row.id] ?? aiStoredChangeStatus(row),
+              ),
+        );
+        for (var index = 0; index < rows.length; index++) {
+          final row = rows[index];
+          if (row == null) continue;
+          final existing = _messages
+              .where(
+                (message) =>
+                    (message.changeId ?? message.proposal?.id) == row.id,
+              )
+              .firstOrNull;
+          if (existing?.approval?.isCompleted == false) continue;
+          if (row.status == 'superseded') {
+            _messages.removeWhere((message) => message.proposal?.id == row.id);
+            continue;
+          }
+          var status = operationStates[row.id] ?? aiStoredChangeStatus(row);
+          if (status == 'draft' &&
+              !row.category.startsWith('resource:') &&
+              !row.category.startsWith('capability:') &&
+              currentState != null &&
+              configurationDigest(currentState) != row.fingerprint) {
+            status = 'conflict';
+          }
+          if (status == 'draft' &&
+              !row.category.startsWith('resource:') &&
+              !row.category.startsWith('capability:') &&
+              currentState == null) {
+            status = 'unverified';
+          }
+          if (existing != null) {
+            existing.result = {'status': status};
+            existing.failed = const {'failed', 'interrupted'}.contains(status);
+            continue;
+          }
+          final operation = row.category.startsWith('capability:');
+          final message = _ConversationMessage('tool', '')
+            ..changeId = row.id
+            ..operationSummary = operation ? row.summary : null
+            ..proposal = operation ? null : aiStoredProposal(row)
+            ..result = {'status': status};
+          if (restoring && status == 'requires_recovery') {
+            _recoveryRequired = true;
+          }
+          final anchor =
+              _changeReferences[row.id] ??
+              _messages.where((message) => message.role != 'tool').length;
+          var textCount = 0;
+          var position = _messages.length;
+          for (var offset = 0; offset < _messages.length; offset++) {
+            if (_messages[offset].role == 'tool') continue;
+            if (textCount++ >= anchor) {
+              position = offset;
+              break;
+            }
+          }
+          _messages.insert(position, message);
+        }
+        if (restoring && rows.whereType<Object>().length < ids.length) {
+          _error = context.appLocalizations.aiChangesUnavailable;
+        }
+      });
+      _followOutput();
+    } catch (_) {
+      if (mounted && epoch == _epoch && generation == _cardGeneration) {
+        setState(() => _error = context.appLocalizations.aiChangesUnavailable);
+      }
+    } finally {
+      if (_cardRefreshEpoch == epoch) _cardRefreshEpoch = null;
     }
   }
 
@@ -313,7 +482,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     if (!mounted || epoch != _epoch || !_busy || _runtime?.isClosed != false) {
       return false;
     }
-    _changeIds.add(proposal.id);
+    _linkChange(proposal.id);
     await _persistConversation();
     if (!mounted || epoch != _epoch || !_busy || _runtime?.isClosed != false) {
       return false;
@@ -337,12 +506,89 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     }
   }
 
-  void _followOutput() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _scroll.hasClients) {
-        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+  void _readingPositionChanged() {
+    if (!_scroll.hasClients || _scrollingToLatest || _userScrolling) return;
+    final following = _scroll.position.extentAfter <= 96;
+    if (following != _followLatest && mounted) {
+      setState(() => _followLatest = following);
+    }
+  }
+
+  bool _readingScroll(ScrollNotification notification) {
+    if (notification.depth != 0) return false;
+    if (notification is ScrollStartNotification &&
+            notification.dragDetails != null ||
+        notification is UserScrollNotification &&
+            notification.direction != ScrollDirection.idle) {
+      _followGeneration++;
+      setState(() {
+        _userScrolling = true;
+        _scrollingToLatest = false;
+        _seekingLatest = false;
+        _followLatest = false;
+      });
+    } else if (_userScrolling &&
+        (notification is ScrollEndNotification ||
+            notification is UserScrollNotification &&
+                notification.direction == ScrollDirection.idle)) {
+      _userScrolling = false;
+      _readingPositionChanged();
+    }
+    return false;
+  }
+
+  void _followOutput({bool force = false}) {
+    if (force) {
+      setState(() {
+        _followLatest = true;
+        _seekingLatest = true;
+        _userScrolling = false;
+      });
+    }
+    if (!_followLatest || _scrollingToLatest) return;
+    _scrollingToLatest = true;
+    final generation = ++_followGeneration;
+    var attempts = 0;
+    double? previousExtent;
+    void settle(Duration _) {
+      if (!mounted || generation != _followGeneration) return;
+      if (!_followLatest || !_scroll.hasClients || _messages.isEmpty) {
+        setState(() {
+          _scrollingToLatest = false;
+          _seekingLatest = false;
+        });
+        return;
       }
-    });
+      final position = _scroll.position;
+      final extent = position.maxScrollExtent;
+      final reachedTail =
+          _messages.last.viewKey.currentContext != null &&
+          position.extentAfter <= 1;
+      if (reachedTail &&
+          previousExtent != null &&
+          (extent - previousExtent!).abs() <= 1) {
+        setState(() {
+          _scrollingToLatest = false;
+          _seekingLatest = false;
+        });
+        return;
+      }
+      if (++attempts >= 16) {
+        setState(() {
+          _scrollingToLatest = false;
+          _seekingLatest = false;
+          _followLatest = false;
+        });
+        return;
+      }
+      previousExtent = extent;
+      _scroll.jumpTo(extent);
+      WidgetsBinding.instance.addPostFrameCallback(settle);
+      WidgetsBinding.instance.ensureVisualUpdate();
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback(settle);
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   void _recordDiagnostic(
@@ -560,12 +806,14 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
                 _appendToolMessage(
                   _ConversationMessage('tool', '')
                     ..result = result.value
+                    ..changeId = result.value['operationId'] as String?
                     ..proposal = aiResultProposal(result.value)
                     ..failed = result.isError,
                 );
               }
             });
             _followOutput();
+            await _refreshLinkedCards();
             await _persistConversation();
           }
           return result;
@@ -687,11 +935,19 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     _historyTimer?.cancel();
     _historyGeneration = _historyStore.generation;
     setState(() {
+      _followLatest = true;
+      _scrollingToLatest = false;
+      _seekingLatest = false;
+      _userScrolling = false;
+      _followGeneration++;
       _messages.clear();
       _input.clear();
       _conversationId = aiConversationId();
       _targetLabel = null;
       _changeIds.clear();
+      _linkedChangesPending = false;
+      _changeReferences.clear();
+      _cardGeneration++;
       _historySecrets.clear();
       _context = [];
       _contextMessageCount = 0;
@@ -866,15 +1122,30 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
                                 ),
                               ),
                             )
-                          : ListView.builder(
-                              key: const ValueKey('ai-conversation-list'),
-                              controller: _scroll,
-                              padding: const EdgeInsets.all(16),
-                              itemCount: _messages.length,
-                              itemBuilder: (context, index) =>
-                                  _message(_messages[index]),
+                          : NotificationListener<ScrollNotification>(
+                              onNotification: _readingScroll,
+                              child: ListView.builder(
+                                key: const ValueKey('ai-conversation-list'),
+                                controller: _scroll,
+                                padding: const EdgeInsets.all(16),
+                                itemCount: _messages.length,
+                                itemBuilder: (context, index) => KeyedSubtree(
+                                  key: _messages[index].viewKey,
+                                  child: _message(_messages[index]),
+                                ),
+                              ),
                             ),
                     ),
+                    if ((!_followLatest || _seekingLatest) &&
+                        _messages.isNotEmpty)
+                      TextButton.icon(
+                        key: const ValueKey('ai-latest-message'),
+                        onPressed: _scrollingToLatest
+                            ? null
+                            : () => _followOutput(force: true),
+                        icon: const Icon(Icons.arrow_downward),
+                        label: Text(strings.aiLatestMessage),
+                      ),
                     if (_error != null)
                       Padding(
                         padding: const EdgeInsets.symmetric(
@@ -1010,6 +1281,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
 
     return AiToolResultCard(
       result: message.result,
+      summary: message.operationSummary,
       proposal: message.proposal,
       failed: message.failed,
       awaitingApproval: pending,

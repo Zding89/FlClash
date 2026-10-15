@@ -106,6 +106,7 @@ class _Controller extends Mock implements WorkbenchController {
   Future<ConfigurationProposal> proposePolicies(
     LocalPolicyDocument value, {
     String? draftId,
+    String? expectedPolicyDigest,
   }) async {
     proposed = value;
     return const ConfigurationProposal(
@@ -144,6 +145,7 @@ class _ScriptApprovalController extends _Controller {
   Future<ConfigurationProposal> proposePolicies(
     LocalPolicyDocument value, {
     String? draftId,
+    String? expectedPolicyDigest,
   }) async {
     final proposal = await super.proposePolicies(value, draftId: draftId);
     return ConfigurationProposal(
@@ -188,6 +190,7 @@ class _FailingProposalController extends _Controller {
   Future<ConfigurationProposal> proposePolicies(
     LocalPolicyDocument value, {
     String? draftId,
+    String? expectedPolicyDigest,
   }) async => throw const ConfigurationChangeException(
     'configuration_version_conflict',
   );

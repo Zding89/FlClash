@@ -11,11 +11,13 @@ final class PolicySimulationResult {
   final Map<String, Object?> snapshot;
   final List<Map<String, Object?>> timeline;
   final List<Map<String, Object?>> results;
+  final List<Map<String, Object?>> flowResults;
 
   const PolicySimulationResult({
     required this.snapshot,
     required this.timeline,
     required this.results,
+    this.flowResults = const [],
   });
 }
 
@@ -36,6 +38,7 @@ final class LocalPolicySimulation {
     required DateTime now,
     Map<String, int> localUsage = const {},
     List<Map<String, Object?>> steps = const [],
+    List<Map<String, Object?>> flows = const [],
   }) async {
     if (document.isStandalone && targetId != localPolicyTargetId) {
       throw const FormatException(
@@ -108,6 +111,10 @@ final class LocalPolicySimulation {
       'health': health,
       'localUsage': localUsage,
       'steps': steps,
+      if (flows.isNotEmpty) ...{
+        'rules': compiled.config['rules'] ?? const <String>[],
+        'flows': flows,
+      },
     });
     final snapshot = policyObject(response['snapshot'], 'simulation snapshot');
     final timeline = policyItems(
@@ -139,6 +146,12 @@ final class LocalPolicySimulation {
       snapshot: snapshot,
       timeline: timeline,
       results: results,
+      flowResults: policyItems(
+        response,
+        'flowResults',
+        (value) => value,
+        maximum: 8,
+      ),
     );
   }
 }

@@ -1197,5 +1197,15 @@
     }
   },
   "aiPolicyUnknownMultiplierExcluded": "排除未标注倍率的节点",
-  "aiPolicyUnknownRegionAllowed": "允许地区未知的节点入组"
+  "aiPolicyUnknownRegionAllowed": "允许地区未知的节点入组",
+  "aiLatestMessage": "回到最新消息",
+  "aiDraftInvalid": "草稿已失效，请重新读取当前配置并生成方案。",
+  "aiChangeSavedPending": "已保存，等待应用",
+  "policyCheckUnsaved": "当前为未保存草稿；成员按草稿条件筛选，尚未检查。请先检查并保存，再检查节点。",
+  "policyCheckCoreStopped": "Core 未运行，暂时无法检查节点。请先启动连接，再重新打开节点组。",
+  "policyCheckLocalInactive": "当前未加载本地配置，无法检查这个节点组。请在本地规则中启用并选用本地配置，再重新打开节点组。",
+  "policyCheckReadFailed": "检查状态读取失败，不能据此判断节点是否可用。请重试；若仍失败，请重新打开节点组。",
+  "policyCheckReadTimeout": "读取检查状态超时，节点是否可用尚未确认。请重试。",
+  "policyCheckVersionMismatch": "运行版本与当前节点组不一致，旧检查结果已隐藏。请等待配置应用完成后重新打开节点组。",
+  "policyCheckRetry": "重新读取状态"
 }

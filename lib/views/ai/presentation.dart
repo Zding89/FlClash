@@ -5,6 +5,7 @@ import 'package:fl_clash/configuration/changes.dart';
 import 'package:flutter/material.dart';
 
 import 'approval.dart';
+import 'errors.dart';
 import 'policy_plan.dart';
 
 ConfigurationProposal? aiResultProposal(Map<String, Object?> result) {
@@ -239,6 +240,7 @@ class AiToolResultCard extends StatelessWidget {
   const AiToolResultCard({
     super.key,
     this.result,
+    this.summary,
     this.proposal,
     this.failed = false,
     this.expanded = false,
@@ -248,6 +250,7 @@ class AiToolResultCard extends StatelessWidget {
     this.onCancel,
   });
   final Map<String, Object?>? result;
+  final String? summary;
   final ConfigurationProposal? proposal;
   final bool failed;
   final bool expanded;
@@ -258,15 +261,26 @@ class AiToolResultCard extends StatelessWidget {
 
   String _status(BuildContext context) {
     final strings = context.appLocalizations;
-    if (failed) return strings.aiRequestFailed;
+    if (failed) {
+      return aiErrorText(context, result?['code'] ?? result?['errorCode']);
+    }
     return switch (result?['status']) {
       'approved' => strings.aiApproved,
       'applied' => strings.policyAppliedStatus,
+      'draft' || 'proposal_ready' => strings.aiPolicyPlanReady,
+      'superseded' => strings.policySupersededStatus,
+      'expired' => strings.aiChangeExpired,
+      'conflict' => strings.aiDraftInvalid,
+      'unverified' => strings.aiChangesUnavailable,
+      'requires_recovery' ||
+      'recovery_required' => strings.policyRecoveryStatus,
+      'persisted' => strings.aiChangeSavedPending,
+      'committing' => strings.aiResourceUpdateAccepted,
       'completed' => strings.aiResultCompleted,
       'accepted' || 'running' || 'queued' => strings.aiResourceUpdateAccepted,
       'cancelled' => strings.aiCancelled,
       'rejected' => strings.policyRejectedStatus,
-      'failed' || 'unsupported' => strings.aiRequestFailed,
+      'failed' || 'interrupted' || 'unsupported' => strings.aiRequestFailed,
       'pending_confirmation' ||
       'pending_user_input' => strings.aiAwaitingApproval,
       _ => strings.aiCheckResult,
@@ -360,7 +374,7 @@ class AiToolResultCard extends StatelessWidget {
                   child: Text(
                     plan != null
                         ? strings.aiPolicyPlanTitle
-                        : proposal?.summary ?? strings.aiCheckResult,
+                        : proposal?.summary ?? summary ?? strings.aiCheckResult,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
@@ -437,7 +451,18 @@ class AiToolResultCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-              for (final entry in fields.entries.take(8))
+              for (final entry
+                  in fields.entries
+                      .where(
+                        (entry) =>
+                            !{'taskEffect', 'recovery'}.contains(entry.key),
+                      )
+                      .where(
+                        (entry) =>
+                            !failed ||
+                            !{'code', 'errorCode'}.contains(entry.key),
+                      )
+                      .take(8))
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Row(

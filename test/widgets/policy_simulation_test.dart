@@ -51,6 +51,7 @@ class _Controller extends Mock implements WorkbenchController {
     required DateTime now,
     Map<String, int> localUsage = const {},
     List<Map<String, Object?>> steps = const [],
+    List<Map<String, Object?>> flows = const [],
   }) async {
     calls++;
     suppliedHealth = health;

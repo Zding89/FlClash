@@ -303,6 +303,7 @@ class _LocalPolicyWorkbenchViewState
           builder: (_) => PolicyNodeSetEditor(
             existing: existing,
             targetId: target,
+            savedRevision: baseDocument.revision,
             sources: sourceNames,
             sourceSummaries: _nodeSourceSummaries(),
             loadSourceSummaries: _nodeSourceSummaries,
@@ -316,6 +317,7 @@ class _LocalPolicyWorkbenchViewState
             attributes: document.nodeAttributes,
             snapshot: snapshot,
             loadStatus: coreController.getLocalPolicyDetails,
+            loadSnapshot: coreController.getLocalPolicyStatus,
             referencedRules: document.policies
                 .where(
                   (p) => p.choices.any(
@@ -326,9 +328,9 @@ class _LocalPolicyWorkbenchViewState
                 )
                 .map((p) => p.label)
                 .toList(),
-            onCheck: (id) async {
+            onCheck: (id, revision) async {
               await coreController.checkLocalPolicyNodes({
-                'revision': snapshot['revision'],
+                'revision': revision,
                 'nodeSetId': id,
               });
             },

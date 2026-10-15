@@ -158,12 +158,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsOneWidget);
     expect(find.text('settings.mode'), findsOneWidget);
-    final values = tester
-        .widgetList<SelectableText>(find.byType(SelectableText))
-        .map((widget) => widget.data ?? widget.textSpan!.toPlainText())
-        .join('\n');
-    expect(values, contains('"rule"'));
-    expect(values, contains('"global"'));
+    final values = [
+      ...tester
+          .widgetList<SelectableText>(find.byType(SelectableText))
+          .map((widget) => widget.data ?? widget.textSpan!.toPlainText()),
+      ...tester
+          .widgetList<Text>(find.byType(Text))
+          .map((widget) => widget.data ?? widget.textSpan?.toPlainText() ?? ''),
+    ].join('\n');
+    expect(values, contains('rule'));
+    expect(values, contains('global'));
     expect(values, contains('name=public'));
     for (final secret in [
       'before-password',

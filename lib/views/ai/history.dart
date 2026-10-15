@@ -1,15 +1,15 @@
-import 'dart:convert';
-
 import 'package:fl_clash/ai/history.dart';
+import 'package:fl_clash/capabilities/service.dart';
 import 'package:fl_clash/common/common.dart';
-import 'package:fl_clash/configuration/changes.dart';
 import 'package:fl_clash/database/workbench_database.dart';
 import 'package:fl_clash/views/policy/policy.dart';
 import 'package:fl_clash/views/policy/widgets.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'approval.dart';
+import 'change_record.dart';
+import 'presentation.dart';
 
 class AiConversationHistoryView extends StatefulWidget {
   const AiConversationHistoryView({super.key, required this.store});
@@ -119,7 +119,7 @@ class _AiConversationHistoryViewState extends State<AiConversationHistoryView> {
   }
 }
 
-class AiLinkedChangesView extends StatefulWidget {
+class AiLinkedChangesView extends ConsumerStatefulWidget {
   const AiLinkedChangesView({
     super.key,
     required this.store,
@@ -129,11 +129,13 @@ class AiLinkedChangesView extends StatefulWidget {
   final List<String> ids;
 
   @override
-  State<AiLinkedChangesView> createState() => _AiLinkedChangesViewState();
+  ConsumerState<AiLinkedChangesView> createState() =>
+      _AiLinkedChangesViewState();
 }
 
-class _AiLinkedChangesViewState extends State<AiLinkedChangesView> {
+class _AiLinkedChangesViewState extends ConsumerState<AiLinkedChangesView> {
   late final Stream<List<WorkbenchChange>> _rows;
+  final _statuses = <String, Future<String>>{};
 
   @override
   void initState() {
@@ -141,6 +143,23 @@ class _AiLinkedChangesViewState extends State<AiLinkedChangesView> {
     _rows = (widget.store.select(
       widget.store.workbenchChanges,
     )..where((table) => table.id.isIn(widget.ids))).watch();
+  }
+
+  Future<String> _readStatus(WorkbenchChange row) async {
+    if (!row.category.startsWith('capability:')) {
+      return aiStoredChangeStatus(row);
+    }
+    try {
+      final result = await ref
+          .read(applicationCapabilityServiceProvider)
+          .execute('operation_query', {'operationId': row.id}, origin: 'agent')
+          .timeout(const Duration(seconds: 5));
+      return result['operationId'] == row.id && result['status'] is String
+          ? result['status'] as String
+          : 'unverified';
+    } catch (_) {
+      return 'unverified';
+    }
   }
 
   String _status(String status) {
@@ -151,6 +170,7 @@ class _AiLinkedChangesViewState extends State<AiLinkedChangesView> {
       'pending_confirmation' ||
       'proposal_ready' => strings.policyDraftStatus,
       'rejected' => strings.policyRejectedStatus,
+      'requires_recovery' ||
       'recovery_required' => strings.policyRecoveryStatus,
       'restored' || 'resolved' => strings.policyRestoredStatus,
       'superseded' => strings.policySupersededStatus,
@@ -158,15 +178,14 @@ class _AiLinkedChangesViewState extends State<AiLinkedChangesView> {
       'failed' || 'interrupted' || 'conflict' => strings.aiChangeFailed,
       'cancelled' => strings.aiCancelled,
       'expired' => strings.aiChangeExpired,
+      'unverified' => strings.aiChangesUnavailable,
       _ => strings.policyPreparingStatus,
     };
   }
 
   Future<void> _view(WorkbenchChange row) async {
-    final differences = configurationDifferences(
-      jsonDecode(row.beforePayload),
-      jsonDecode(row.afterPayload),
-    );
+    final status = await _readStatus(row);
+    if (!mounted) return;
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -174,20 +193,13 @@ class _AiLinkedChangesViewState extends State<AiLinkedChangesView> {
         content: SizedBox(
           width: 560,
           child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(_status(row.status)),
-                for (final difference in differences) ...[
-                  const SizedBox(height: 12),
-                  Text(difference.path),
-                  Text(context.appLocalizations.aiBefore),
-                  SelectableText(aiDisplayValue(difference.before)),
-                  Text(context.appLocalizations.aiAfter),
-                  SelectableText(aiDisplayValue(difference.after)),
-                ],
-              ],
+            child: AiToolResultCard(
+              proposal: row.category.startsWith('capability:')
+                  ? null
+                  : aiStoredProposal(row),
+              summary: row.summary,
+              result: {'status': status},
+              expanded: true,
             ),
           ),
         ),
@@ -227,8 +239,14 @@ class _AiLinkedChangesViewState extends State<AiLinkedChangesView> {
                 Card(
                   child: ListTile(
                     title: Text(row.summary),
-                    subtitle: Text(
-                      '${policyBeijingTime(row.createdAt)} · ${_status(row.status)}',
+                    subtitle: FutureBuilder<String>(
+                      future: _statuses.putIfAbsent(
+                        '${row.id}:${row.status}',
+                        () => _readStatus(row),
+                      ),
+                      builder: (context, snapshot) => Text(
+                        '${policyBeijingTime(row.createdAt)} · ${_status(snapshot.data ?? row.status)}',
+                      ),
                     ),
                     onTap: () => _view(row),
                     trailing: const Icon(Icons.chevron_right),

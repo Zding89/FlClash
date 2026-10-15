@@ -101,76 +101,92 @@ class ProfilesAction extends _$ProfilesAction {
     Profile profile, {
     bool showLoading = false,
   }) async {
-    var metadataChanged = false;
-    bool Function()? stillCurrent;
+    final epoch = (_updateEpochs[profile.id] ?? 0) + 1;
+    _updateEpochs[profile.id] = epoch;
+    bool isCurrent() =>
+        _updateEpochs[profile.id] == epoch &&
+        ref.read(profilesProvider).getProfile(profile.id)?.url == profile.url;
     try {
       if (showLoading) {
         ref.read(isUpdatingProvider(profile.updatingKey).notifier).value = true;
       }
-      ref.read(profilesProvider.notifier).put(profile);
-      final epoch = (_updateEpochs[profile.id] ?? 0) + 1;
-      _updateEpochs[profile.id] = epoch;
-      bool isCurrent() =>
-          _updateEpochs[profile.id] == epoch &&
-          ref.read(profilesProvider).getProfile(profile.id)?.url == profile.url;
-      stillCurrent = isCurrent;
+      await ref.read(profilesProvider.notifier).putAndWait(profile);
       final fetch = system.isMacOS
           ? ref.read(workbenchControllerProvider).fetchSourceResponse
           : request.getBoundedFileResponse;
-      final newProfile = await profile.update(
-        fetch: fetch,
-        isCurrent: isCurrent,
-        validateSource: system.isMacOS
-            ? (bytes) => ref
-                  .read(workbenchControllerProvider)
-                  .validateSourceUpdate(profile, bytes, isCurrent: isCurrent)
-            : null,
-        onMetadata: (metadata) async {
-          if (!isCurrent()) return;
-          final latest = ref.read(profilesProvider).getProfile(profile.id)!;
-          metadataChanged =
-              latest.subscriptionInfo != metadata.subscriptionInfo;
-          ref
-              .read(profilesProvider.notifier)
-              .put(
-                latest.copyWith(subscriptionInfo: metadata.subscriptionInfo),
-              );
-          if (system.isMacOS) {
+      await ref.read(setupActionProvider.notifier).runSourceUpdate((
+        apply,
+      ) async {
+        if (!isCurrent()) throw StateError('profile_update_superseded');
+        final previous = ref.read(profilesProvider).getProfile(profile.id)!;
+        Profile? published;
+        PreparedSourceUpdate? candidate;
+        await profile.update(
+          fetch: fetch,
+          isCurrent: isCurrent,
+          validateSource: system.isMacOS
+              ? (bytes) async {
+                  candidate = await ref
+                      .read(workbenchControllerProvider)
+                      .validateSourceUpdate(
+                        profile,
+                        bytes,
+                        isCurrent: isCurrent,
+                      );
+                }
+              : null,
+          onMetadata: (metadata) async {
+            if (!isCurrent()) return;
+            final latest = ref.read(profilesProvider).getProfile(profile.id)!;
             await ref
-                .read(workbenchControllerProvider)
-                .refreshSourceMetadata(metadata, isCurrent: isCurrent);
-          }
-        },
-      );
-      if (!isCurrent()) return;
-      final latest = ref.read(profilesProvider).getProfile(profile.id)!;
-      ref
-          .read(profilesProvider.notifier)
-          .put(
-            latest.copyWith(
-              label: latest.label.isEmpty ? newProfile.label : latest.label,
-              subscriptionInfo: newProfile.subscriptionInfo,
-              lastUpdateDate: newProfile.lastUpdateDate,
-            ),
-          );
-      if (await _affectsCurrentProfile(profile.id)) {
-        ref
-            .read(setupActionProvider.notifier)
-            .applyProfileDebounce(silence: true);
-      }
-    } catch (_) {
-      if (metadataChanged &&
-          stillCurrent?.call() == true &&
-          await _affectsCurrentProfile(profile.id)) {
-        try {
-          await ref
-              .read(setupActionProvider.notifier)
-              .applyProfile(force: true, silence: true);
-        } catch (_) {}
-      }
-      rethrow;
+                .read(profilesProvider.notifier)
+                .putAndWait(
+                  latest.copyWith(subscriptionInfo: metadata.subscriptionInfo),
+                );
+            if (system.isMacOS) {
+              await ref
+                  .read(workbenchControllerProvider)
+                  .refreshSourceMetadata(metadata, isCurrent: isCurrent);
+            }
+          },
+          onPublished: (updated) async {
+            if (!isCurrent()) throw StateError('profile_update_superseded');
+            await candidate?.publish();
+            final latest = ref.read(profilesProvider).getProfile(profile.id)!;
+            published = latest.copyWith(
+              label: latest.label.isEmpty ? updated.label : latest.label,
+              subscriptionInfo: updated.subscriptionInfo,
+              lastUpdateDate: updated.lastUpdateDate,
+            );
+            await ref.read(profilesProvider.notifier).putAndWait(published!);
+            if (await _affectsCurrentProfile(profile.id)) await apply();
+          },
+          onRollback: () async {
+            await candidate?.rollback();
+            final latest = ref.read(profilesProvider).getProfile(profile.id);
+            if (published != null &&
+                latest != null &&
+                latest.lastUpdateDate == published!.lastUpdateDate) {
+              await ref
+                  .read(profilesProvider.notifier)
+                  .putAndWait(
+                    latest.copyWith(
+                      label: latest.label == published!.label
+                          ? previous.label
+                          : latest.label,
+                      lastUpdateDate: previous.lastUpdateDate,
+                    ),
+                  );
+            }
+            if (await _affectsCurrentProfile(profile.id)) await apply();
+          },
+        );
+      });
     } finally {
-      ref.read(isUpdatingProvider(profile.updatingKey).notifier).value = false;
+      if (_updateEpochs[profile.id] == epoch) {
+        ref.read(isUpdatingProvider(profile.updatingKey).notifier).value =
+            false;
+      }
     }
   }
 

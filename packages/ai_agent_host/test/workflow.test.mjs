@@ -118,7 +118,7 @@ test('finish rejects invented success and accepted operations until real complet
       return [call('verify', 'changes_status', { id: 'draft-1' })];
     },
     [call('finish', 'task_finish', { status: 'completed', summary: '已核验应用', evidenceToolCallIds: ['verify'] })],
-  ], { changes_commit: () => ({ value: { status: 'accepted', operationId: 'op-1' } }), changes_status: () => ({ value: { status: 'applied', id: 'draft-1' } }) });
+  ], { changes_commit: () => ({ value: { status: 'accepted', operationId: 'op-1' } }), changes_status: () => ({ value: { status: 'applied', id: 'draft-1', currentStateMatches: true } }) });
   f.host.receive(input({ user: '应用并检查' })); await f.done();
   assert.equal(f.events.at(-1).data.taskStatus, 'completed');
   assert.equal(f.events.filter(event => event.type === 'toolRequest' && event.data.name === 'changes_commit').length, 1);
@@ -284,6 +284,227 @@ test('visible proposal and operation IDs select genuine evidence without interna
   const applied = fixture([[call('commit', 'changes_commit')], [call('query', 'changes_status')], [call('finish', 'task_finish', { status: 'completed', summary: '操作已完成', operationId: 'visible-operation' })]], { changes_commit: () => ({ value: { status: 'accepted', operationId: 'visible-operation' } }), changes_status: () => ({ value: { operationId: 'visible-operation', status: 'completed' } }) });
   applied.host.receive(input()); await applied.done();
   assert.equal(applied.events.at(-1).data.taskStatus, 'completed');
+});
+
+test('a later successful catalog cannot close a failed or pending target operation', async () => {
+  for (const outcome of ['failed', 'accepted']) {
+    const f = fixture([
+      [call('commit', 'changes_commit', { id: 'target-draft' })],
+      [call('catalog', 'application_catalog')],
+      [call('wrong', 'task_finish', { status: 'completed', summary: '不应显示成功' })],
+      context => {
+        const proof = context.messages.find(message => message.role === 'toolResult' && message.toolCallId === 'wrong');
+        assert.equal(proof.isError, true);
+        return [call('stop', 'task_finish', { status: 'needs_input', summary: '操作仍需处理', reason: '目标操作没有成功终态' })];
+      },
+    ], {
+      changes_commit: () => ({ isError: outcome === 'failed', value: { status: outcome, operationId: 'target-operation' } }),
+      application_catalog: () => ({ value: { status: 'completed', result: { capabilities: [] } } }),
+    });
+    f.host.receive(input()); await f.done();
+    assert.equal(f.events.at(-1).data.taskStatus, 'needs_input');
+    assert.ok(!f.events.some(event => event.type === 'text' && event.data.text === '不应显示成功'));
+  }
+});
+
+test('plain text and exhausted correction never publish unverified mutation success', async () => {
+  const f = fixture([
+    [call('commit', 'changes_commit', { id: 'pending' })],
+    [text('已全部应用成功')],
+    [text('已经核验成功')],
+    [text('修改完成')],
+  ], { changes_commit: () => ({ value: { status: 'accepted', operationId: 'pending-operation' } }) });
+  f.host.receive(input()); await f.done();
+  assert.equal(f.events.at(-1).data.failed, true);
+  assert.ok(f.events.some(event => event.type === 'error' && event.data.code === 'completionEvidenceRequired'));
+  assert.ok(!f.events.some(event => event.type === 'text' && event.data.phase === 'final'));
+});
+
+test('an unrelated completed operation cannot verify the most recent write', async () => {
+  const f = fixture([
+    [call('commit', 'changes_commit', { id: 'current' })],
+    [call('other', 'changes_status', { id: 'other' })],
+    [call('wrong', 'task_finish', { status: 'completed', summary: '不能用其他操作' })],
+    [call('finish', 'task_finish', { status: 'failed', summary: '尚无法确认当前操作', reason: '当前操作仍在执行' })],
+  ], {
+    changes_commit: () => ({ value: { status: 'accepted', operationId: 'current-operation' } }),
+    changes_status: () => ({ value: { change: { id: 'other', status: 'applied' } } }),
+  });
+  f.host.receive(input()); await f.done();
+  assert.equal(f.events.at(-1).data.taskStatus, 'failed');
+});
+
+test('historical replayed application receipts cannot prove the current configuration', async () => {
+  for (const wrapped of [false, true]) {
+    for (const currentStateMatches of [undefined, false]) {
+      const receipt = { id: 'old-draft', status: 'applied', replayed: true, ...(currentStateMatches === undefined ? {} : { currentStateMatches }) };
+      const value = wrapped ? { status: 'applied', result: receipt } : receipt;
+      const f = fixture([
+        [call('replay', 'changes_commit', { id: 'old-draft' })],
+        [call('wrong', 'task_finish', { status: 'completed', summary: '不能把历史应用当作当前完成' })],
+        context => {
+          assert.equal(context.messages.find(message => message.role === 'toolResult' && message.toolCallId === 'wrong').isError, true);
+          return [call('stop', 'task_finish', { status: 'needs_input', summary: '需要重新核对当前配置', reason: '历史回执未证明当前版本' })];
+        },
+      ], { changes_commit: () => ({ value: { ...value, taskEffect: 'mutation' } }) });
+      f.host.receive(input()); await f.done();
+      assert.equal(f.events.at(-1).data.taskStatus, 'needs_input');
+      assert.ok(!f.events.some(event => event.type === 'text' && event.data.text === '不能把历史应用当作当前完成'));
+    }
+  }
+});
+
+test('old applied operation queries require a matching current-state check before completion', async () => {
+  for (const matched of [false, true]) {
+    const f = fixture([
+      [call('replay', 'changes_commit', { id: 'old-draft' })],
+      [call('historical-query', 'application_operation', { operationId: 'old-draft' })],
+      [call('wrong', 'task_finish', { status: 'completed', summary: '历史状态不能核验当前应用' })],
+      context => {
+        assert.equal(context.messages.find(message => message.role === 'toolResult' && message.toolCallId === 'wrong').isError, true);
+        return [call('current-query', 'changes_status', { id: 'old-draft' })];
+      },
+      [call('verified', 'task_finish', { status: 'completed', summary: '当前版本核验通过' })],
+      ...(!matched ? [[call('stop', 'task_finish', { status: 'needs_input', summary: '当前配置已经变化', reason: '当前状态与旧方案不一致' })]] : []),
+    ], {
+      changes_commit: () => ({ value: { id: 'old-draft', status: 'applied', replayed: true, taskEffect: 'mutation' } }),
+      application_operation: () => ({ value: { operationId: 'old-draft', status: 'applied', result: null, taskEffect: 'read' } }),
+      changes_status: () => ({ value: { change: { id: 'old-draft', status: 'applied' }, currentStateMatches: matched, taskEffect: 'read' } }),
+    });
+    f.host.receive(input({ tools: ['changes_commit', 'changes_status', 'application_operation'].map(definition) })); await f.done();
+    assert.equal(f.events.at(-1).data.taskStatus, matched ? 'completed' : 'needs_input');
+    assert.equal(f.events.filter(event => event.type === 'toolRequest' && event.data.name === 'changes_commit').length, 1);
+  }
+});
+
+test('replayed application can finish when its receipt explicitly verifies the current state', async () => {
+  const f = fixture([
+    [call('replay', 'changes_commit', { id: 'same-draft' })],
+    [call('finish', 'task_finish', { status: 'completed', summary: '当前配置仍符合方案' })],
+  ], { changes_commit: () => ({ value: { status: 'applied', result: { id: 'same-draft', status: 'applied', replayed: true }, currentStateMatches: true, taskEffect: 'mutation' } }) });
+  f.host.receive(input()); await f.done();
+  assert.equal(f.events.at(-1).data.taskStatus, 'completed');
+});
+
+test('a later same-target state mismatch invalidates an earlier immediate application receipt', async () => {
+  const f = fixture([
+    [call('commit', 'changes_commit', { id: 'draft-now' })],
+    [call('changed', 'changes_status', { id: 'draft-now' })],
+    [call('wrong', 'task_finish', { status: 'completed', summary: '不能退回较早的成功回执', evidenceToolCallIds: ['commit'] })],
+    context => {
+      assert.equal(context.messages.find(message => message.role === 'toolResult' && message.toolCallId === 'wrong').isError, true);
+      return [call('stop', 'task_finish', { status: 'needs_input', summary: '当前配置已经改变', reason: '后续真实状态与方案不匹配' })];
+    },
+  ], {
+    changes_commit: () => ({ value: { id: 'draft-now', status: 'applied', taskEffect: 'mutation' } }),
+    changes_status: () => ({ value: { change: { id: 'draft-now', status: 'applied' }, currentStateMatches: false, taskEffect: 'read' } }),
+  });
+  f.host.receive(input()); await f.done();
+  assert.equal(f.events.at(-1).data.taskStatus, 'needs_input');
+  assert.ok(!f.events.some(event => event.type === 'text' && event.data.text === '不能退回较早的成功回执'));
+});
+
+test('idempotent immediate completed actions retain their terminal receipt semantics', async () => {
+  const f = fixture([
+    [call('action', 'application_invoke', { command: 'usage_clear', params: {} })],
+    [call('finish', 'task_finish', { status: 'completed', summary: '该操作已完成' })],
+  ], { application_invoke: () => ({ value: { operationId: 'instant-action', status: 'completed', replayed: true, taskEffect: 'mutation' } }) });
+  f.host.receive(input({ tools: [definition('application_invoke')] })); await f.done();
+  assert.equal(f.events.at(-1).data.taskStatus, 'completed');
+});
+
+test('actual model draft results retain state and exact references within six KiB under dense validation and created resources', async () => {
+  const validation = { valid: true, issues: [], warnings: Array.from({ length: 99 }, (_, index) => ({ code: 'global_before_later_rules', ruleId: `rule-${index}`, label: '长警告'.repeat(200) })) };
+  const assignedIds = Object.fromEntries(Array.from({ length: 100 }, (_, index) => [`${'长资源别名'.repeat(120)}-${index}`, `resource-${index}`]));
+  const createdResources = Object.values(assignedIds).map((id, actionIndex) => ({ id, actionIndex, kind: 'createNodeSet' }));
+  const original = { proposal: { id: 'bounded-draft', summary: '真实草稿', expiresAt: 9999999999999, differences: Array.from({ length: 100 }, (_, index) => ({ path: `policies.${index}`, before: [], after: ['data'.repeat(1000)] })) }, version: 'actual-draft-version', status: 'draft', taskEffect: 'mutation', validation, assignedIds, createdResources, businessSummary: { ruleCount: 100, nodeSetCount: 100, rules: Array(100).fill({ label: '业务摘要'.repeat(100) }) } };
+  const inspect = (context, callId) => {
+    const message = context.messages.find(message => message.role === 'toolResult' && message.toolCallId === callId);
+    const actual = message.content[0].text;
+    assert.ok(Buffer.byteLength(actual) <= 6144, Buffer.byteLength(actual));
+    const result = JSON.parse(actual);
+    assert.equal(result.version, 'actual-draft-version');
+    assert.equal(result.status, 'draft');
+    assert.equal(result.validation.valid, true);
+    assert.equal(result.validation.issueCount, 0);
+    assert.equal(result.validation.warningCount, 99);
+    assert.ok(result.validation.warnings.length <= 2);
+    assert.equal(result.validation.complete, false);
+    assert.equal(result.validation.detailsTool, 'policy_preview');
+    assert.equal(result.validation.detailsArguments.draftId, 'bounded-draft');
+    assert.equal(result.validation.detailsArguments.resultKind, 'validation');
+    return result;
+  };
+  const f = fixture([
+    [call('edit-large', 'policy_draft_edit')],
+    context => {
+      const result = inspect(context, 'edit-large');
+      assert.equal(result.proposal.id, 'bounded-draft');
+      assert.equal(result.assignedIdCount, 100);
+      assert.equal(result.assignedIdsComplete, false);
+      assert.equal(result.createdResourceCount, 100);
+      assert.equal(result.createdResourcesComplete, false);
+      assert.equal(result.resourceReferences.rulesTool, 'rules_query');
+      assert.equal(result.resourceReferences.nodeSetsTool, 'node_sets_query');
+      assert.equal(result.resourceReferences.draftId, 'bounded-draft');
+      return [call('read-large', 'policy_draft_read', { id: 'bounded-draft' })];
+    },
+    context => {
+      const result = inspect(context, 'read-large');
+      assert.equal(result.id, 'bounded-draft');
+      return [call('finish', 'task_finish', { status: 'draft_ready', summary: '草稿可审阅', proposalId: 'bounded-draft' })];
+    },
+  ], {
+    policy_draft_edit: () => ({ value: original }),
+    policy_draft_read: () => ({ value: { id: 'bounded-draft', status: 'draft', version: 'actual-draft-version', validation, businessSummary: original.businessSummary } }),
+  });
+  f.host.receive(input({ tools: ['policy_draft_edit', 'policy_draft_read'].map(definition) })); await f.done();
+  assert.equal(f.events.at(-1).data.taskStatus, 'draft_ready');
+  assert.equal(original.validation.warnings.length, 99);
+  assert.equal(original.createdResources.length, 100);
+  assert.equal(Object.keys(original.assignedIds).length, 100);
+});
+
+test('normal 100-node data reaches the next actual model request intact', async () => {
+  const nodes = Array.from({ length: 100 }, (_, i) => ({ id: `node-${i}`, sourceId: 'airport', label: `美国节点-${i}-${'名称'.repeat(20)}`, sourceLabel: '机场' }));
+  assert.ok(Buffer.byteLength(JSON.stringify(nodes)) > 8192);
+  const f = fixture([
+    [call('nodes', 'nodes_list', { targetId: 'integration:flclash_local' })],
+    context => {
+      const result = context.messages.find(message => message.role === 'toolResult' && message.toolCallId === 'nodes');
+      const value = JSON.parse(result.content[0].text);
+      assert.deepEqual(value.nodes, nodes);
+      assert.equal(value.total, 100);
+      return [text('已读取全部100个节点')];
+    },
+  ], { nodes_list: () => ({ value: { nodes, total: 100, offset: 0 } }) });
+  f.host.receive(input({ tools: [definition('nodes_list')] })); await f.done();
+  assert.equal(f.events.at(-1).data.failed, false);
+});
+
+test('business tools discover and activate an exact schema without eager global tools', async () => {
+  const declared = context => {
+    const names = new Set();
+    for (const message of context.messages.filter(message => message.role === 'system')) {
+      for (const tool of message.toolsRemoved ?? []) names.delete(typeof tool === 'string' ? tool : tool.name);
+      for (const tool of message.toolsAdded ?? []) names.add(tool.name);
+    }
+    return names;
+  };
+  const f = fixture([
+    context => {
+      assert.ok(declared(context).has('workspace_overview'));
+      assert.ok(!declared(context).has('settings_read'));
+      return [call('discover', 'tools_catalog', { names: ['settings_read'] })];
+    },
+    context => {
+      assert.ok(declared(context).has('settings_read'));
+      return [call('read-settings', 'settings_read')];
+    },
+    [text('设置读取完成')],
+  ], { settings_read: () => ({ value: { taskEffect: 'read', settings: { locale: 'zh_CN' } } }) });
+  f.host.receive(input({ tools: ['workspace_overview', 'settings_read'].map(definition) })); await f.done();
+  assert.equal(f.events.at(-1).data.failed, false);
 });
 
 test('rename and node-set revisions send only requested fields and retain original priority', async () => {

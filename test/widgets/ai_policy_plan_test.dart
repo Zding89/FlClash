@@ -16,6 +16,41 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+    'version conflicts show business feedback without internal fields',
+    (tester) async {
+      await AppLocalizations.load(const Locale('zh', 'CN'));
+      await tester.pumpWidget(
+        const MaterialApp(
+          locale: Locale('zh', 'CN'),
+          localizationsDelegates: [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: Scaffold(
+            body: AiToolResultCard(
+              failed: true,
+              result: {
+                'code': 'configuration_version_conflict',
+                'taskEffect': 'mutation',
+                'recovery': {'writeApplied': false},
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text(AppLocalizations.current.aiDraftInvalid),
+        findsOneWidget,
+      );
+      expect(find.text('taskEffect'), findsNothing);
+      expect(find.text('mutation'), findsNothing);
+      expect(find.text('configuration_version_conflict'), findsNothing);
+    },
+  );
   for (final width in [380.0, 1180.0]) {
     testWidgets('local plan is readable without raw paths at width $width', (
       tester,

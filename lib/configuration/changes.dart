@@ -257,6 +257,8 @@ final class ConfigurationChangeService {
     required String summary,
     required Map<String, Object?> candidate,
     String? baseDraftId,
+    String? expectedPolicyDigest,
+    String? expectedStateDigest,
   }) => _serial(() async {
     if (!category.startsWith('recovery:') &&
         !category.startsWith('repair:') &&
@@ -266,6 +268,19 @@ final class ConfigurationChangeService {
       );
     }
     final before = await backend.readState();
+    if (expectedStateDigest != null &&
+            configurationDigest(before) != expectedStateDigest ||
+        expectedPolicyDigest != null &&
+            policyDigest(
+                  LocalPolicyDocument.fromJson(
+                    policyObject(before['policies'], 'policies'),
+                  ).asStandalone().toJson(),
+                ) !=
+                expectedPolicyDigest) {
+      throw const ConfigurationChangeException(
+        'configuration_version_conflict',
+      );
+    }
     if (baseDraftId != null) {
       await _pendingDraft(baseDraftId, category, before);
     }
@@ -280,6 +295,23 @@ final class ConfigurationChangeService {
             snapshot,
           )
         : await backend.validate(snapshot);
+    final afterValidation =
+        expectedStateDigest != null || expectedPolicyDigest != null
+        ? await backend.readState()
+        : null;
+    if (expectedStateDigest != null &&
+            configurationDigest(afterValidation) != expectedStateDigest ||
+        expectedPolicyDigest != null &&
+            policyDigest(
+                  LocalPolicyDocument.fromJson(
+                    policyObject(afterValidation!['policies'], 'policies'),
+                  ).asStandalone().toJson(),
+                ) !=
+                expectedPolicyDigest) {
+      throw const ConfigurationChangeException(
+        'configuration_version_conflict',
+      );
+    }
     final differences = configurationDifferences(before, snapshot);
     if (differences.isEmpty && !category.startsWith('recovery:')) {
       throw const ConfigurationChangeException('configuration_unchanged');

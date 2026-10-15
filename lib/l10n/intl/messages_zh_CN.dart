@@ -161,6 +161,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiChangeCompleted": MessageLookupByLibrary.simpleMessage("已完成"),
     "aiChangeExpired": MessageLookupByLibrary.simpleMessage("已过期"),
     "aiChangeFailed": MessageLookupByLibrary.simpleMessage("失败或中断"),
+    "aiChangeSavedPending": MessageLookupByLibrary.simpleMessage("已保存，等待应用"),
     "aiChangesUnavailable": MessageLookupByLibrary.simpleMessage(
       "部分关联记录已清理或不可用。",
     ),
@@ -198,6 +199,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "aiDisabled": MessageLookupByLibrary.simpleMessage("AI 助手已关闭"),
     "aiDiscardChanges": MessageLookupByLibrary.simpleMessage("放弃更改"),
+    "aiDraftInvalid": MessageLookupByLibrary.simpleMessage(
+      "草稿已失效，请重新读取当前配置并生成方案。",
+    ),
     "aiEditConnection": MessageLookupByLibrary.simpleMessage("编辑连接"),
     "aiEmptyConversation": MessageLookupByLibrary.simpleMessage(
       "可以先检查当前配置，再预览需要的修改",
@@ -228,6 +232,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "aiKeyRequired": MessageLookupByLibrary.simpleMessage("请输入此端点的 API Key"),
     "aiKeyShow": MessageLookupByLibrary.simpleMessage("显示 Key"),
     "aiKeyStored": MessageLookupByLibrary.simpleMessage("已加密保存在配置中；留空可保留"),
+    "aiLatestMessage": MessageLookupByLibrary.simpleMessage("回到最新消息"),
     "aiLinkedChanges": MessageLookupByLibrary.simpleMessage("关联修改"),
     "aiLinkedChangesHint": MessageLookupByLibrary.simpleMessage(
       "这里显示原修改日志的实时记录，可查看差异；撤销或恢复仍在修改历史中处理。",
@@ -806,10 +811,16 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyCandidates": MessageLookupByLibrary.simpleMessage("精确节点顺序"),
     "policyCheckCapacityHint": m29,
+    "policyCheckCoreStopped": MessageLookupByLibrary.simpleMessage(
+      "Core 未运行，暂时无法检查节点。请先启动连接，再重新打开节点组。",
+    ),
     "policyCheckFrequencyHint": MessageLookupByLibrary.simpleMessage(
       "间隔是调度目标，大量节点可能需要排队",
     ),
     "policyCheckFrequencySection": MessageLookupByLibrary.simpleMessage("检查频率"),
+    "policyCheckLocalInactive": MessageLookupByLibrary.simpleMessage(
+      "当前未加载本地配置，无法检查这个节点组。请在本地规则中启用并选用本地配置，再重新打开节点组。",
+    ),
     "policyCheckMeasurementHint": MessageLookupByLibrary.simpleMessage(
       "测量连通性与请求延迟，不是下载速度",
     ),
@@ -817,8 +828,21 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyCheckNow": MessageLookupByLibrary.simpleMessage("立即检查"),
     "policyCheckPending": MessageLookupByLibrary.simpleMessage("待检查"),
     "policyCheckPreset": MessageLookupByLibrary.simpleMessage("检查地址预设"),
+    "policyCheckReadFailed": MessageLookupByLibrary.simpleMessage(
+      "检查状态读取失败，不能据此判断节点是否可用。请重试；若仍失败，请重新打开节点组。",
+    ),
+    "policyCheckReadTimeout": MessageLookupByLibrary.simpleMessage(
+      "读取检查状态超时，节点是否可用尚未确认。请重试。",
+    ),
+    "policyCheckRetry": MessageLookupByLibrary.simpleMessage("重新读取状态"),
     "policyCheckSave": MessageLookupByLibrary.simpleMessage("检查并保存"),
     "policyCheckStatusSection": MessageLookupByLibrary.simpleMessage("检查状态"),
+    "policyCheckUnsaved": MessageLookupByLibrary.simpleMessage(
+      "当前为未保存草稿；成员按草稿条件筛选，尚未检查。请先检查并保存，再检查节点。",
+    ),
+    "policyCheckVersionMismatch": MessageLookupByLibrary.simpleMessage(
+      "运行版本与当前节点组不一致，旧检查结果已隐藏。请等待配置应用完成后重新打开节点组。",
+    ),
     "policyChecksInFlight": MessageLookupByLibrary.simpleMessage("正在检查"),
     "policyChecksWaiting": MessageLookupByLibrary.simpleMessage("排队检查"),
     "policyChoiceSection": MessageLookupByLibrary.simpleMessage("处理方式"),
