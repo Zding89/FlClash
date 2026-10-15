@@ -1699,6 +1699,24 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySimulationTimeline": MessageLookupByLibrary.simpleMessage(
       "Временная шкала смены кандидатов",
     ),
+    "policySourceChangeAdded": MessageLookupByLibrary.simpleMessage(
+      "Добавленные подписки",
+    ),
+    "policySourceChangeNodeTotal": MessageLookupByLibrary.simpleMessage(
+      "Всего узлов",
+    ),
+    "policySourceChangePartiallyUnknown": MessageLookupByLibrary.simpleMessage(
+      "Частично неизвестно",
+    ),
+    "policySourceChangeRemaining": MessageLookupByLibrary.simpleMessage(
+      "Оставшаяся квота",
+    ),
+    "policySourceChangeRemoved": MessageLookupByLibrary.simpleMessage(
+      "Удалённые подписки",
+    ),
+    "policySourceChangeUnresolvedNodes": MessageLookupByLibrary.simpleMessage(
+      "Подписки с неразобранными узлами",
+    ),
     "policySourceExpiry": MessageLookupByLibrary.simpleMessage("Срок подписки"),
     "policySourceMissing": MessageLookupByLibrary.simpleMessage(
       "Источник или узел отсутствует; выберите снова",

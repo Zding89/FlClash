@@ -1117,5 +1117,11 @@
   "policyQuotaNoSources": "Подписки не выбраны",
   "policyLocalSelected": "Выбрана локальная конфигурация",
   "policyLocalChoose": "Выбрать в профилях",
-  "policyAddSubscription": "Добавить подписку"
+  "policyAddSubscription": "Добавить подписку",
+  "policySourceChangeAdded": "Добавленные подписки",
+  "policySourceChangeRemoved": "Удалённые подписки",
+  "policySourceChangeNodeTotal": "Всего узлов",
+  "policySourceChangeRemaining": "Оставшаяся квота",
+  "policySourceChangePartiallyUnknown": "Частично неизвестно",
+  "policySourceChangeUnresolvedNodes": "Подписки с неразобранными узлами"
 }

@@ -271,6 +271,98 @@ void main() {
   );
 
   test(
+    'provider-only source loads into local leaves without importing filtered nested groups',
+    () async {
+      final database = WorkbenchDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final files = <String, String>{
+        '/profile/1': '''
+proxy-providers:
+  remote: {type: http, url: 'https://example.invalid/provider'}
+proxy-groups:
+  - {name: Japan pool, type: url-test, use: [remote], filter: Japan, exclude-filter: Hong, exclude-type: vmess}
+  - {name: Airport, type: select, proxies: [Japan pool], include-all-providers: true, filter: Japan}
+rules: ["MATCH,Airport"]
+dns: {nameserver: [airport.dns.invalid]}
+script: airport-script
+''',
+      };
+      var downloads = 0;
+      final service = PolicyProfileService(
+        loader: PolicySourceLoader(
+          store: database,
+          profilePath: (id) async => '/profile/$id',
+          providerCachePath: (id, url) async => '/cache/$id',
+          readFile: (path) async => files[path],
+          writeFile: (path, content) async => files[path] = content,
+          fetchFile: (url) async {
+            expect(url, 'https://example.invalid/provider');
+            downloads++;
+            return '''
+proxies:
+  - {name: Japan, type: ss, server: jp.example.invalid, port: 443}
+  - {name: Hong Kong, type: ss, server: hk.example.invalid, port: 443}
+''';
+          },
+        ),
+      );
+      final result = await service.compile(
+        document: _document(
+          sourceIds: [1],
+          sets: const [
+            PolicyNodeSet(
+              id: 'pool',
+              label: 'Pool',
+              targetId: localPolicyTargetId,
+              sourceIds: ['1'],
+            ),
+          ],
+        ),
+        profiles: const [
+          Profile(
+            id: 1,
+            label: 'Airport',
+            autoUpdateDuration: Duration(days: 1),
+          ),
+        ],
+        profileId: null,
+        baseConfig: const {
+          'mode': 'rule',
+          'dns': {
+            'nameserver': ['local.dns.invalid'],
+          },
+        },
+        allowNetwork: true,
+        persistCache: true,
+      );
+      expect(downloads, 1);
+      expect(files['/cache/1'], contains('jp.example.invalid'));
+      expect(result.nodes.map((node) => node.label), ['Japan', 'Hong Kong']);
+      expect(
+        (result.config['proxies'] as List).map((node) => node['name']),
+        result.nodes.map((node) => node.proxyName),
+      );
+      expect(result.config['rules'], [
+        'MATCH,${_rule.groupName}',
+        'MATCH,REJECT',
+      ]);
+      final groups = result.config['proxy-groups'] as List;
+      expect(groups.single['name'], _rule.groupName);
+      expect(groups.single['proxies'], [
+        'REJECT',
+        ...result.nodes.map((node) => node.proxyName),
+      ]);
+      expect(result.config['dns'], {
+        'nameserver': ['local.dns.invalid'],
+      });
+      expect(result.config, isNot(contains('proxy-providers')));
+      expect(result.config, isNot(contains('script')));
+      expect(jsonEncode(result.config), isNot(contains('Japan pool')));
+      expect(jsonEncode(result.config), isNot(contains('airport.dns.invalid')));
+    },
+  );
+
+  test(
     'ordinary subscription receives neither local routing nor budget extension',
     () {
       final base = <String, Object?>{

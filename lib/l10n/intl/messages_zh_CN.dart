@@ -1081,6 +1081,16 @@ class MessageLookup extends MessageLookupByLibrary {
       "最多 32 步：at 为毫秒时间；probes 提供 nodeId 与 success；sources 修改元数据；usage 提供来源已用字节。只做模拟，不发起探测或应用配置。",
     ),
     "policySimulationTimeline": MessageLookupByLibrary.simpleMessage("候选切换时间线"),
+    "policySourceChangeAdded": MessageLookupByLibrary.simpleMessage("新增机场"),
+    "policySourceChangeNodeTotal": MessageLookupByLibrary.simpleMessage("节点总数"),
+    "policySourceChangePartiallyUnknown": MessageLookupByLibrary.simpleMessage(
+      "部分未知",
+    ),
+    "policySourceChangeRemaining": MessageLookupByLibrary.simpleMessage("剩余额度"),
+    "policySourceChangeRemoved": MessageLookupByLibrary.simpleMessage("移除机场"),
+    "policySourceChangeUnresolvedNodes": MessageLookupByLibrary.simpleMessage(
+      "节点未解析的机场",
+    ),
     "policySourceExpiry": MessageLookupByLibrary.simpleMessage("订阅到期"),
     "policySourceMissing": MessageLookupByLibrary.simpleMessage(
       "来源或节点缺失，请重新选择",

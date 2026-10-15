@@ -323,22 +323,93 @@ void main() {
     },
   );
   test(
-    'local source validation does not impose local restrictions on unrelated subscriptions',
+    'local source validation accepts provider leaves despite filtered nested source groups',
     () async {
       final controller = container.read(workbenchControllerProvider);
       final bytes = Uint8List.fromList(
-        'proxy-groups: [{name: Native, type: select, filter: unsupported}]'
+        '''
+proxy-providers:
+  remote:
+    type: inline
+    payload:
+      - {name: Japan, type: ss, server: jp.example.invalid, port: 443}
+      - {name: Hong Kong, type: ss, server: hk.example.invalid, port: 443}
+proxy-groups:
+  - {name: Japan pool, type: url-test, use: [remote], filter: Japan, exclude-filter: Hong, exclude-type: vmess}
+  - {name: Airport, type: select, proxies: [Japan pool], include-all-providers: true, filter: Japan}
+rules: ["MATCH,Airport"]
+dns: {nameserver: [airport.dns.invalid]}
+'''
             .codeUnits,
       );
       await controller.validateSourceUpdate(
-        airport.copyWith(id: 2),
+        airport,
         bytes,
         isCurrent: () => true,
       );
-      await expectLater(
-        controller.validateSourceUpdate(airport, bytes, isCurrent: () => true),
-        throwsA(isA<PolicySourceException>()),
+      expect(handler.reads, 0);
+    },
+  );
+  test(
+    'local source validation still rejects unsupported provider transforms',
+    () async {
+      final controller = container.read(workbenchControllerProvider);
+      for (final entry in {
+        'filter': 'Japan',
+        'exclude-filter': 'Hong',
+        'exclude-type': 'vmess',
+        'override': '{udp: true}',
+        'dialer-proxy': 'Airport',
+      }.entries) {
+        final bytes = Uint8List.fromList(
+          'proxy-providers: {remote: {type: inline, payload: [], ${entry.key}: ${entry.value}}}'
+              .codeUnits,
+        );
+        await expectLater(
+          controller.validateSourceUpdate(
+            airport,
+            bytes,
+            isCurrent: () => true,
+          ),
+          throwsA(
+            isA<PolicySourceException>().having(
+              (error) => error.option,
+              'option',
+              entry.key,
+            ),
+          ),
+        );
+      }
+      expect(handler.reads, 0);
+    },
+  );
+  test('local source validation rejects dependent provider nodes', () async {
+    final bytes = Uint8List.fromList(
+      'proxy-providers: {remote: {type: inline, payload: [{name: Japan, type: ss, server: jp.example.invalid, port: 443, dialer-proxy: Airport}]}}'
+          .codeUnits,
+    );
+    await expectLater(
+      container
+          .read(workbenchControllerProvider)
+          .validateSourceUpdate(airport, bytes, isCurrent: () => true),
+      throwsFormatException,
+    );
+    expect(handler.reads, 0);
+  });
+  test(
+    'local source validation does not impose local restrictions on unrelated subscriptions',
+    () async {
+      final bytes = Uint8List.fromList(
+        'proxy-providers: {remote: {type: inline, payload: [], filter: unsupported}}'
+            .codeUnits,
       );
+      await container
+          .read(workbenchControllerProvider)
+          .validateSourceUpdate(
+            airport.copyWith(id: 2),
+            bytes,
+            isCurrent: () => true,
+          );
     },
   );
 }

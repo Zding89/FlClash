@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/configuration/changes.dart';
+import 'package:fl_clash/policy/source_change.dart';
+import 'package:fl_clash/views/policy/source_change_summary.dart';
 import 'package:flutter/material.dart';
 
 Object? _redact(Object? value) {
@@ -84,6 +86,19 @@ class AiConfigurationApprovalDialog extends StatelessWidget {
               after: entry['after'],
             ),
     ];
+    final sourceChange =
+        !executionOnly &&
+            finalDifferences.isEmpty &&
+            proposal.differences.every(
+              (difference) =>
+                  difference.path == 'policies.revision' ||
+                  difference.path == 'policies.integrations' ||
+                  difference.path.startsWith('policies.integrations.'),
+            )
+        ? LocalSourceChangeSummary.tryParse(
+            proposal.validation[localSourceChangeValidationKey],
+          )
+        : null;
     return AlertDialog(
       title: Text(executionOnly ? strings.confirm : strings.aiApprovalTitle),
       content: SizedBox(
@@ -93,7 +108,7 @@ class AiConfigurationApprovalDialog extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              SelectableText(proposal.summary),
+              if (sourceChange == null) SelectableText(proposal.summary),
               if (executionOnly) ...[
                 const SizedBox(height: 12),
                 Text(
@@ -106,26 +121,30 @@ class AiConfigurationApprovalDialog extends StatelessWidget {
                 Text(strings.aiHighRisk, style: TextStyle(color: colors.error)),
               ],
               const SizedBox(height: 16),
-              if (proposal.differences.isEmpty) Text(strings.aiNoDifferences),
-              for (final difference in proposal.differences) ...[
-                Text(
-                  difference.path,
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  strings.aiBefore,
-                  style: Theme.of(context).textTheme.labelMedium,
-                ),
-                SelectableText(aiDisplayValue(difference.before)),
-                const SizedBox(height: 6),
-                Text(
-                  strings.aiAfter,
-                  style: Theme.of(context).textTheme.labelMedium,
-                ),
-                SelectableText(aiDisplayValue(difference.after)),
-                const SizedBox(height: 16),
-              ],
+              if (sourceChange != null)
+                LocalSourceChangeSummaryView(summary: sourceChange),
+              if (sourceChange == null && proposal.differences.isEmpty)
+                Text(strings.aiNoDifferences),
+              if (sourceChange == null)
+                for (final difference in proposal.differences) ...[
+                  Text(
+                    difference.path,
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    strings.aiBefore,
+                    style: Theme.of(context).textTheme.labelMedium,
+                  ),
+                  SelectableText(aiDisplayValue(difference.before)),
+                  const SizedBox(height: 6),
+                  Text(
+                    strings.aiAfter,
+                    style: Theme.of(context).textTheme.labelMedium,
+                  ),
+                  SelectableText(aiDisplayValue(difference.after)),
+                  const SizedBox(height: 16),
+                ],
               if (finalDifferences.isNotEmpty) ...[
                 Text(
                   strings.aiFinalConfigDifferences,

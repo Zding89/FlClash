@@ -23,6 +23,7 @@ import 'package:flutter/material.dart' show Offset;
 import 'package:fl_clash/policy/models.dart';
 import 'package:fl_clash/policy/profile_service.dart';
 import 'package:fl_clash/policy/sources.dart';
+import 'package:fl_clash/policy/source_change.dart';
 import 'package:fl_clash/policy/simulation.dart';
 import 'package:fl_clash/policy/compiler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -246,11 +247,13 @@ class WorkbenchController {
     }
     final content = utf8.decode(bytes);
     final raw = policyObject(normalizePolicyYaml(loadYaml(content)), 'source');
-    for (final value in raw['proxy-groups'] as List? ?? []) {
-      final group = policyObject(value, 'group');
-      for (final key in ['filter', 'exclude-filter', 'exclude-type']) {
-        if (group[key] != null && group[key] != '') {
-          throw PolicySourceException('proxy-groups.$key');
+    if (!document.isStandalone) {
+      for (final value in raw['proxy-groups'] as List? ?? []) {
+        final group = policyObject(value, 'group');
+        for (final key in ['filter', 'exclude-filter', 'exclude-type']) {
+          if (group[key] != null && group[key] != '') {
+            throw PolicySourceException('proxy-groups.$key');
+          }
         }
       }
     }
@@ -936,11 +939,28 @@ class FlutterConfigurationBackend
         );
       }
     }
+    LocalSourceChangeSummary? sourceChange;
+    if (configurationDigest(current['config']) ==
+            configurationDigest(candidate['config']) &&
+        policyDigest(current['ai']) == policyDigest(candidate['ai'])) {
+      sourceChange = await summarizeLocalSourceChange(
+        before: LocalPolicyDocument.fromJson(
+          policyObject(current['policies'], 'policies'),
+        ),
+        after: document,
+        profiles: allProfiles,
+        loadNodes: (profile) async => profiles.compiler.extractNodes(
+          (await profiles.loader.load([profile])).single,
+        ),
+      );
+    }
     return {
       'validated': true,
       'networkChanged': true,
       'finalConfigValidated': true,
       'policyCount': activePolicies.length,
+      if (sourceChange != null)
+        localSourceChangeValidationKey: sourceChange.toJson(),
     };
   }
 

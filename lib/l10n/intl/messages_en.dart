@@ -1641,6 +1641,24 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySimulationTimeline": MessageLookupByLibrary.simpleMessage(
       "Candidate transition timeline",
     ),
+    "policySourceChangeAdded": MessageLookupByLibrary.simpleMessage(
+      "Added subscriptions",
+    ),
+    "policySourceChangeNodeTotal": MessageLookupByLibrary.simpleMessage(
+      "Total nodes",
+    ),
+    "policySourceChangePartiallyUnknown": MessageLookupByLibrary.simpleMessage(
+      "Partially unknown",
+    ),
+    "policySourceChangeRemaining": MessageLookupByLibrary.simpleMessage(
+      "Remaining quota",
+    ),
+    "policySourceChangeRemoved": MessageLookupByLibrary.simpleMessage(
+      "Removed subscriptions",
+    ),
+    "policySourceChangeUnresolvedNodes": MessageLookupByLibrary.simpleMessage(
+      "Sources with unresolved nodes",
+    ),
     "policySourceExpiry": MessageLookupByLibrary.simpleMessage(
       "Subscription expiry",
     ),

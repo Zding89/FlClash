@@ -1131,5 +1131,11 @@
   "policyQuotaNoSources": "No subscriptions selected",
   "policyLocalSelected": "Local configuration selected",
   "policyLocalChoose": "Select on Profiles",
-  "policyAddSubscription": "Add subscription"
+  "policyAddSubscription": "Add subscription",
+  "policySourceChangeAdded": "Added subscriptions",
+  "policySourceChangeRemoved": "Removed subscriptions",
+  "policySourceChangeNodeTotal": "Total nodes",
+  "policySourceChangeRemaining": "Remaining quota",
+  "policySourceChangePartiallyUnknown": "Partially unknown",
+  "policySourceChangeUnresolvedNodes": "Sources with unresolved nodes"
 }

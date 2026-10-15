@@ -136,6 +136,15 @@ class _Controller extends Mock implements WorkbenchController {
   }
 }
 
+class _FailingProposalController extends _Controller {
+  @override
+  Future<ConfigurationProposal> proposePolicies(
+    LocalPolicyDocument value,
+  ) async => throw const ConfigurationChangeException(
+    'configuration_version_conflict',
+  );
+}
+
 class _DelayedCommitController extends _Controller {
   final approved = Completer<void>();
   final release = Completer<void>();
@@ -516,6 +525,16 @@ void main() {
       await tester.pumpAndSettle();
       expect(controller.applies, 0);
       expect(find.byType(PolicySourcePicker), findsOneWidget);
+      expect(find.text(strings.policyRejectedStatus), findsOneWidget);
+      expect(find.text(strings.policyOperationFailed), findsNothing);
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.widgetWithText(FilledButton, strings.save),
+            )
+            .onPressed,
+        isNotNull,
+      );
       expect(
         tester
             .widget<CheckboxListTile>(
@@ -533,6 +552,39 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1));
     },
   );
+
+  testWidgets('source save keeps real failure feedback and selected inputs', (
+    tester,
+  ) async {
+    final controller = _FailingProposalController();
+    await _mountWorkbench(tester, controller: controller);
+    final strings = AppLocalizations.current;
+    await _tap(tester, find.text(strings.policySubscriptionSources));
+    await _tap(tester, find.byKey(const ValueKey('policy-source-1')));
+    await _tap(tester, find.widgetWithText(FilledButton, strings.save));
+    expect(find.byType(PolicySourcePicker), findsOneWidget);
+    expect(find.text(strings.policyOperationFailed), findsOneWidget);
+    expect(find.text(strings.policyRejectedStatus), findsNothing);
+    expect(
+      tester
+          .widget<CheckboxListTile>(
+            find.byKey(const ValueKey('policy-source-1')),
+          )
+          .value,
+      isFalse,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, strings.save))
+          .onPressed,
+      isNotNull,
+    );
+    expect(controller.applies, 0);
+    expect(controller.document.localProfile.sourceProfileIds, [1, 2]);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
 
   testWidgets(
     'editing a rule after approved source management keeps the latest base document',

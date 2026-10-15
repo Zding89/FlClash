@@ -1227,6 +1227,24 @@ class MessageLookup extends MessageLookupByLibrary {
     "policySimulationTimeline": MessageLookupByLibrary.simpleMessage(
       "候補の切り替え履歴",
     ),
+    "policySourceChangeAdded": MessageLookupByLibrary.simpleMessage(
+      "追加するサブスクリプション",
+    ),
+    "policySourceChangeNodeTotal": MessageLookupByLibrary.simpleMessage(
+      "ノード総数",
+    ),
+    "policySourceChangePartiallyUnknown": MessageLookupByLibrary.simpleMessage(
+      "一部不明",
+    ),
+    "policySourceChangeRemaining": MessageLookupByLibrary.simpleMessage(
+      "残りの通信量",
+    ),
+    "policySourceChangeRemoved": MessageLookupByLibrary.simpleMessage(
+      "削除するサブスクリプション",
+    ),
+    "policySourceChangeUnresolvedNodes": MessageLookupByLibrary.simpleMessage(
+      "ノードを解析できないサブスクリプション",
+    ),
     "policySourceExpiry": MessageLookupByLibrary.simpleMessage("サブスクリプション期限"),
     "policySourceMissing": MessageLookupByLibrary.simpleMessage(
       "ソースまたはノードがありません。再選択してください",

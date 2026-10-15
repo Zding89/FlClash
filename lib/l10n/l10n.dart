@@ -9293,6 +9293,66 @@ class AppLocalizations {
       args: [],
     );
   }
+
+  /// `Added subscriptions`
+  String get policySourceChangeAdded {
+    return Intl.message(
+      'Added subscriptions',
+      name: 'policySourceChangeAdded',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Removed subscriptions`
+  String get policySourceChangeRemoved {
+    return Intl.message(
+      'Removed subscriptions',
+      name: 'policySourceChangeRemoved',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Total nodes`
+  String get policySourceChangeNodeTotal {
+    return Intl.message(
+      'Total nodes',
+      name: 'policySourceChangeNodeTotal',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Remaining quota`
+  String get policySourceChangeRemaining {
+    return Intl.message(
+      'Remaining quota',
+      name: 'policySourceChangeRemaining',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Partially unknown`
+  String get policySourceChangePartiallyUnknown {
+    return Intl.message(
+      'Partially unknown',
+      name: 'policySourceChangePartiallyUnknown',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Sources with unresolved nodes`
+  String get policySourceChangeUnresolvedNodes {
+    return Intl.message(
+      'Sources with unresolved nodes',
+      name: 'policySourceChangeUnresolvedNodes',
+      desc: '',
+      args: [],
+    );
+  }
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<AppLocalizations> {

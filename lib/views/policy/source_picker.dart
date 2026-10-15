@@ -1,4 +1,5 @@
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/configuration/changes.dart';
 import 'package:fl_clash/providers/database.dart';
 import 'package:fl_clash/models/profile.dart';
 import 'package:fl_clash/views/profiles/add.dart';
@@ -45,8 +46,16 @@ class _PolicySourcePickerState extends ConsumerState<PolicySourcePicker> {
     try {
       await widget.onSave(List.unmodifiable(_selected));
       if (mounted) Navigator.of(context).pop();
-    } catch (_) {
-      if (mounted) setState(() => _error = strings.policyOperationFailed);
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error =
+              error is ConfigurationChangeException &&
+                  error.code == 'configuration_cancelled'
+              ? strings.policyRejectedStatus
+              : strings.policyOperationFailed,
+        );
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

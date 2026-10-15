@@ -1117,5 +1117,11 @@
   "policyQuotaNoSources": "尚未选择订阅",
   "policyLocalSelected": "已选用本地配置",
   "policyLocalChoose": "到配置页选用",
-  "policyAddSubscription": "添加订阅"
+  "policyAddSubscription": "添加订阅",
+  "policySourceChangeAdded": "新增机场",
+  "policySourceChangeRemoved": "移除机场",
+  "policySourceChangeNodeTotal": "节点总数",
+  "policySourceChangeRemaining": "剩余额度",
+  "policySourceChangePartiallyUnknown": "部分未知",
+  "policySourceChangeUnresolvedNodes": "节点未解析的机场"
 }

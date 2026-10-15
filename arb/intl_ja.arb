@@ -1117,5 +1117,11 @@
   "policyQuotaNoSources": "購読が未選択です",
   "policyLocalSelected": "ローカル設定を選択中",
   "policyLocalChoose": "プロファイルで選択",
-  "policyAddSubscription": "購読を追加"
+  "policyAddSubscription": "購読を追加",
+  "policySourceChangeAdded": "追加するサブスクリプション",
+  "policySourceChangeRemoved": "削除するサブスクリプション",
+  "policySourceChangeNodeTotal": "ノード総数",
+  "policySourceChangeRemaining": "残りの通信量",
+  "policySourceChangePartiallyUnknown": "一部不明",
+  "policySourceChangeUnresolvedNodes": "ノードを解析できないサブスクリプション"
 }
