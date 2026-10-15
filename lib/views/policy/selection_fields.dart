@@ -9,12 +9,14 @@ class PolicyMultiSelect extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.enabled = true,
+    this.compact = false,
   });
   final String label;
   final Map<String, String> options;
   final List<String> value;
   final ValueChanged<List<String>> onChanged;
   final bool enabled;
+  final bool compact;
 
   Future<void> _open(BuildContext context) async {
     final selected = [...value];
@@ -101,14 +103,24 @@ class PolicyMultiSelect extends StatelessWidget {
                 spacing: 6,
                 runSpacing: 4,
                 children: [
-                  for (final id in value)
+                  for (final id in compact ? value.take(2) : value)
                     InputChip(
                       label: Text(options[id] ?? id),
+                      visualDensity: compact ? VisualDensity.compact : null,
+                      materialTapTargetSize: compact
+                          ? MaterialTapTargetSize.shrinkWrap
+                          : null,
                       onDeleted: enabled
                           ? () => onChanged(
                               value.where((item) => item != id).toList(),
                             )
                           : null,
+                    ),
+                  if (compact && value.length > 2)
+                    Chip(
+                      label: Text('+${value.length - 2}'),
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                 ],
               ),

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/policy/models.dart';
+import 'package:fl_clash/policy/quota_overview.dart';
 import 'package:flutter/material.dart';
 
 import 'widgets.dart';
@@ -16,6 +17,8 @@ class LocalPolicyEditor extends StatefulWidget {
     this.existing,
     this.targets = const {},
     this.sources = const {},
+    this.sourceSummaries = const {},
+    this.loadSourceSummaries,
     required this.loadNodes,
     this.initialPriority = 100,
     this.nodeSets = const [],
@@ -28,6 +31,8 @@ class LocalPolicyEditor extends StatefulWidget {
   final LocalPolicy? existing;
   final Map<String, String> targets;
   final Map<String, String> sources;
+  final Map<String, QuotaSourceSummary> sourceSummaries;
+  final Map<String, QuotaSourceSummary> Function()? loadSourceSummaries;
   final Future<List<LocalNode>> Function(String) loadNodes;
   final int initialPriority;
   final List<PolicyNodeSet> nodeSets;
@@ -381,6 +386,8 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
           for (final n in _nodes) n.sourceId: n.sourceLabel,
         },
         nodes: _nodes,
+        sourceSummaries: widget.sourceSummaries,
+        loadSourceSummaries: widget.loadSourceSummaries,
         attributes: _attributes,
         referencedRules: const [],
         onManageSources: widget.onManageSources == null ? null : _manageSources,
@@ -408,6 +415,8 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
           for (final n in _nodes) n.sourceId: n.sourceLabel,
         },
         nodes: _nodes,
+        sourceSummaries: widget.sourceSummaries,
+        loadSourceSummaries: widget.loadSourceSummaries,
         attributes: _attributes,
         referencedRules: widget.referencedRules[set.id] ?? const [],
         onManageSources: widget.onManageSources == null ? null : _manageSources,

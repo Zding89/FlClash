@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/policy/models.dart';
+import 'package:fl_clash/policy/quota_overview.dart';
 import 'package:flutter/material.dart';
 
 import 'widgets.dart';
@@ -9,6 +10,7 @@ import 'editor_section.dart';
 import 'selection_fields.dart';
 import 'preference_editor.dart';
 import 'schedule_editor.dart';
+import 'node_set_members.dart';
 
 final class PolicyNodeSetEdit {
   final PolicyNodeSet nodeSet;
@@ -21,6 +23,8 @@ class PolicyNodeSetEditor extends StatefulWidget {
   final String targetId;
   final Map<String, String> sources;
   final List<LocalNode> nodes;
+  final Map<String, QuotaSourceSummary> sourceSummaries;
+  final Map<String, QuotaSourceSummary> Function()? loadSourceSummaries;
   final Map<String, NodeAttributes> attributes;
   final Map<String, Object?> snapshot;
   final List<String> referencedRules;
@@ -35,6 +39,8 @@ class PolicyNodeSetEditor extends StatefulWidget {
     required this.targetId,
     required this.sources,
     required this.nodes,
+    this.sourceSummaries = const {},
+    this.loadSourceSummaries,
     this.attributes = const {},
     this.snapshot = const {},
     this.referencedRules = const [],
@@ -66,7 +72,9 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
   late bool _unknownRegion;
   late String _method;
   bool _advanced = false;
-  bool _showAll = false;
+  bool _showMembers = false;
+  final _settingsScroll = ScrollController();
+  final _membersKey = GlobalKey();
   bool _busy = false;
   bool _managingSources = false;
   bool _validityEdited = false;
@@ -81,9 +89,9 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
   Timer? _statusTimer;
   Map<String, Object?>? _details;
   int _statusEpoch = 0;
-  int _offset = 0;
+  int _statusTicks = 0;
   bool _statusLoading = false;
-  static const _pageSize = 100;
+  static const _pageSize = 200;
   @override
   void initState() {
     super.initState();
@@ -149,7 +157,11 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
     _initial = _fingerprint;
     _lastFingerprint = _initial;
     _statusTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      if (!_statusLoading) unawaited(_refreshStatus());
+      final ticks = ((_nodes.length + _pageSize - 1) ~/ _pageSize).clamp(1, 10);
+      if (!_statusLoading && ++_statusTicks >= ticks) {
+        _statusTicks = 0;
+        unawaited(_refreshStatus());
+      }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(_refreshStatus());
@@ -162,56 +174,95 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
     if (load == null ||
         widget.existing == null ||
         revision is! int ||
-        _fingerprint != _initial) {
+        _fingerprint != _initial ||
+        _statusLoading) {
       return;
     }
     final epoch = ++_statusEpoch;
     final fingerprint = _fingerprint;
-    final offset = _offset;
-    final includeUnavailable = _showAll || !_hide;
+    bool current() =>
+        mounted && epoch == _statusEpoch && fingerprint == _fingerprint;
+    _statusTicks = 0;
     setState(() => _statusLoading = true);
     try {
-      final result = await load({
-        'revision': revision,
-        'nodeSetId': widget.existing!.id,
-        'offset': offset,
-        'limit': _pageSize,
-        'includeUnavailable': includeUnavailable,
-      });
-      if (!mounted ||
-          epoch != _statusEpoch ||
-          fingerprint != _fingerprint ||
-          offset != _offset ||
-          includeUnavailable != (_showAll || !_hide)) {
-        return;
+      Map<String, Object?>? first;
+      final rows = <Map<String, Object?>>[];
+      var total = 0;
+      for (var offset = 0; offset < 5000; offset += _pageSize) {
+        final result = await load({
+          'revision': revision,
+          'nodeSetId': widget.existing!.id,
+          'offset': offset,
+          'limit': _pageSize,
+          'includeUnavailable': true,
+        });
+        if (!current()) return;
+        final probe = result['probe'];
+        final page = result['nodes'];
+        final pageTotal = result['total'];
+        if (result['revision'] != revision ||
+            result['nodeSetId'] != widget.existing!.id ||
+            result['offset'] != offset ||
+            probe is! Map ||
+            page is! List ||
+            pageTotal is! int ||
+            pageTotal < 0 ||
+            pageTotal > 5000 ||
+            first != null && pageTotal != total ||
+            policyDigest(probe) !=
+                policyDigest(widget.existing!.probe.toJson())) {
+          setState(() => _details = null);
+          return;
+        }
+        first ??= result;
+        total = pageTotal;
+        rows.addAll(
+          page.whereType<Map>().map((row) => Map<String, Object?>.from(row)),
+        );
+        if (offset + _pageSize >= total) break;
       }
-      final probe = result['probe'];
-      if (result['revision'] != revision ||
-          result['nodeSetId'] != widget.existing!.id ||
-          result['offset'] != offset ||
-          probe is! Map ||
-          policyDigest(probe) !=
-              policyDigest(widget.existing!.probe.toJson())) {
+      if (!current()) return;
+      if (rows.length != total ||
+          rows.map((row) => row['nodeId']).toSet().length != total) {
         setState(() => _details = null);
         return;
       }
-      setState(() => _details = result);
+      setState(
+        () => _details = {
+          ...?first,
+          'nodes': rows,
+          'offset': 0,
+          'hasMore': false,
+        },
+      );
     } catch (_) {
-      if (mounted && epoch == _statusEpoch) setState(() => _details = null);
+      if (current()) setState(() => _details = null);
     } finally {
-      if (mounted && epoch == _statusEpoch) {
-        setState(() => _statusLoading = false);
-      }
+      if (current()) setState(() => _statusLoading = false);
     }
   }
 
-  void _changePage(int offset, {bool? showAll}) {
+  Future<void> _checkNow() async {
+    if (_busy ||
+        widget.onCheck == null ||
+        widget.existing == null ||
+        _fingerprint != _initial) {
+      return;
+    }
     setState(() {
-      _offset = offset;
-      if (showAll != null) _showAll = showAll;
-      _details = null;
+      _busy = true;
+      _error = null;
     });
-    unawaited(_refreshStatus());
+    try {
+      await widget.onCheck!(widget.existing!.id);
+      if (mounted) await _refreshStatus();
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = context.appLocalizations.policyOperationFailed);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   void _changed() {
@@ -340,6 +391,7 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
   void dispose() {
     _statusEpoch++;
     _statusTimer?.cancel();
+    _settingsScroll.dispose();
     for (final field in _fields.values) {
       field.dispose();
     }
@@ -717,58 +769,32 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
 
   Widget _formContent() {
     final strings = context.appLocalizations;
-    final sourceAction = widget.onManageSources == null
-        ? const SizedBox.shrink()
-        : Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              key: const ValueKey('policy-node-set-manage-sources'),
-              onPressed: _busy || _managingSources ? null : _manageSources,
-              icon: const Icon(Icons.source_outlined),
-              label: Text(strings.policySubscriptionSources),
-            ),
-          );
-    if (_advanced) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SegmentedButton<bool>(
-            segments: [
-              ButtonSegment(value: false, label: Text(strings.general)),
-              ButtonSegment(value: true, label: Text(strings.advancedConfig)),
-            ],
-            selected: {_advanced},
-            onSelectionChanged: (values) =>
-                setState(() => _advanced = values.single),
-          ),
-          const SizedBox(height: 16),
-          sourceAction,
-          _advancedContent(),
-          if (widget.referencedRules.isNotEmpty)
-            Text(
-              '${strings.policySharedSetImpact}: ${widget.referencedRules.join(' · ')}',
-            ),
-        ],
-      );
-    }
+    Widget section(String title) => Padding(
+      padding: const EdgeInsets.only(top: 16, bottom: 10),
+      child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+    );
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SegmentedButton<bool>(
-          segments: [
-            ButtonSegment(value: false, label: Text(strings.general)),
-            ButtonSegment(value: true, label: Text(strings.advancedConfig)),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                strings.policyNodeSetConditions,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            if (widget.onManageSources != null)
+              TextButton(
+                key: const ValueKey('policy-node-set-manage-sources'),
+                onPressed: _busy || _managingSources ? null : _manageSources,
+                child: Text(strings.policySubscriptionSources),
+              ),
           ],
-          selected: {_advanced},
-          onSelectionChanged: (values) =>
-              setState(() => _advanced = values.single),
         ),
-        const SizedBox(height: 16),
-        sourceAction,
-        Text(strings.policyNodeSetHint),
         const SizedBox(height: 12),
-        _field('label', strings.name, required: false),
         PolicyMultiSelect(
+          compact: true,
           label: strings.policyIncludeSources,
           options: _sourceOptions,
           value: _sources.toList(),
@@ -776,14 +802,7 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
           onChanged: (values) => setState(() => _sources = values.toSet()),
         ),
         PolicyMultiSelect(
-          label: strings.policyExcludeSources,
-          options: _sourceOptions,
-          value: _excludedSources.toList(),
-          enabled: !_busy,
-          onChanged: (values) =>
-              setState(() => _excludedSources = values.toSet()),
-        ),
-        PolicyMultiSelect(
+          compact: true,
           label: strings.policyIncludeRegions,
           options: policyRegionOptions(context, [
             ..._regions,
@@ -793,71 +812,53 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
           enabled: !_busy,
           onChanged: (values) => setState(() => _regions = values.toSet()),
         ),
-        PolicyMultiSelect(
-          label: strings.policyExcludeRegions,
-          options: policyRegionOptions(context, [
-            ..._regions,
-            ..._excludedRegions,
-          ]),
-          value: _excludedRegions.toList(),
-          enabled: !_busy,
-          onChanged: (values) =>
-              setState(() => _excludedRegions = values.toSet()),
-        ),
-        _field('nameIncludes', strings.policyNameIncludes, required: false),
-        _field('nameExcludes', strings.policyNameExcludes, required: false),
         _field('cap', strings.policyMultiplierLimit, required: false),
         CheckboxListTile(
           contentPadding: EdgeInsets.zero,
+          dense: true,
           title: Text(strings.policyUnknownOne),
-          subtitle: Text(strings.policyUnknownOneHint),
           value: _unknown == UnknownMultiplier.assumeOne,
           onChanged: _busy
               ? null
-              : (v) => setState(
-                  () => _unknown = v == true
+              : (value) => setState(
+                  () => _unknown = value == true
                       ? UnknownMultiplier.assumeOne
                       : UnknownMultiplier.exclude,
                 ),
         ),
-        if (_preferences.any(
-          (preference) => preference.type == NodePreferenceType.source,
-        )) ...[
-          Text(strings.policySourceOrderHint),
-          ReorderableListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            buildDefaultDragHandles: false,
-            itemCount: _sources.length,
-            onReorderItem: (oldIndex, newIndex) {
-              final sources = _sources.toList();
-              final source = sources.removeAt(oldIndex);
-              sources.insert(newIndex, source);
-              setState(() => _sources = sources.toSet());
-            },
-            itemBuilder: (context, index) {
-              final id = _sources.elementAt(index);
-              return ListTile(
-                key: ValueKey('source-order-$id'),
-                leading: ReorderableDragStartListener(
-                  index: index,
-                  child: const Icon(Icons.drag_indicator),
-                ),
-                title: Text(_sourceOptions[id] ?? id),
-              );
-            },
-          ),
-        ],
-        PolicyPreferenceEditor(
-          value: _preferences,
-          onChanged: (values) => setState(() => _preferences = values),
+        ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          title: Text(strings.policyNodeSetExclusions),
+          maintainState: true,
+          children: [
+            PolicyMultiSelect(
+              compact: true,
+              label: strings.policyExcludeSources,
+              options: _sourceOptions,
+              value: _excludedSources.toList(),
+              enabled: !_busy,
+              onChanged: (values) =>
+                  setState(() => _excludedSources = values.toSet()),
+            ),
+            PolicyMultiSelect(
+              compact: true,
+              label: strings.policyExcludeRegions,
+              options: policyRegionOptions(context, [
+                ..._regions,
+                ..._excludedRegions,
+              ]),
+              value: _excludedRegions.toList(),
+              enabled: !_busy,
+              onChanged: (values) =>
+                  setState(() => _excludedRegions = values.toSet()),
+            ),
+            _field('nameIncludes', strings.policyNameIncludes, required: false),
+            _field('nameExcludes', strings.policyNameExcludes, required: false),
+          ],
         ),
-        const SizedBox(height: 12),
-        Text(
-          strings.policySelectionMode,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
+        section(strings.policySelectionMode),
         SegmentedButton<NodeSelectionMode>(
+          showSelectedIcon: false,
           segments: [
             ButtonSegment(
               value: NodeSelectionMode.priority,
@@ -872,15 +873,8 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
           onSelectionChanged: (values) =>
               setState(() => _selectionMode = values.single),
         ),
-        if (_selectionMode == NodeSelectionMode.loadBalance)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              strings.policyBalanceHint,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ),
-        if (_selectionMode == NodeSelectionMode.loadBalance)
+        if (_selectionMode == NodeSelectionMode.loadBalance) ...[
+          const SizedBox(height: 12),
           DropdownButtonFormField<NodeBalanceStrategy>(
             initialValue: _balanceStrategy,
             isExpanded: true,
@@ -902,30 +896,86 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
               if (value != null) setState(() => _balanceStrategy = value);
             },
           ),
-        PolicyScheduleEditor(
-          value: _scheduleValue,
-          onChanged: (value) => setState(() => _scheduleValue = value),
+        ],
+        const SizedBox(height: 16),
+        PolicyPreferenceEditor(
+          compact: true,
+          value: _preferences,
+          onChanged: (values) => setState(() => _preferences = values),
+        ),
+        if (_preferences.any(
+          (preference) => preference.type == NodePreferenceType.source,
+        )) ...[
+          const SizedBox(height: 12),
+          Text(strings.policySourceOrderHint),
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false,
+            itemCount: _sources.length,
+            onReorderItem: (oldIndex, newIndex) {
+              final sources = _sources.toList();
+              final source = sources.removeAt(oldIndex);
+              sources.insert(newIndex, source);
+              setState(() => _sources = sources.toSet());
+            },
+            itemBuilder: (context, index) {
+              final id = _sources.elementAt(index);
+              return ListTile(
+                key: ValueKey('source-order-$id'),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: ReorderableDragStartListener(
+                  index: index,
+                  child: const Icon(Icons.drag_indicator, size: 18),
+                ),
+                title: Text(_sourceOptions[id] ?? id),
+              );
+            },
+          ),
+        ],
+        const SizedBox(height: 12),
+        ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          title: Text(strings.policySchedule),
+          subtitle: Text(
+            _scheduleValue.windows.isEmpty
+                ? strings.policyScheduleAllDay
+                : strings.policyNodeSetTimed,
+          ),
+          maintainState: true,
+          children: [
+            PolicyScheduleEditor(
+              value: _scheduleValue,
+              onChanged: (value) => setState(() => _scheduleValue = value),
+            ),
+          ],
         ),
         SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(strings.policyHideUnavailable),
-          value: _hide,
-          onChanged: _busy ? null : (v) => setState(() => _hide = v),
-        ),
-        SwitchListTile(
+          dense: true,
           contentPadding: EdgeInsets.zero,
           title: Text(strings.policyAutoCheck),
           value: _automatic,
-          onChanged: _busy ? null : (v) => setState(() => _automatic = v),
+          onChanged: _busy
+              ? null
+              : (value) => setState(() => _automatic = value),
         ),
-        _checks(),
-        if (widget.referencedRules.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Text(
-              '${strings.policySharedSetImpact}: ${widget.referencedRules.join(' · ')}',
-            ),
+        ExpansionTile(
+          key: const ValueKey('node-set-advanced-settings'),
+          tilePadding: EdgeInsets.zero,
+          title: Text(strings.advancedConfig),
+          initiallyExpanded: _advanced,
+          maintainState: true,
+          onExpansionChanged: (value) => setState(() => _advanced = value),
+          children: [_advancedContent()],
+        ),
+        if (widget.referencedRules.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text(
+            '${strings.policySharedSetImpact}: ${widget.referencedRules.join(' · ')}',
+            style: Theme.of(context).textTheme.bodySmall,
           ),
+        ],
       ],
     );
   }
@@ -936,34 +986,33 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
       _details = null;
       _statusEpoch++;
       _statusLoading = false;
-      _offset = 0;
+      _statusTicks = 0;
     }
-    final strings = context.appLocalizations;
     PolicyNodeSet? set;
     try {
       set = _value();
     } catch (_) {}
     final allNodes = _nodes
         .map(
-          (n) => LocalNode(
-            id: n.id,
-            sourceId: n.sourceId,
-            label: n.label,
-            sourceLabel: n.sourceLabel,
-            protocol: n.protocol,
-            raw: n.raw,
-            attributes: _attributes[n.id] ?? n.attributes,
+          (node) => LocalNode(
+            id: node.id,
+            sourceId: node.sourceId,
+            label: node.label,
+            sourceLabel: node.sourceLabel,
+            protocol: node.protocol,
+            raw: node.raw,
+            attributes: _attributes[node.id] ?? node.attributes,
           ),
         )
         .toList();
     final matches = allNodes
-        .where((n) => set?.exclusion(n) == null && set != null)
+        .where((node) => set != null && set.exclusion(node) == null)
         .toList();
-    final status = widget.snapshot['nodeSets'];
-    final matching = status is List
-        ? status
+    final snapshot = widget.snapshot['nodeSets'];
+    final matching = snapshot is List
+        ? snapshot
               .whereType<Map>()
-              .where((s) => s['policyId'] == widget.existing?.id)
+              .where((entry) => entry['policyId'] == widget.existing?.id)
               .firstOrNull
         : null;
     final live = _fingerprint == _initial ? _details : null;
@@ -975,232 +1024,281 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
         widget.existing != null &&
         policyDigest(set.probe.toJson()) ==
             policyDigest(widget.existing!.probe.toJson());
-    final states = rows is List && probeUnchanged
-        ? {for (final row in rows.whereType<Map>()) row['nodeId']: row}
-        : <Object?, Map>{};
-    final filtered = matches
-        .where((n) => _showAll || !_hide || states[n.id]?['eligible'] != false)
-        .toList();
-    final offset = _fingerprint == _initial ? _offset : 0;
-    final total = live?['total'] is int
-        ? live!['total'] as int
-        : filtered.length;
-    final shown = live != null && rows is List
-        ? [
-            for (final row in rows.whereType<Map>().take(_pageSize))
-              ...matches.where((node) => node.id == row['nodeId']).take(1),
-          ]
-        : filtered.skip(offset).take(_pageSize).toList();
-    final hasMore =
-        live?['hasMore'] == true ||
-        (live == null && offset + shown.length < total);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '${strings.policyMemberPreview} · ${matches.length}',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
-        const SizedBox(height: 12),
-        if (live != null)
-          Text(
-            '${strings.policyAvailableMembers}: ${live['availableCount'] ?? 0} · ${strings.policyPendingMembers}: ${live['pendingCount'] ?? 0} · ${strings.policyRestrictedMembers}: ${live['restrictedCount'] ?? 0}',
-          ),
-        if (_statusLoading) const LinearProgressIndicator(),
-        if (matches.isEmpty) Text(strings.policyNoMembers),
-        for (final node in shown)
-          Card(
-            child: ListTile(
-              onTap: _busy ? null : () => _editAttributes(node),
-              title: Text(node.label),
-              subtitle: Text(
-                '${node.attributes.region ?? strings.policyUnknownAttribute} · ${node.attributes.multiplier ?? strings.policyUnknownAttribute}${node.attributes.multiplier == null && _unknown == UnknownMultiplier.assumeOne ? ' · 1×' : ''}\n${node.sourceLabel} · ${_basis(node.attributes.regionBasis)} / ${_basis(node.attributes.multiplierBasis)}\n${states[node.id]?['lastProbeAt'] is int ? policyBeijingTime(states[node.id]!['lastProbeAt'] as int) : strings.policyCheckPending}',
-              ),
-              isThreeLine: true,
-              trailing: Text(
-                states[node.id]?['latencyMillis'] is num
-                    ? '${states[node.id]!['latencyMillis']} ms'
-                    : strings.policyCheckPending,
-              ),
-            ),
-          ),
-        if (!_showAll && _hide)
-          TextButton(
-            onPressed: _statusLoading
-                ? null
-                : () => _changePage(0, showAll: true),
-            child: Text(strings.policyShowUnavailable),
-          ),
-        if (total > _pageSize || offset > 0)
-          Row(
-            children: [
-              IconButton(
-                key: const ValueKey('node-set-previous-page'),
-                tooltip: MaterialLocalizations.of(context).previousPageTooltip,
-                onPressed: _statusLoading || offset == 0
-                    ? null
-                    : () => _changePage((offset - _pageSize).clamp(0, 5000)),
-                icon: const Icon(Icons.chevron_left),
-              ),
-              Text(
-                total == 0
-                    ? '0 / 0'
-                    : '${offset + 1}–${offset + shown.length} / $total',
-              ),
-              IconButton(
-                key: const ValueKey('node-set-next-page'),
-                tooltip: MaterialLocalizations.of(context).nextPageTooltip,
-                onPressed: _statusLoading || !hasMore
-                    ? null
-                    : () => _changePage(offset + _pageSize),
-                icon: const Icon(Icons.chevron_right),
-              ),
-            ],
-          ),
-      ],
+    final states = <String, Map<String, Object?>>{
+      if (rows is List && probeUnchanged && _fingerprint == _initial)
+        for (final row in rows.whereType<Map>())
+          if (row['nodeId'] is String)
+            row['nodeId'] as String: Map<String, Object?>.from(row),
+    };
+    return PolicyNodeSetMembersView(
+      key: _membersKey,
+      nodes: matches,
+      states: states,
+      sourceSummaries:
+          widget.loadSourceSummaries?.call() ?? widget.sourceSummaries,
+      assumeUnknownMultiplier: _unknown == UnknownMultiplier.assumeOne,
+      loading: _statusLoading,
+      draft: widget.existing == null || _fingerprint != _initial,
+      busy: _busy || _managingSources,
+      onCheck:
+          _fingerprint == _initial &&
+              (live != null || matching != null) &&
+              widget.onCheck != null &&
+              widget.existing != null
+          ? _checkNow
+          : null,
+      onEditAttributes: _busy || _managingSources ? null : _editAttributes,
     );
   }
 
   Future<void> _editAttributes(LocalNode node) async {
     final strings = context.appLocalizations;
-    final region = TextEditingController(text: node.attributes.region ?? '');
-    final multiplier = TextEditingController(
-      text: node.attributes.multiplier?.toString() ?? '',
-    );
-    try {
-      final result = await showDialog<NodeAttributes>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('${strings.policyManualAttribute} · ${node.label}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: region,
-                decoration: InputDecoration(
-                  labelText: '${strings.policyRegions} · ISO 3166-1',
-                ),
+    var region = node.attributes.region ?? '';
+    var multiplier = node.attributes.multiplier?.toString() ?? '';
+    final result = await showDialog<NodeAttributes>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${strings.policyManualAttribute} · ${node.label}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              initialValue: region,
+              onChanged: (value) => region = value,
+              decoration: InputDecoration(
+                labelText: '${strings.policyRegions} · ISO 3166-1',
               ),
-              TextField(
-                controller: multiplier,
-                decoration: InputDecoration(
-                  labelText: strings.policyMultiplierLimit,
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(strings.cancel),
             ),
-            FilledButton(
-              onPressed: () {
-                try {
-                  final r = region.text.trim().toUpperCase();
-                  final m = multiplier.text.trim();
-                  final value = NodeAttributes.fromJson({
-                    'region': r.isEmpty ? null : r,
-                    'multiplier': m.isEmpty ? null : double.parse(m),
-                    'regionBasis': r.isEmpty ? 'unknown' : 'manual',
-                    'multiplierBasis': m.isEmpty ? 'unknown' : 'manual',
-                  });
-                  Navigator.pop(context, value);
-                } catch (_) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(strings.policyInvalidData)),
-                  );
-                }
-              },
-              child: Text(strings.save),
+            TextFormField(
+              initialValue: multiplier,
+              onChanged: (value) => multiplier = value,
+              decoration: InputDecoration(
+                labelText: strings.policyMultiplierLimit,
+              ),
             ),
           ],
         ),
-      );
-      if (result != null && mounted) {
-        setState(() => _attributes[node.id] = result);
-      }
-    } finally {
-      region.dispose();
-      multiplier.dispose();
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(strings.cancel),
+          ),
+          FilledButton(
+            onPressed: () {
+              try {
+                final r = region.trim().toUpperCase();
+                final m = multiplier.trim();
+                final value = NodeAttributes.fromJson({
+                  'region': r.isEmpty ? null : r,
+                  'multiplier': m.isEmpty ? null : double.parse(m),
+                  'regionBasis': r.isEmpty ? 'unknown' : 'manual',
+                  'multiplierBasis': m.isEmpty ? 'unknown' : 'manual',
+                });
+                Navigator.pop(context, value);
+              } catch (_) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(strings.policyInvalidData)),
+                );
+              }
+            },
+            child: Text(strings.save),
+          ),
+        ],
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() => _attributes[node.id] = result);
     }
   }
 
-  String _basis(NodeAttributeBasis basis) => switch (basis) {
-    NodeAttributeBasis.unknown =>
-      context.appLocalizations.policyUnknownAttribute,
-    NodeAttributeBasis.name => context.appLocalizations.policyNameAttribute,
-    NodeAttributeBasis.subscription =>
-      context.appLocalizations.policyDeclaredAttribute,
-    NodeAttributeBasis.manual => context.appLocalizations.policyManualAttribute,
-  };
   @override
   Widget build(BuildContext context) {
     final strings = context.appLocalizations;
+    final theme = Theme.of(context);
+    final localTheme = theme.copyWith(
+      textTheme: theme.textTheme.copyWith(
+        bodyLarge: theme.textTheme.bodyLarge?.copyWith(fontSize: 14),
+        bodyMedium: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+        bodySmall: theme.textTheme.bodySmall?.copyWith(fontSize: 12),
+        labelLarge: theme.textTheme.labelLarge?.copyWith(fontSize: 14),
+        labelMedium: theme.textTheme.labelMedium?.copyWith(fontSize: 13),
+        titleSmall: theme.textTheme.titleSmall?.copyWith(fontSize: 14),
+        titleMedium: theme.textTheme.titleMedium?.copyWith(fontSize: 18),
+        titleLarge: theme.textTheme.titleLarge?.copyWith(fontSize: 20),
+      ),
+      inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
+        border: const OutlineInputBorder(),
+      ),
+    );
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _leave();
       },
-      child: AlertDialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-        title: Text(widget.existing?.label ?? strings.policyNodeSet),
-        content: SizedBox(
-          width: 1000,
-          child: SingleChildScrollView(
-            child: Form(
-              key: _form,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final form = _formContent();
-                  final members = _members();
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (_busy) const LinearProgressIndicator(),
-                      if (_advanced) ...[
-                        form,
-                        const SizedBox(height: 12),
-                        members,
-                      ] else if (constraints.maxWidth >= 760)
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: form),
-                            const SizedBox(width: 24),
-                            Expanded(child: members),
-                          ],
-                        )
-                      else ...[
-                        form,
-                        const SizedBox(height: 24),
-                        members,
-                      ],
-                      if (!_advanced) _checkStatus(),
-                      if (_error != null)
-                        Text(
-                          _error!,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.error,
+      child: Theme(
+        data: localTheme,
+        child: LayoutBuilder(
+          builder: (context, viewport) => Dialog(
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 24,
+            ),
+            child: SizedBox(
+              width: (viewport.maxWidth - 32).clamp(0, 1760),
+              height:
+                  (viewport.maxHeight -
+                          MediaQuery.viewInsetsOf(context).bottom -
+                          48)
+                      .clamp(180, 1200),
+              child: Form(
+                key: _form,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              IconButton(
+                                onPressed: _busy || _managingSources
+                                    ? null
+                                    : _leave,
+                                tooltip: strings.cancel,
+                                icon: const Icon(Icons.arrow_back),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  strings.policyNodeSetEditTitle,
+                                  style: localTheme.textTheme.titleLarge,
+                                ),
+                              ),
+                            ],
                           ),
+                          _field('label', strings.name, required: false),
+                        ],
+                      ),
+                    ),
+                    if (_busy || _managingSources)
+                      const LinearProgressIndicator(minHeight: 2),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: AbsorbPointer(
+                        absorbing: _busy || _managingSources,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final settings = Scrollbar(
+                              controller: _settingsScroll,
+                              thumbVisibility: constraints.maxWidth >= 900,
+                              child: SingleChildScrollView(
+                                key: const ValueKey('node-set-settings-scroll'),
+                                controller: _settingsScroll,
+                                padding: const EdgeInsets.all(16),
+                                child: _formContent(),
+                              ),
+                            );
+                            final members = _members();
+                            if (constraints.maxWidth >= 900) {
+                              final scale =
+                                  MediaQuery.textScalerOf(context).scale(14) /
+                                  14;
+                              return Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  SizedBox(
+                                    width: (324 * scale).clamp(304, 410),
+                                    child: settings,
+                                  ),
+                                  const VerticalDivider(width: 1),
+                                  Expanded(child: members),
+                                ],
+                              );
+                            }
+                            return Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  child: SegmentedButton<bool>(
+                                    key: const ValueKey('node-set-mobile-view'),
+                                    showSelectedIcon: false,
+                                    segments: [
+                                      ButtonSegment(
+                                        value: false,
+                                        label: Text(strings.general),
+                                      ),
+                                      ButtonSegment(
+                                        value: true,
+                                        label: Text(strings.policyNodes),
+                                      ),
+                                    ],
+                                    selected: {_showMembers},
+                                    onSelectionChanged: (values) => setState(
+                                      () => _showMembers = values.single,
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: IndexedStack(
+                                    index: _showMembers ? 1 : 0,
+                                    children: [settings, members],
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
-                    ],
-                  );
-                },
+                      ),
+                    ),
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
+                        child: Text(
+                          _error!,
+                          style: TextStyle(color: theme.colorScheme.error),
+                        ),
+                      ),
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      child: OverflowBar(
+                        alignment: MainAxisAlignment.end,
+                        spacing: 12,
+                        children: [
+                          TextButton(
+                            onPressed: _busy || _managingSources
+                                ? null
+                                : _leave,
+                            child: Text(strings.cancel),
+                          ),
+                          FilledButton(
+                            onPressed: _busy || _managingSources ? null : _save,
+                            child: Text(strings.policyCheckSave),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: _busy || _managingSources ? null : _leave,
-            child: Text(strings.cancel),
-          ),
-          FilledButton(
-            onPressed: _busy || _managingSources ? null : _save,
-            child: Text(strings.policyCheckSave),
-          ),
-        ],
       ),
     );
   }

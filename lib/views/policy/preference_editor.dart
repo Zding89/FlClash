@@ -7,8 +7,10 @@ class PolicyPreferenceEditor extends StatelessWidget {
     super.key,
     required this.value,
     required this.onChanged,
+    this.compact = false,
   });
   final List<NodePreference> value;
+  final bool compact;
   final ValueChanged<List<NodePreference>> onChanged;
   String _label(BuildContext context, NodePreferenceType type) {
     final s = context.appLocalizations;
@@ -18,6 +20,21 @@ class PolicyPreferenceEditor extends StatelessWidget {
       NodePreferenceType.latency => s.policyPreferenceLatency,
       NodePreferenceType.multiplier => s.policyPreferenceMultiplier,
       NodePreferenceType.source => s.policyPreferenceSource,
+    };
+  }
+
+  String _direction(BuildContext context, NodePreference preference) {
+    final strings = context.appLocalizations;
+    final ascending = preference.direction == SortDirection.ascending;
+    return switch (preference.type) {
+      NodePreferenceType.expiry =>
+        ascending ? strings.policyEarlierFirst : strings.policyLaterFirst,
+      NodePreferenceType.remaining =>
+        ascending ? strings.policyLessFirst : strings.policyMoreFirst,
+      NodePreferenceType.latency || NodePreferenceType.multiplier =>
+        ascending ? strings.policyLowerFirst : strings.policyHigherFirst,
+      NodePreferenceType.source =>
+        ascending ? strings.policyAscending : strings.policyDescending,
     };
   }
 
@@ -31,10 +48,11 @@ class PolicyPreferenceEditor extends StatelessWidget {
           s.policyPreferences,
           style: Theme.of(context).textTheme.titleMedium,
         ),
-        Text(
-          s.policyPreferencesHint,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+        if (!compact)
+          Text(
+            s.policyPreferencesHint,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
         if (value.isEmpty) Text(s.policyStableFirst),
         ReorderableListView.builder(
           shrinkWrap: true,
@@ -49,6 +67,72 @@ class PolicyPreferenceEditor extends StatelessWidget {
           },
           itemBuilder: (context, index) {
             final preference = value[index];
+            if (compact) {
+              return Padding(
+                key: ValueKey('preference-${preference.type.name}'),
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  children: [
+                    ReorderableDragStartListener(
+                      index: index,
+                      child: const Icon(Icons.drag_indicator, size: 18),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${index + 1}',
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _label(context, preference.type),
+                        maxLines: 2,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    DropdownButton<SortDirection>(
+                      value: preference.direction,
+                      style: Theme.of(context).textTheme.bodySmall,
+                      items: [
+                        for (final direction in SortDirection.values)
+                          DropdownMenuItem(
+                            value: direction,
+                            child: Text(
+                              _direction(
+                                context,
+                                NodePreference(
+                                  type: preference.type,
+                                  direction: direction,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                      onChanged: (direction) {
+                        if (direction != null) {
+                          onChanged([
+                            for (var i = 0; i < value.length; i++)
+                              i == index
+                                  ? NodePreference(
+                                      type: preference.type,
+                                      direction: direction,
+                                    )
+                                  : value[i],
+                          ]);
+                        }
+                      },
+                    ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: s.delete,
+                      icon: const Icon(Icons.remove_circle_outline, size: 18),
+                      onPressed: () => onChanged([...value]..removeAt(index)),
+                    ),
+                  ],
+                ),
+              );
+            }
             return ListTile(
               key: ValueKey('preference-${preference.type.name}'),
               contentPadding: EdgeInsets.zero,
@@ -94,7 +178,19 @@ class PolicyPreferenceEditor extends StatelessWidget {
         if (value.length < NodePreferenceType.values.length)
           PopupMenuButton<NodePreferenceType>(
             tooltip: s.add,
-            icon: const Icon(Icons.add),
+            icon: compact
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.add, size: 18),
+                      const SizedBox(width: 6),
+                      Text(
+                        s.add,
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                    ],
+                  )
+                : const Icon(Icons.add),
             onSelected: (type) => onChanged([
               ...value,
               NodePreference(

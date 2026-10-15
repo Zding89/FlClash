@@ -6,6 +6,7 @@ import 'package:fl_clash/configuration/changes.dart';
 import 'package:fl_clash/database/workbench_database.dart';
 import 'package:fl_clash/models/profile.dart';
 import 'package:fl_clash/policy/models.dart';
+import 'package:fl_clash/policy/quota_overview.dart';
 import 'package:fl_clash/providers/database.dart';
 import 'package:fl_clash/providers/workbench.dart';
 import 'package:fl_clash/providers/app.dart';
@@ -146,6 +147,8 @@ class _LocalPolicyWorkbenchViewState
         loadNodes: (target) =>
             _controller.loadNodes(target, document: baseDocument),
         sources: _sourceNames(baseDocument),
+        sourceSummaries: _nodeSourceSummaries(),
+        loadSourceSummaries: _nodeSourceSummaries,
         onManageSources: () async {
           baseDocument = await _manageSources(baseDocument);
           return _sourceNames(baseDocument);
@@ -268,6 +271,14 @@ class _LocalPolicyWorkbenchViewState
     return result;
   }
 
+  Map<String, QuotaSourceSummary> _nodeSourceSummaries() => {
+    for (final source
+        in const LocalQuotaOverviewCalculator()
+            .calculate(profiles: ref.read(profilesProvider))
+            .sources)
+      '${source.profile.id}': source,
+  };
+
   Future<void> _nodeSet(
     LocalPolicyDocument document,
     Map<String, String> targets,
@@ -286,6 +297,8 @@ class _LocalPolicyWorkbenchViewState
           existing: existing,
           targetId: target,
           sources: sourceNames,
+          sourceSummaries: _nodeSourceSummaries(),
+          loadSourceSummaries: _nodeSourceSummaries,
           onManageSources: () async {
             baseDocument = await _manageSources(baseDocument);
             return _sourceNames(baseDocument);

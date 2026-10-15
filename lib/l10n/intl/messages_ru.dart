@@ -1248,6 +1248,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyDraftStatusHint": MessageLookupByLibrary.simpleMessage(
       "Черновик изменён; сохраните для просмотра результатов",
     ),
+    "policyEarlierFirst": MessageLookupByLibrary.simpleMessage(
+      "Раньше в приоритете",
+    ),
     "policyEditIntegration": MessageLookupByLibrary.simpleMessage(
       "Изменить объединённый профиль",
     ),
@@ -1317,6 +1320,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyHideUnavailable": MessageLookupByLibrary.simpleMessage(
       "Автоматически скрывать недоступные узлы",
     ),
+    "policyHigherFirst": MessageLookupByLibrary.simpleMessage(
+      "Выше в приоритете",
+    ),
     "policyHistoryTab": MessageLookupByLibrary.simpleMessage("История"),
     "policyImprovementPercent": MessageLookupByLibrary.simpleMessage(
       "Порог улучшения задержки (%)",
@@ -1349,11 +1355,17 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyLatencyFirst": MessageLookupByLibrary.simpleMessage(
       "Приоритет низкой задержки",
     ),
+    "policyLaterFirst": MessageLookupByLibrary.simpleMessage(
+      "Позже в приоритете",
+    ),
     "policyLedgerUntrusted": MessageLookupByLibrary.simpleMessage(
       "Учёт недостоверен; источник ограничен",
     ),
     "policyLegacySelections": MessageLookupByLibrary.simpleMessage(
       "Прежние варианты сохраняются, пока вы не выберете новую группу или узел.",
+    ),
+    "policyLessFirst": MessageLookupByLibrary.simpleMessage(
+      "Меньше в приоритете",
     ),
     "policyLoadNodes": MessageLookupByLibrary.simpleMessage(
       "Загрузить доступные узлы",
@@ -1391,6 +1403,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyLocalSourcesHint": MessageLookupByLibrary.simpleMessage(
       "Выберите подписки с нужными узлами, затем настройте группы и правила маршрутизации. Объединяются только узлы; правила, группы, скрипты и DNS подписок не наследуются. До 20 источников.",
     ),
+    "policyLowerFirst": MessageLookupByLibrary.simpleMessage(
+      "Ниже в приоритете",
+    ),
     "policyManualAttribute": MessageLookupByLibrary.simpleMessage(
       "Подтверждено вручную",
     ),
@@ -1412,6 +1427,46 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyMemberPreview": MessageLookupByLibrary.simpleMessage(
       "Предпросмотр участников",
     ),
+    "policyMembersAllSources": MessageLookupByLibrary.simpleMessage(
+      "Все провайдеры",
+    ),
+    "policyMembersAllStates": MessageLookupByLibrary.simpleMessage(
+      "Все состояния",
+    ),
+    "policyMembersChecking": MessageLookupByLibrary.simpleMessage("Проверка"),
+    "policyMembersDraft": MessageLookupByLibrary.simpleMessage(
+      "Сохраните для обновления результатов",
+    ),
+    "policyMembersExpired": MessageLookupByLibrary.simpleMessage(
+      "Результат устарел",
+    ),
+    "policyMembersExpiry": MessageLookupByLibrary.simpleMessage(
+      "Срок действия",
+    ),
+    "policyMembersFailed": MessageLookupByLibrary.simpleMessage(
+      "Ошибка соединения",
+    ),
+    "policyMembersFilters": MessageLookupByLibrary.simpleMessage(
+      "Фильтры списка",
+    ),
+    "policyMembersHealthy": MessageLookupByLibrary.simpleMessage("Доступен"),
+    "policyMembersLastCheck": MessageLookupByLibrary.simpleMessage(
+      "Последняя проверка",
+    ),
+    "policyMembersNoResult": MessageLookupByLibrary.simpleMessage(
+      "Нет результата",
+    ),
+    "policyMembersQuota": MessageLookupByLibrary.simpleMessage(
+      "Квота провайдера",
+    ),
+    "policyMembersRestricted": MessageLookupByLibrary.simpleMessage(
+      "Ограничено",
+    ),
+    "policyMembersSource": MessageLookupByLibrary.simpleMessage("Провайдер"),
+    "policyMembersTitle": MessageLookupByLibrary.simpleMessage("Узлы группы"),
+    "policyMembersUnchecked": MessageLookupByLibrary.simpleMessage(
+      "Не проверено",
+    ),
     "policyMetadataAge": MessageLookupByLibrary.simpleMessage(
       "Срок актуальности данных (часы)",
     ),
@@ -1424,6 +1479,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyModuleOffHint": MessageLookupByLibrary.simpleMessage(
       "Отключение останавливает правила, объединение подписок и лимиты трафика; сохранённые настройки остаются",
+    ),
+    "policyMoreFirst": MessageLookupByLibrary.simpleMessage(
+      "Больше в приоритете",
     ),
     "policyMoreSettings": MessageLookupByLibrary.simpleMessage(
       "Другие настройки",
@@ -1458,6 +1516,15 @@ class MessageLookup extends MessageLookupByLibrary {
       "Источников пока нет; можно добавить правила прямого подключения и блокировки",
     ),
     "policyNodeSet": MessageLookupByLibrary.simpleMessage("Группа узлов"),
+    "policyNodeSetConditions": MessageLookupByLibrary.simpleMessage(
+      "Условия группы",
+    ),
+    "policyNodeSetEditTitle": MessageLookupByLibrary.simpleMessage(
+      "Изменить группу узлов",
+    ),
+    "policyNodeSetExclusions": MessageLookupByLibrary.simpleMessage(
+      "Имена и исключения",
+    ),
     "policyNodeSetHint": MessageLookupByLibrary.simpleMessage(
       "Фильтруйте по провайдеру, региону, имени и множителю, затем выбирайте по приоритету или распределяйте подключения.",
     ),
@@ -1467,6 +1534,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyNodeSetTarget": MessageLookupByLibrary.simpleMessage(
       "Профиль для этой группы",
+    ),
+    "policyNodeSetTimed": MessageLookupByLibrary.simpleMessage(
+      "Временные интервалы заданы",
     ),
     "policyNodeSets": MessageLookupByLibrary.simpleMessage("Группы узлов"),
     "policyNodes": MessageLookupByLibrary.simpleMessage("Узлы"),

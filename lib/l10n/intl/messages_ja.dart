@@ -928,6 +928,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyDraftStatusHint": MessageLookupByLibrary.simpleMessage(
       "下書きが変更されています。保存後にチェック結果を表示",
     ),
+    "policyEarlierFirst": MessageLookupByLibrary.simpleMessage("早い順"),
     "policyEditIntegration": MessageLookupByLibrary.simpleMessage(
       "統合プロファイルを編集",
     ),
@@ -973,6 +974,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyHideUnavailable": MessageLookupByLibrary.simpleMessage(
       "利用不可のノードを自動非表示",
     ),
+    "policyHigherFirst": MessageLookupByLibrary.simpleMessage("高い順"),
     "policyHistoryTab": MessageLookupByLibrary.simpleMessage("履歴"),
     "policyImprovementPercent": MessageLookupByLibrary.simpleMessage(
       "遅延改善のしきい値（%）",
@@ -995,12 +997,14 @@ class MessageLookup extends MessageLookupByLibrary {
       "現行スキーマのみ対応。不正な項目・参照は適用できません",
     ),
     "policyLatencyFirst": MessageLookupByLibrary.simpleMessage("低遅延を優先"),
+    "policyLaterFirst": MessageLookupByLibrary.simpleMessage("遅い順"),
     "policyLedgerUntrusted": MessageLookupByLibrary.simpleMessage(
       "台帳を確認できないためソースを制限",
     ),
     "policyLegacySelections": MessageLookupByLibrary.simpleMessage(
       "別のグループまたはノードを選ぶまで既存の選択を保持します",
     ),
+    "policyLessFirst": MessageLookupByLibrary.simpleMessage("少ない順"),
     "policyLoadNodes": MessageLookupByLibrary.simpleMessage("利用可能なノードを読み込む"),
     "policyLocalAdvancedHint": MessageLookupByLibrary.simpleMessage(
       "以下は任意の設定です。初回はスキップできます。",
@@ -1029,6 +1033,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyLocalSourcesHint": MessageLookupByLibrary.simpleMessage(
       "使用するノードの購読を選び、ノードグループと振り分けルールを設定します。ノードのみ統合し、購読のルール、グループ、スクリプト、DNSは引き継ぎません。最大20件選べます。",
     ),
+    "policyLowerFirst": MessageLookupByLibrary.simpleMessage("低い順"),
     "policyManualAttribute": MessageLookupByLibrary.simpleMessage("手動確認"),
     "policyManualOrigin": MessageLookupByLibrary.simpleMessage("手動追加"),
     "policyMatchAll": MessageLookupByLibrary.simpleMessage("全条件（詳細）"),
@@ -1036,6 +1041,24 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyMatchConditions": MessageLookupByLibrary.simpleMessage("通信条件"),
     "policyMatchNot": MessageLookupByLibrary.simpleMessage("否定条件（詳細）"),
     "policyMemberPreview": MessageLookupByLibrary.simpleMessage("メンバーのプレビュー"),
+    "policyMembersAllSources": MessageLookupByLibrary.simpleMessage(
+      "すべてのプロバイダー",
+    ),
+    "policyMembersAllStates": MessageLookupByLibrary.simpleMessage("すべての状態"),
+    "policyMembersChecking": MessageLookupByLibrary.simpleMessage("チェック中"),
+    "policyMembersDraft": MessageLookupByLibrary.simpleMessage("保存後にチェック結果を更新"),
+    "policyMembersExpired": MessageLookupByLibrary.simpleMessage("結果の期限切れ"),
+    "policyMembersExpiry": MessageLookupByLibrary.simpleMessage("有効期限"),
+    "policyMembersFailed": MessageLookupByLibrary.simpleMessage("接続失敗"),
+    "policyMembersFilters": MessageLookupByLibrary.simpleMessage("一覧フィルター"),
+    "policyMembersHealthy": MessageLookupByLibrary.simpleMessage("利用可能"),
+    "policyMembersLastCheck": MessageLookupByLibrary.simpleMessage("最終チェック"),
+    "policyMembersNoResult": MessageLookupByLibrary.simpleMessage("結果なし"),
+    "policyMembersQuota": MessageLookupByLibrary.simpleMessage("通信量残高"),
+    "policyMembersRestricted": MessageLookupByLibrary.simpleMessage("制限あり"),
+    "policyMembersSource": MessageLookupByLibrary.simpleMessage("プロバイダー"),
+    "policyMembersTitle": MessageLookupByLibrary.simpleMessage("グループ内ノード"),
+    "policyMembersUnchecked": MessageLookupByLibrary.simpleMessage("未チェック"),
     "policyMetadataAge": MessageLookupByLibrary.simpleMessage("メタデータの有効時間（時間）"),
     "policyMethod": MessageLookupByLibrary.simpleMessage("リクエスト方式"),
     "policyMissingNode": MessageLookupByLibrary.simpleMessage("ノードがありません"),
@@ -1043,6 +1066,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyModuleOffHint": MessageLookupByLibrary.simpleMessage(
       "無効にするとルール、購読統合、通信量制限を停止します。保存済み設定は残ります",
     ),
+    "policyMoreFirst": MessageLookupByLibrary.simpleMessage("多い順"),
     "policyMoreSettings": MessageLookupByLibrary.simpleMessage("その他の設定"),
     "policyMoveDown": MessageLookupByLibrary.simpleMessage("下へ"),
     "policyMoveUp": MessageLookupByLibrary.simpleMessage("上へ"),
@@ -1066,6 +1090,11 @@ class MessageLookup extends MessageLookupByLibrary {
       "購読ソースはまだありません。直接接続やブロックのルールは追加できます",
     ),
     "policyNodeSet": MessageLookupByLibrary.simpleMessage("ノードグループ"),
+    "policyNodeSetConditions": MessageLookupByLibrary.simpleMessage("グループ条件"),
+    "policyNodeSetEditTitle": MessageLookupByLibrary.simpleMessage(
+      "ノードグループの編集",
+    ),
+    "policyNodeSetExclusions": MessageLookupByLibrary.simpleMessage("名前と除外条件"),
     "policyNodeSetHint": MessageLookupByLibrary.simpleMessage(
       "プロバイダー、地域、名前、倍率で絞り込み、優先順位または負荷分散で接続します",
     ),
@@ -1076,6 +1105,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyNodeSetTarget": MessageLookupByLibrary.simpleMessage(
       "このグループを使うプロファイル",
     ),
+    "policyNodeSetTimed": MessageLookupByLibrary.simpleMessage("時間帯設定済み"),
     "policyNodeSets": MessageLookupByLibrary.simpleMessage("ノードグループ"),
     "policyNodes": MessageLookupByLibrary.simpleMessage("ノード"),
     "policyNotCollected": MessageLookupByLibrary.simpleMessage("未収集"),

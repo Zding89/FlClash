@@ -417,7 +417,18 @@ void main() {
     (tester) async {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      final nodes = List.generate(5000, (index) => _nodes.first);
+      final nodes = List.generate(
+        5000,
+        (index) => LocalNode(
+          id: 'capacity-$index',
+          sourceId: _nodes.first.sourceId,
+          label: 'Capacity member $index',
+          sourceLabel: _nodes.first.sourceLabel,
+          protocol: _nodes.first.protocol,
+          raw: _nodes.first.raw,
+          attributes: _nodes.first.attributes,
+        ),
+      );
       const capacity = <String, Object?>{
         'targetId': localPolicyTargetId,
         'checkTaskCount': 5000,
@@ -476,96 +487,116 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
-  testWidgets('node set details page and late responses stay bounded', (
-    tester,
-  ) async {
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final nodes = List.generate(
-      205,
-      (index) => LocalNode(
-        id: 'fixture-page-$index',
-        sourceId: '1',
-        label: 'Fixture member $index',
-        sourceLabel: '测试来源 A',
-        protocol: 'ss',
-        raw: const {},
-        attributes: _nodes.first.attributes,
-      ),
-    );
-    final requests = <Map<String, Object?>>[];
-    Completer<Map<String, Object?>>? waiting;
-    Map<String, Object?> response(int offset, {int latency = 48}) => {
-      'revision': 7,
-      'nodeSetId': _nodeSet.id,
-      'offset': offset,
-      'limit': 100,
-      'total': 205,
-      'hasMore': offset < 200,
-      'memberCount': 205,
-      'availableCount': 205,
-      'pendingCount': 0,
-      'restrictedCount': 0,
-      'checksWaiting': 2,
-      'checksInFlight': 1,
-      'sampleAt': 1791939600000,
-      'probe': _nodeSet.probe.toJson(),
-      'nodes': [
-        {
-          'nodeId': nodes[offset].id,
-          'eligible': true,
-          'lastProbeAt': 1791939600000,
-          'latencyMillis': latency,
-        },
-      ],
-    };
-    await _pump(
-      tester,
-      Scaffold(
-        body: PolicyNodeSetEditor(
-          existing: _nodeSet,
-          targetId: localPolicyTargetId,
-          sources: const {'1': '测试来源 A'},
-          nodes: nodes,
-          snapshot: _snapshot,
-          loadStatus: (params) async {
-            requests.add(params);
-            final pending = waiting;
-            if (pending != null) return pending.future;
-            return response(params['offset']! as int);
-          },
+  testWidgets(
+    'node set details aggregate bounded pages and reject late responses',
+    (tester) async {
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final nodes = List.generate(
+        205,
+        (index) => LocalNode(
+          id: 'fixture-page-$index',
+          sourceId: '1',
+          label: 'Fixture member ${index.toString().padLeft(3, '0')}',
+          sourceLabel: '测试来源 A',
+          protocol: 'ss',
+          raw: const {},
+          attributes: _nodes.first.attributes,
         ),
-      ),
-      const Size(1100, 850),
-    );
-    expect(requests.single['limit'], 100);
-    expect(find.text('Fixture member 0'), findsOneWidget);
-    expect(find.text('Fixture member 1'), findsNothing);
-    await _tapVisible(tester, find.byKey(const ValueKey('node-set-next-page')));
-    expect(requests.last['offset'], 100);
-    expect(find.text('Fixture member 0'), findsNothing);
-    expect(find.text('Fixture member 100'), findsOneWidget);
-    final strings = AppLocalizations.current;
-    await _tapVisible(tester, find.text(strings.advancedConfig));
-    waiting = Completer<Map<String, Object?>>();
-    await tester.pump(const Duration(seconds: 3));
-    final old = waiting;
-    await tester.enterText(_field(strings.policyProbeTimeout), '9');
-    await tester.pump();
-    old.complete(response(100, latency: 999));
-    await tester.pumpAndSettle();
-    expect(find.text('999 ms'), findsNothing);
-    expect(find.text('48 ms'), findsNothing);
-    await tester.enterText(_field(strings.policyProbeTimeout), '5');
-    await tester.pump();
-    waiting = Completer<Map<String, Object?>>();
-    await tester.pump(const Duration(seconds: 3));
-    final disposed = waiting;
-    await tester.pumpWidget(const SizedBox());
-    disposed.complete(response(0, latency: 999));
-    await tester.pump();
-    expect(tester.takeException(), null);
-  });
+      );
+      final requests = <Map<String, Object?>>[];
+      Completer<Map<String, Object?>>? waiting;
+      Map<String, Object?> response(int offset, {int latency = 48}) => {
+        'revision': 7,
+        'nodeSetId': _nodeSet.id,
+        'offset': offset,
+        'limit': 200,
+        'total': nodes.length,
+        'hasMore': offset + 200 < nodes.length,
+        'memberCount': nodes.length,
+        'availableCount': nodes.length,
+        'pendingCount': 0,
+        'restrictedCount': 0,
+        'checksWaiting': 2,
+        'checksInFlight': 1,
+        'sampleAt': 1791939600000,
+        'probe': _nodeSet.probe.toJson(),
+        'nodes': [
+          for (final node in nodes.skip(offset).take(200))
+            {
+              'nodeId': node.id,
+              'eligible': true,
+              'healthy': true,
+              'lastProbeAt': 1791939600000,
+              'latencyMillis': latency,
+            },
+        ],
+      };
+      await _pump(
+        tester,
+        Scaffold(
+          body: PolicyNodeSetEditor(
+            existing: _nodeSet,
+            targetId: localPolicyTargetId,
+            sources: const {'1': '测试来源 A'},
+            nodes: nodes,
+            snapshot: _snapshot,
+            loadStatus: (params) async {
+              requests.add(params);
+              final pending = waiting;
+              if (pending != null) return pending.future;
+              return response(params['offset']! as int);
+            },
+          ),
+        ),
+        const Size(1100, 850),
+      );
+      expect(requests.map((request) => request['offset']), [0, 200]);
+      expect(requests.every((request) => request['limit'] == 200), isTrue);
+      expect(
+        requests.every((request) => request['includeUnavailable'] == true),
+        isTrue,
+      );
+      expect(find.text('Fixture member 000'), findsOneWidget);
+      expect(find.text('Fixture member 049'), findsOneWidget);
+      expect(find.text('Fixture member 050'), findsNothing);
+      await _tapVisible(
+        tester,
+        find.byKey(const ValueKey('node-members-next-page')),
+      );
+      expect(requests, hasLength(2));
+      expect(find.text('Fixture member 000'), findsNothing);
+      expect(find.text('Fixture member 050'), findsOneWidget);
+      final search = find.byKey(const ValueKey('node-members-search'));
+      await tester.ensureVisible(search);
+      await tester.enterText(search, 'member 204');
+      await tester.pumpAndSettle();
+      expect(find.text('Fixture member 204'), findsOneWidget);
+      expect(find.text('48 ms'), findsOneWidget);
+      expect(requests, hasLength(2));
+      final strings = AppLocalizations.current;
+      await _tapVisible(tester, find.text(strings.advancedConfig));
+      waiting = Completer<Map<String, Object?>>();
+      await tester.pump(const Duration(seconds: 6));
+      expect(requests.last['offset'], 0);
+      final old = waiting;
+      await tester.enterText(_field(strings.policyProbeTimeout), '9');
+      await tester.pump();
+      old.complete(response(0, latency: 999));
+      await tester.pumpAndSettle();
+      expect(find.text('999 ms'), findsNothing);
+      expect(find.text('48 ms'), findsNothing);
+      await tester.enterText(_field(strings.policyProbeTimeout), '5');
+      await tester.pump();
+      waiting = Completer<Map<String, Object?>>();
+      await tester.pump(const Duration(seconds: 6));
+      final disposed = waiting;
+      await tester.pumpWidget(const SizedBox());
+      disposed.complete(response(0, latency: 999));
+      await tester.pump();
+      expect(tester.takeException(), null);
+    },
+  );
   for (final width in [944.0, 360.0]) {
     testWidgets(
       'rule AI shortcut uses the main module without execution $width',
@@ -672,7 +703,12 @@ void main() {
         tester,
         _switch(strings.policyUnknownMultiplierAllowed),
       );
-      expect(_unknownOne(strings.policyUnknownOne), findsNothing);
+      expect(
+        tester
+            .widget<CheckboxListTile>(_unknownOne(strings.policyUnknownOne))
+            .value,
+        false,
+      );
       expect(
         tester
             .widget<SwitchListTile>(
@@ -685,12 +721,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('48 ms'), findsNothing);
       await _capture(tester, '05-node-set-advanced-desktop');
-      await _tapVisible(tester, find.text(strings.general));
+      await _tapVisible(tester, find.text(strings.advancedConfig));
       expect(
         tester
-            .widget<SegmentedButton<bool>>(find.byType(SegmentedButton<bool>))
-            .selected,
-        {false},
+            .widget<ExpansionTile>(
+              find.byKey(const ValueKey('node-set-advanced-settings')),
+            )
+            .maintainState,
+        isTrue,
       );
       expect(_field(strings.policyProbeTimeout), findsNothing);
       expect(
@@ -722,7 +760,7 @@ void main() {
       expect(saved!.nodeSet.unknownMultiplier, UnknownMultiplier.assumeOne);
       expect(saved!.nodeSet.probe.timeoutSeconds, 7);
       expect(find.byType(PolicyNodeSetEditor), findsOneWidget);
-      await _tapVisible(tester, find.text(strings.general));
+      await _tapVisible(tester, find.text(strings.advancedConfig));
       expect(
         tester
             .widget<TextFormField>(_field(strings.policyMultiplierLimit))
@@ -735,10 +773,12 @@ void main() {
     },
   );
   testWidgets(
-    'node set narrow layout keeps controls reachable and preserves edit after failure',
+    'node set narrow keyboard and view switching preserve failed save inputs',
     (tester) async {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetViewInsets);
+      PolicyNodeSetEdit? saved;
       await _pump(
         tester,
         Scaffold(
@@ -748,19 +788,36 @@ void main() {
             sources: const {'1': '测试来源 A', '2': '测试来源 B'},
             nodes: _nodes,
             snapshot: _snapshot,
-            onSave: (_) async => throw StateError('fixture_failure'),
+            onSave: (edit) async {
+              saved = edit;
+              throw StateError('fixture_failure');
+            },
           ),
         ),
         const Size(390, 700),
       );
       final strings = AppLocalizations.current;
+      final view = find.byKey(const ValueKey('node-set-mobile-view'));
+      final name = _field(strings.name);
+      await tester.enterText(name, '键盘下保留的节点组');
       await _capture(tester, '04-node-set-ordinary-narrow');
       await _tapVisible(tester, find.text(strings.advancedConfig));
       await _tapVisible(tester, _field(strings.policyProbeTimeout));
       await tester.enterText(_field(strings.policyProbeTimeout), '8');
-      await _capture(tester, '05-node-set-advanced-narrow');
-      await _tapVisible(tester, find.text(strings.policyCheckSave));
-      expect(find.byType(PolicyNodeSetEditor), findsOneWidget);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 180);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.tap(
+        find.descendant(of: view, matching: find.text(strings.policyNodes)),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.widget<SegmentedButton<bool>>(view).selected, {true});
+      expect(find.byKey(const ValueKey('node-members-search')), findsOneWidget);
+      expect(tester.widget<TextFormField>(name).controller!.text, '键盘下保留的节点组');
+      await tester.tap(
+        find.descendant(of: view, matching: find.text(strings.general)),
+      );
+      await tester.pumpAndSettle();
       expect(
         tester
             .widget<TextFormField>(_field(strings.policyProbeTimeout))
@@ -768,10 +825,97 @@ void main() {
             .text,
         '8',
       );
+      final save = find.widgetWithText(FilledButton, strings.policyCheckSave);
+      expect(save.hitTestable(), findsOneWidget);
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+      expect(saved!.nodeSet.label, '键盘下保留的节点组');
+      expect(saved!.nodeSet.probe.timeoutSeconds, 8);
+      expect(find.byType(PolicyNodeSetEditor), findsOneWidget);
+      expect(tester.widget<TextFormField>(name).controller!.text, '键盘下保留的节点组');
+      expect(
+        tester
+            .widget<TextFormField>(_field(strings.policyProbeTimeout))
+            .controller!
+            .text,
+        '8',
+      );
+      tester.view.resetViewInsets();
+      await tester.pumpAndSettle();
+      await _capture(tester, '05-node-set-advanced-narrow');
+      await _tapVisible(tester, find.byTooltip(strings.cancel));
+      expect(find.text(strings.policyUnsavedTitle), findsOneWidget);
+      await _tapVisible(tester, find.text(strings.policyContinueEditing));
+      expect(find.byType(PolicyNodeSetEditor), findsOneWidget);
+      expect(tester.widget<TextFormField>(name).controller!.text, '键盘下保留的节点组');
       expect(tester.takeException(), null);
       await tester.pumpWidget(const SizedBox());
     },
   );
+  testWidgets('node set desktop settings and members scroll independently', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final nodes = List.generate(
+      75,
+      (index) => LocalNode(
+        id: 'scroll-$index',
+        sourceId: '1',
+        label: 'Scroll member $index',
+        sourceLabel: '测试来源 A',
+        protocol: 'ss',
+        raw: const {},
+        attributes: _nodes.first.attributes,
+      ),
+    );
+    await _pump(
+      tester,
+      Scaffold(
+        body: PolicyNodeSetEditor(
+          existing: _nodeSet,
+          targetId: localPolicyTargetId,
+          sources: const {'1': '测试来源 A'},
+          nodes: nodes,
+        ),
+      ),
+      const Size(1100, 850),
+    );
+    final settings = find.byKey(const ValueKey('node-set-settings-scroll'));
+    final members = find.byKey(const ValueKey('node-members-scroll'));
+    final settingsScroll = tester
+        .widget<SingleChildScrollView>(settings)
+        .controller!;
+    final membersScroll = tester
+        .widget<SingleChildScrollView>(members)
+        .controller!;
+    final name = _field(AppLocalizations.current.name);
+    final save = find.widgetWithText(
+      FilledButton,
+      AppLocalizations.current.policyCheckSave,
+    );
+    final namePosition = tester.getTopLeft(name);
+    final savePosition = tester.getTopLeft(save);
+    expect(tester.getSize(settings).width, inInclusiveRange(320, 340));
+    expect(
+      tester.getRect(settings).right,
+      lessThanOrEqualTo(tester.getRect(members).left),
+    );
+    expect(find.byKey(const ValueKey('node-set-mobile-view')), findsNothing);
+    await tester.drag(settings, const Offset(0, -240));
+    await tester.pumpAndSettle();
+    expect(settingsScroll.offset, greaterThan(0));
+    expect(membersScroll.offset, 0);
+    final leftOffset = settingsScroll.offset;
+    await tester.drag(members, const Offset(0, -280));
+    await tester.pumpAndSettle();
+    expect(membersScroll.offset, greaterThan(0));
+    expect(settingsScroll.offset, leftOffset);
+    expect(tester.getTopLeft(name), namePosition);
+    expect(tester.getTopLeft(save), savePosition);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets(
     'rules render order schedule skip right edit and freely movable all traffic',
     (tester) async {

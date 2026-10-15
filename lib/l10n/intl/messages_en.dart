@@ -1200,6 +1200,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyDraftStatusHint": MessageLookupByLibrary.simpleMessage(
       "Draft changed; save to view check results",
     ),
+    "policyEarlierFirst": MessageLookupByLibrary.simpleMessage("Earlier first"),
     "policyEditIntegration": MessageLookupByLibrary.simpleMessage(
       "Edit merged profile",
     ),
@@ -1271,6 +1272,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyHideUnavailable": MessageLookupByLibrary.simpleMessage(
       "Automatically hide unavailable nodes",
     ),
+    "policyHigherFirst": MessageLookupByLibrary.simpleMessage("Higher first"),
     "policyHistoryTab": MessageLookupByLibrary.simpleMessage("History"),
     "policyImprovementPercent": MessageLookupByLibrary.simpleMessage(
       "Latency improvement threshold (%)",
@@ -1305,12 +1307,14 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyLatencyFirst": MessageLookupByLibrary.simpleMessage(
       "Lowest latency first",
     ),
+    "policyLaterFirst": MessageLookupByLibrary.simpleMessage("Later first"),
     "policyLedgerUntrusted": MessageLookupByLibrary.simpleMessage(
       "Ledger untrusted; source restricted",
     ),
     "policyLegacySelections": MessageLookupByLibrary.simpleMessage(
       "This existing rule keeps all previous selections until you choose a replacement.",
     ),
+    "policyLessFirst": MessageLookupByLibrary.simpleMessage("Less first"),
     "policyLoadNodes": MessageLookupByLibrary.simpleMessage(
       "Load available nodes",
     ),
@@ -1347,6 +1351,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyLocalSourcesHint": MessageLookupByLibrary.simpleMessage(
       "Select the subscriptions whose nodes you want to use, then set up node groups and routing rules. Only nodes are combined; subscription rules, groups, scripts and DNS are not inherited. Select up to 20 sources.",
     ),
+    "policyLowerFirst": MessageLookupByLibrary.simpleMessage("Lower first"),
     "policyManualAttribute": MessageLookupByLibrary.simpleMessage(
       "Manually confirmed",
     ),
@@ -1368,6 +1373,42 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyMemberPreview": MessageLookupByLibrary.simpleMessage(
       "Member preview",
     ),
+    "policyMembersAllSources": MessageLookupByLibrary.simpleMessage(
+      "All providers",
+    ),
+    "policyMembersAllStates": MessageLookupByLibrary.simpleMessage(
+      "All statuses",
+    ),
+    "policyMembersChecking": MessageLookupByLibrary.simpleMessage("Checking"),
+    "policyMembersDraft": MessageLookupByLibrary.simpleMessage(
+      "Save to refresh check results",
+    ),
+    "policyMembersExpired": MessageLookupByLibrary.simpleMessage(
+      "Result expired",
+    ),
+    "policyMembersExpiry": MessageLookupByLibrary.simpleMessage("Expiry"),
+    "policyMembersFailed": MessageLookupByLibrary.simpleMessage(
+      "Connection failed",
+    ),
+    "policyMembersFilters": MessageLookupByLibrary.simpleMessage(
+      "List filters",
+    ),
+    "policyMembersHealthy": MessageLookupByLibrary.simpleMessage("Available"),
+    "policyMembersLastCheck": MessageLookupByLibrary.simpleMessage(
+      "Last checked",
+    ),
+    "policyMembersNoResult": MessageLookupByLibrary.simpleMessage("No result"),
+    "policyMembersQuota": MessageLookupByLibrary.simpleMessage(
+      "Provider quota",
+    ),
+    "policyMembersRestricted": MessageLookupByLibrary.simpleMessage(
+      "Restricted",
+    ),
+    "policyMembersSource": MessageLookupByLibrary.simpleMessage("Provider"),
+    "policyMembersTitle": MessageLookupByLibrary.simpleMessage("Group nodes"),
+    "policyMembersUnchecked": MessageLookupByLibrary.simpleMessage(
+      "Not checked",
+    ),
     "policyMetadataAge": MessageLookupByLibrary.simpleMessage(
       "Metadata maximum age (hours)",
     ),
@@ -1379,6 +1420,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyModuleOffHint": MessageLookupByLibrary.simpleMessage(
       "Turning this off stops local rules, subscription merging and traffic limits; saved settings are kept",
     ),
+    "policyMoreFirst": MessageLookupByLibrary.simpleMessage("More first"),
     "policyMoreSettings": MessageLookupByLibrary.simpleMessage("More settings"),
     "policyMoveDown": MessageLookupByLibrary.simpleMessage("Move down"),
     "policyMoveUp": MessageLookupByLibrary.simpleMessage("Move up"),
@@ -1410,6 +1452,15 @@ class MessageLookup extends MessageLookupByLibrary {
       "No subscription sources yet; direct and block rules can still be added",
     ),
     "policyNodeSet": MessageLookupByLibrary.simpleMessage("Node group"),
+    "policyNodeSetConditions": MessageLookupByLibrary.simpleMessage(
+      "Group conditions",
+    ),
+    "policyNodeSetEditTitle": MessageLookupByLibrary.simpleMessage(
+      "Edit node group",
+    ),
+    "policyNodeSetExclusions": MessageLookupByLibrary.simpleMessage(
+      "Names and exclusions",
+    ),
     "policyNodeSetHint": MessageLookupByLibrary.simpleMessage(
       "Filter by provider, region, name and multiplier, then select by priority or distribute connections with load balancing.",
     ),
@@ -1421,6 +1472,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "policyNodeSetTarget": MessageLookupByLibrary.simpleMessage(
       "Profile that uses this group",
+    ),
+    "policyNodeSetTimed": MessageLookupByLibrary.simpleMessage(
+      "Time windows set",
     ),
     "policyNodeSets": MessageLookupByLibrary.simpleMessage("Node groups"),
     "policyNodes": MessageLookupByLibrary.simpleMessage("Nodes"),

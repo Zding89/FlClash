@@ -275,6 +275,13 @@ void main() {
             .widget<DropdownButtonFormField<NodeBalanceStrategy>>(balance)
             .onChanged!(NodeBalanceStrategy.stickySessions);
         await tester.pump();
+        final scheduleTitle = find
+            .text(AppLocalizations.current.policySchedule)
+            .first;
+        await tester.ensureVisible(scheduleTitle);
+        await tester.pumpAndSettle();
+        await tester.tap(scheduleTitle);
+        await tester.pumpAndSettle();
         final schedule = tester.widget<PolicyScheduleEditor>(
           find.byType(PolicyScheduleEditor),
         );

@@ -172,9 +172,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Node A'));
     await tester.pumpAndSettle();
-    final textFields = find.byType(TextField);
-    await tester.enterText(textFields.first, 'JP');
     final attributeDialog = find.byType(AlertDialog).last;
+    final textFields = find.descendant(
+      of: attributeDialog,
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(textFields.first, 'JP');
     await tester.tap(
       find.descendant(
         of: attributeDialog,

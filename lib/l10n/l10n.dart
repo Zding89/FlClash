@@ -9383,6 +9383,266 @@ class AppLocalizations {
       args: [],
     );
   }
+
+  /// `Provider`
+  String get policyMembersSource {
+    return Intl.message(
+      'Provider',
+      name: 'policyMembersSource',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Provider quota`
+  String get policyMembersQuota {
+    return Intl.message(
+      'Provider quota',
+      name: 'policyMembersQuota',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Expiry`
+  String get policyMembersExpiry {
+    return Intl.message(
+      'Expiry',
+      name: 'policyMembersExpiry',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Last checked`
+  String get policyMembersLastCheck {
+    return Intl.message(
+      'Last checked',
+      name: 'policyMembersLastCheck',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `All providers`
+  String get policyMembersAllSources {
+    return Intl.message(
+      'All providers',
+      name: 'policyMembersAllSources',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `All statuses`
+  String get policyMembersAllStates {
+    return Intl.message(
+      'All statuses',
+      name: 'policyMembersAllStates',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `No result`
+  String get policyMembersNoResult {
+    return Intl.message(
+      'No result',
+      name: 'policyMembersNoResult',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Not checked`
+  String get policyMembersUnchecked {
+    return Intl.message(
+      'Not checked',
+      name: 'policyMembersUnchecked',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Checking`
+  String get policyMembersChecking {
+    return Intl.message(
+      'Checking',
+      name: 'policyMembersChecking',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Result expired`
+  String get policyMembersExpired {
+    return Intl.message(
+      'Result expired',
+      name: 'policyMembersExpired',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Connection failed`
+  String get policyMembersFailed {
+    return Intl.message(
+      'Connection failed',
+      name: 'policyMembersFailed',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Restricted`
+  String get policyMembersRestricted {
+    return Intl.message(
+      'Restricted',
+      name: 'policyMembersRestricted',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Available`
+  String get policyMembersHealthy {
+    return Intl.message(
+      'Available',
+      name: 'policyMembersHealthy',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Group nodes`
+  String get policyMembersTitle {
+    return Intl.message(
+      'Group nodes',
+      name: 'policyMembersTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `List filters`
+  String get policyMembersFilters {
+    return Intl.message(
+      'List filters',
+      name: 'policyMembersFilters',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Save to refresh check results`
+  String get policyMembersDraft {
+    return Intl.message(
+      'Save to refresh check results',
+      name: 'policyMembersDraft',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Group conditions`
+  String get policyNodeSetConditions {
+    return Intl.message(
+      'Group conditions',
+      name: 'policyNodeSetConditions',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Names and exclusions`
+  String get policyNodeSetExclusions {
+    return Intl.message(
+      'Names and exclusions',
+      name: 'policyNodeSetExclusions',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Edit node group`
+  String get policyNodeSetEditTitle {
+    return Intl.message(
+      'Edit node group',
+      name: 'policyNodeSetEditTitle',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Time windows set`
+  String get policyNodeSetTimed {
+    return Intl.message(
+      'Time windows set',
+      name: 'policyNodeSetTimed',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Earlier first`
+  String get policyEarlierFirst {
+    return Intl.message(
+      'Earlier first',
+      name: 'policyEarlierFirst',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Later first`
+  String get policyLaterFirst {
+    return Intl.message(
+      'Later first',
+      name: 'policyLaterFirst',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Less first`
+  String get policyLessFirst {
+    return Intl.message(
+      'Less first',
+      name: 'policyLessFirst',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `More first`
+  String get policyMoreFirst {
+    return Intl.message(
+      'More first',
+      name: 'policyMoreFirst',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Lower first`
+  String get policyLowerFirst {
+    return Intl.message(
+      'Lower first',
+      name: 'policyLowerFirst',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Higher first`
+  String get policyHigherFirst {
+    return Intl.message(
+      'Higher first',
+      name: 'policyHigherFirst',
+      desc: '',
+      args: [],
+    );
+  }
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<AppLocalizations> {
