@@ -111,7 +111,8 @@ Finder _field(String id) => find.descendant(
   of: find.byKey(ValueKey('policy-rule-$id')),
   matching: find.byType(TextFormField),
 );
-Finder _nodeField(String label) => find.widgetWithText(TextFormField, label);
+Finder _nodeField(String label, {bool skipOffstage = true}) =>
+    find.widgetWithText(TextFormField, label, skipOffstage: skipOffstage);
 Future<void> _capture(WidgetTester tester, String filename) async {
   if (!_captureEnabled) return;
   FocusManager.instance.primaryFocus?.unfocus();
@@ -238,7 +239,7 @@ void main() {
       },
     );
     testWidgets(
-      'node set $device four sections, truthful status and mode preservation',
+      'node set $device compact split layout, truthful status and mode preservation',
       (tester) async {
         PolicyNodeSetEdit? attempted;
         var calls = 0;
@@ -270,6 +271,7 @@ void main() {
                   {
                     'nodeId': '1:jp',
                     'eligible': true,
+                    'healthy': true,
                     'lastProbeAt': 1791939600000,
                     'latencyMillis': 48,
                   },
@@ -284,8 +286,35 @@ void main() {
           size,
         );
         final strings = AppLocalizations.current;
+        final mobileView = find.byKey(const ValueKey('node-set-mobile-view'));
+        final advanced = find.byKey(
+          const ValueKey('node-set-advanced-settings'),
+        );
+        final advancedTitle = find.descendant(
+          of: advanced,
+          matching: find.text(strings.advancedConfig),
+        );
+        Future<void> showMembers(bool value) async {
+          if (mobileView.evaluate().isEmpty) return;
+          await _tap(
+            tester,
+            find.descendant(
+              of: mobileView,
+              matching: find.text(
+                value ? strings.policyNodes : strings.general,
+              ),
+            ),
+          );
+          expect(tester.widget<SegmentedButton<bool>>(mobileView).selected, {
+            value,
+          });
+        }
+
+        await showMembers(true);
+        expect(find.text('48 ms'), findsOneWidget);
+        await showMembers(false);
         await _capture(tester, 'v3-node-group-$device-ordinary');
-        await _tap(tester, find.text(strings.advancedConfig));
+        await _tap(tester, advancedTitle);
         for (final id in [
           'node-set-check-method',
           'node-set-check-frequency',
@@ -294,16 +323,30 @@ void main() {
         ]) {
           expect(find.byKey(ValueKey(id)), findsOneWidget);
         }
-        final method = tester.getTopLeft(
+        final settings = find.byKey(const ValueKey('node-set-settings-scroll'));
+        final method = tester.getRect(
           find.byKey(const ValueKey('node-set-check-method')),
         );
-        final frequency = tester.getTopLeft(
+        final frequency = tester.getRect(
           find.byKey(const ValueKey('node-set-check-frequency')),
         );
-        expect(
-          desktop ? frequency.dx > method.dx : frequency.dy > method.dy,
-          true,
-        );
+        expect(frequency.top, greaterThanOrEqualTo(method.bottom));
+        expect(frequency.left, closeTo(method.left, 0.01));
+        if (mobileView.evaluate().isEmpty) {
+          expect(tester.getSize(settings).width, inInclusiveRange(320, 340));
+          expect(
+            frequency.right,
+            lessThanOrEqualTo(tester.getRect(settings).right),
+          );
+          expect(
+            tester.getRect(settings).right,
+            lessThanOrEqualTo(
+              tester
+                  .getRect(find.byKey(const ValueKey('node-members-scroll')))
+                  .left,
+            ),
+          );
+        }
         expect(
           find.textContaining('${strings.policyChecksWaiting}: 24'),
           findsOneWidget,
@@ -325,13 +368,26 @@ void main() {
           find.textContaining('${strings.policyChecksWaiting}: 24'),
           findsNothing,
         );
+        await showMembers(true);
         expect(find.text('48 ms'), findsNothing);
+        expect(find.text(strings.policyMembersDraft), findsOneWidget);
         final initialCalls = calls;
-        await tester.pump(const Duration(seconds: 3));
+        await tester.pump(const Duration(seconds: 6));
         expect(calls, initialCalls);
-        await _tap(tester, find.text(strings.general));
+        await showMembers(false);
+        await _tap(tester, advancedTitle);
         expect(_nodeField(strings.policyProbeTimeout), findsNothing);
-        await _tap(tester, find.text(strings.advancedConfig));
+        final hiddenTimeout = _nodeField(
+          strings.policyProbeTimeout,
+          skipOffstage: false,
+        );
+        expect(hiddenTimeout, findsOneWidget);
+        expect(
+          tester.widget<TextFormField>(hiddenTimeout).controller!.text,
+          '8',
+        );
+        expect(tester.widget<ExpansionTile>(advanced).maintainState, isTrue);
+        await _tap(tester, advancedTitle);
         expect(
           tester
               .widget<TextFormField>(_nodeField(strings.policyProbeTimeout))
@@ -342,6 +398,7 @@ void main() {
         await _tap(tester, find.text(strings.policyCheckSave));
         expect(attempted!.nodeSet.probe.timeoutSeconds, 8);
         expect(attempted!.nodeSet.regions, ['JP']);
+        expect(attempted!.nodeSet.sourceIds, ['1']);
         expect(find.byType(PolicyNodeSetEditor), findsOneWidget);
         expect(
           tester
