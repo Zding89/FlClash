@@ -377,21 +377,24 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
   }
 
   Future<void> _newSet() async {
-    final next = await showDialog<PolicyNodeSetEdit>(
-      context: context,
-      builder: (_) => PolicyNodeSetEditor(
-        targetId: _target,
-        sources: {
-          ..._sources,
-          for (final n in _nodes) n.sourceId: n.sourceLabel,
-        },
-        nodes: _nodes,
-        sourceSummaries: widget.sourceSummaries,
-        loadSourceSummaries: widget.loadSourceSummaries,
-        attributes: _attributes,
-        referencedRules: const [],
-        onManageSources: widget.onManageSources == null ? null : _manageSources,
-        loadNodes: () => widget.loadNodes(_target),
+    final next = await Navigator.of(context).push<PolicyNodeSetEdit>(
+      MaterialPageRoute<PolicyNodeSetEdit>(
+        builder: (_) => PolicyNodeSetEditor(
+          targetId: _target,
+          sources: {
+            ..._sources,
+            for (final n in _nodes) n.sourceId: n.sourceLabel,
+          },
+          nodes: _nodes,
+          sourceSummaries: widget.sourceSummaries,
+          loadSourceSummaries: widget.loadSourceSummaries,
+          attributes: _attributes,
+          referencedRules: const [],
+          onManageSources: widget.onManageSources == null
+              ? null
+              : _manageSources,
+          loadNodes: () => widget.loadNodes(_target),
+        ),
       ),
     );
     if (next == null || !mounted) return;
@@ -405,22 +408,25 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
   }
 
   Future<void> _editSet(PolicyNodeSet set) async {
-    final next = await showDialog<PolicyNodeSetEdit>(
-      context: context,
-      builder: (_) => PolicyNodeSetEditor(
-        existing: set,
-        targetId: _target,
-        sources: {
-          ..._sources,
-          for (final n in _nodes) n.sourceId: n.sourceLabel,
-        },
-        nodes: _nodes,
-        sourceSummaries: widget.sourceSummaries,
-        loadSourceSummaries: widget.loadSourceSummaries,
-        attributes: _attributes,
-        referencedRules: widget.referencedRules[set.id] ?? const [],
-        onManageSources: widget.onManageSources == null ? null : _manageSources,
-        loadNodes: () => widget.loadNodes(_target),
+    final next = await Navigator.of(context).push<PolicyNodeSetEdit>(
+      MaterialPageRoute<PolicyNodeSetEdit>(
+        builder: (_) => PolicyNodeSetEditor(
+          existing: set,
+          targetId: _target,
+          sources: {
+            ..._sources,
+            for (final n in _nodes) n.sourceId: n.sourceLabel,
+          },
+          nodes: _nodes,
+          sourceSummaries: widget.sourceSummaries,
+          loadSourceSummaries: widget.loadSourceSummaries,
+          attributes: _attributes,
+          referencedRules: widget.referencedRules[set.id] ?? const [],
+          onManageSources: widget.onManageSources == null
+              ? null
+              : _manageSources,
+          loadNodes: () => widget.loadNodes(_target),
+        ),
       ),
     );
     if (next == null || !mounted) return;
@@ -642,199 +648,265 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
   @override
   Widget build(BuildContext context) {
     final strings = context.appLocalizations;
+    final theme = Theme.of(context);
+    final localTheme = theme.copyWith(
+      textTheme: theme.textTheme.copyWith(
+        bodyLarge: theme.textTheme.bodyLarge?.copyWith(fontSize: 14),
+        bodyMedium: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+        bodySmall: theme.textTheme.bodySmall?.copyWith(fontSize: 12),
+        labelLarge: theme.textTheme.labelLarge?.copyWith(fontSize: 14),
+        labelMedium: theme.textTheme.labelMedium?.copyWith(fontSize: 13),
+        titleSmall: theme.textTheme.titleSmall?.copyWith(fontSize: 14),
+        titleMedium: theme.textTheme.titleMedium?.copyWith(fontSize: 18),
+        titleLarge: theme.textTheme.titleLarge?.copyWith(fontSize: 20),
+      ),
+    );
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _leave();
       },
-      child: AlertDialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-        title: Text(
-          widget.existing == null
-              ? strings.policyAddRule
-              : strings.policyEditRule,
-        ),
-        content: SizedBox(
-          width: 1200,
-          child: SingleChildScrollView(
-            child: AbsorbPointer(
-              absorbing: _saving || _managingSources,
-              child: Form(
-                key: _form,
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final form = Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (_loading || _saving)
-                          const LinearProgressIndicator(),
-                        PolicyEditorSection(
-                          key: const ValueKey('policy-traffic-section'),
-                          step: 1,
-                          title: strings.policyTrafficSection,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _field('name', strings.name),
-                              const SizedBox(height: 4),
-
-                              PolicyMatchEditor(
-                                value: _matchForEditor(),
-                                onChanged: (value) => setState(() {
-                                  _scope = value.type;
-                                  _fields['scopeJson']!.text = jsonEncode(
-                                    value.toJson(),
-                                  );
-                                  _fields['scope']!.text = value.values.join(
-                                    '\n',
-                                  );
-                                }),
-                              ),
-                            ],
-                          ),
+      child: Theme(
+        data: localTheme,
+        child: Scaffold(
+          backgroundColor: localTheme.colorScheme.surface,
+          body: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        onPressed: _saving || _managingSources ? null : _leave,
+                        tooltip: strings.cancel,
+                        icon: const Icon(Icons.arrow_back),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          widget.existing == null
+                              ? strings.policyAddRule
+                              : strings.policyEditRule,
+                          style: localTheme.textTheme.titleLarge,
                         ),
-                        PolicyEditorSection(
-                          key: const ValueKey('policy-choice-section'),
-                          step: 2,
-                          title: strings.policyChoiceSection,
-                          child: _choiceEditor(),
-                        ),
-                        PolicyEditorSection(
-                          key: const ValueKey('policy-schedule-section'),
-                          step: 3,
-                          title: strings.policySchedule,
-                          child: PolicyScheduleEditor(
-                            value: _time,
-                            onChanged: (value) => setState(() => _time = value),
-                          ),
-                        ),
-                        Card.filled(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          child: ExpansionTile(
-                            key: const ValueKey('policy-more-settings'),
-                            maintainState: true,
-                            title: Text(strings.policyMoreSettings),
-                            childrenPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                            ),
-                            children: [
-                              SwitchListTile(
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(strings.policyEnableRules),
-                                value: _enabled,
-                                onChanged: (value) =>
-                                    setState(() => _enabled = value),
-                              ),
-
-                              ExpansionTile(
-                                tilePadding: EdgeInsets.zero,
-                                title: Text(strings.policyProbe),
-                                children: [
-                                  _field('probeUrl', strings.policyProbeUrl),
-                                  _field(
-                                    'interval',
-                                    strings.policyProbeInterval,
-                                    numeric: true,
-                                  ),
-                                  _field(
-                                    'timeout',
-                                    strings.policyProbeTimeout,
-                                    numeric: true,
-                                  ),
-                                  _field(
-                                    'failures',
-                                    strings.policyFailures,
-                                    numeric: true,
-                                  ),
-                                  _field(
-                                    'successes',
-                                    strings.policySuccesses,
-                                    numeric: true,
-                                  ),
-                                  _field(
-                                    'status',
-                                    strings.policyExpectedStatus,
-                                  ),
-                                ],
-                              ),
-                              ExpansionTile(
-                                tilePadding: EdgeInsets.zero,
-                                title: Text(strings.policyAdmission),
-                                children: [
-                                  _field(
-                                    'expiry',
-                                    strings.policyExpiryMargin,
-                                    numeric: true,
-                                  ),
-                                  _field(
-                                    'remaining',
-                                    strings.policyRemainingGiB,
-                                    numeric: true,
-                                  ),
-                                  _field(
-                                    'metadata',
-                                    strings.policyMetadataAge,
-                                    numeric: true,
-                                  ),
-                                  SwitchListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    title: Text(strings.policyUnknownMetadata),
-                                    value: _unknown,
-                                    onChanged: (value) =>
-                                        setState(() => _unknown = value),
-                                  ),
-                                ],
-                              ),
-                              SwitchListTile(
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(strings.policyTerminate),
-                                subtitle: Text(strings.policyTerminateHint),
-                                value: _terminate,
-                                onChanged: (value) =>
-                                    setState(() => _terminate = value),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (_error != null)
-                          Text(
-                            _error!,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                          ),
-                      ],
-                    );
-                    if (constraints.maxWidth >= 800) {
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(flex: 3, child: form),
-                          const SizedBox(width: 16),
-                          Expanded(child: _effect()),
-                        ],
-                      );
-                    }
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [form, _effect()],
-                    );
-                  },
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                const Divider(height: 1),
+                Expanded(
+                  child: SingleChildScrollView(
+                    key: const ValueKey('policy-rule-page-scroll'),
+                    padding: const EdgeInsets.all(16),
+                    child: AbsorbPointer(
+                      absorbing: _saving || _managingSources,
+                      child: Form(
+                        key: _form,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final form = Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (_loading || _saving)
+                                  const LinearProgressIndicator(),
+                                PolicyEditorSection(
+                                  key: const ValueKey('policy-traffic-section'),
+                                  step: 1,
+                                  title: strings.policyTrafficSection,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _field('name', strings.name),
+                                      const SizedBox(height: 4),
+
+                                      PolicyMatchEditor(
+                                        value: _matchForEditor(),
+                                        onChanged: (value) => setState(() {
+                                          _scope = value.type;
+                                          _fields['scopeJson']!.text =
+                                              jsonEncode(value.toJson());
+                                          _fields['scope']!.text = value.values
+                                              .join('\n');
+                                        }),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                PolicyEditorSection(
+                                  key: const ValueKey('policy-choice-section'),
+                                  step: 2,
+                                  title: strings.policyChoiceSection,
+                                  child: _choiceEditor(),
+                                ),
+                                PolicyEditorSection(
+                                  key: const ValueKey(
+                                    'policy-schedule-section',
+                                  ),
+                                  step: 3,
+                                  title: strings.policySchedule,
+                                  child: PolicyScheduleEditor(
+                                    value: _time,
+                                    onChanged: (value) =>
+                                        setState(() => _time = value),
+                                  ),
+                                ),
+                                Card.filled(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  child: ExpansionTile(
+                                    key: const ValueKey('policy-more-settings'),
+                                    maintainState: true,
+                                    title: Text(strings.policyMoreSettings),
+                                    childrenPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
+                                    children: [
+                                      SwitchListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        title: Text(strings.policyEnableRules),
+                                        value: _enabled,
+                                        onChanged: (value) =>
+                                            setState(() => _enabled = value),
+                                      ),
+
+                                      ExpansionTile(
+                                        tilePadding: EdgeInsets.zero,
+                                        title: Text(strings.policyProbe),
+                                        children: [
+                                          _field(
+                                            'probeUrl',
+                                            strings.policyProbeUrl,
+                                          ),
+                                          _field(
+                                            'interval',
+                                            strings.policyProbeInterval,
+                                            numeric: true,
+                                          ),
+                                          _field(
+                                            'timeout',
+                                            strings.policyProbeTimeout,
+                                            numeric: true,
+                                          ),
+                                          _field(
+                                            'failures',
+                                            strings.policyFailures,
+                                            numeric: true,
+                                          ),
+                                          _field(
+                                            'successes',
+                                            strings.policySuccesses,
+                                            numeric: true,
+                                          ),
+                                          _field(
+                                            'status',
+                                            strings.policyExpectedStatus,
+                                          ),
+                                        ],
+                                      ),
+                                      ExpansionTile(
+                                        tilePadding: EdgeInsets.zero,
+                                        title: Text(strings.policyAdmission),
+                                        children: [
+                                          _field(
+                                            'expiry',
+                                            strings.policyExpiryMargin,
+                                            numeric: true,
+                                          ),
+                                          _field(
+                                            'remaining',
+                                            strings.policyRemainingGiB,
+                                            numeric: true,
+                                          ),
+                                          _field(
+                                            'metadata',
+                                            strings.policyMetadataAge,
+                                            numeric: true,
+                                          ),
+                                          SwitchListTile(
+                                            contentPadding: EdgeInsets.zero,
+                                            title: Text(
+                                              strings.policyUnknownMetadata,
+                                            ),
+                                            value: _unknown,
+                                            onChanged: (value) => setState(
+                                              () => _unknown = value,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      SwitchListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        title: Text(strings.policyTerminate),
+                                        subtitle: Text(
+                                          strings.policyTerminateHint,
+                                        ),
+                                        value: _terminate,
+                                        onChanged: (value) =>
+                                            setState(() => _terminate = value),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (_error != null)
+                                  Text(
+                                    _error!,
+                                    style: TextStyle(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.error,
+                                    ),
+                                  ),
+                              ],
+                            );
+                            if (constraints.maxWidth >= 800) {
+                              return Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(flex: 3, child: form),
+                                  const SizedBox(width: 16),
+                                  Expanded(child: _effect()),
+                                ],
+                              );
+                            }
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [form, _effect()],
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  child: OverflowBar(
+                    alignment: MainAxisAlignment.end,
+                    spacing: 12,
+                    children: [
+                      TextButton(
+                        onPressed: _saving || _managingSources ? null : _leave,
+                        child: Text(strings.cancel),
+                      ),
+                      FilledButton(
+                        onPressed: _loading || _saving || _managingSources
+                            ? null
+                            : _save,
+                        child: Text(strings.save),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: _saving || _managingSources ? null : _leave,
-            child: Text(strings.cancel),
-          ),
-          FilledButton(
-            onPressed: _loading || _saving || _managingSources ? null : _save,
-            child: Text(strings.save),
-          ),
-        ],
       ),
     );
   }

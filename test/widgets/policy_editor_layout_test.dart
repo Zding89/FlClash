@@ -333,7 +333,12 @@ void main() {
         expect(frequency.top, greaterThanOrEqualTo(method.bottom));
         expect(frequency.left, closeTo(method.left, 0.01));
         if (mobileView.evaluate().isEmpty) {
-          expect(tester.getSize(settings).width, inInclusiveRange(320, 340));
+          expect(
+            tester.getSize(settings).width,
+            size.width >= 1000
+                ? inInclusiveRange(320, 340)
+                : inInclusiveRange(275, 285),
+          );
           expect(
             frequency.right,
             lessThanOrEqualTo(tester.getRect(settings).right),

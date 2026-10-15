@@ -6,6 +6,7 @@ import 'package:archive/archive_io.dart';
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/common/profile_compatibility.dart';
 import 'package:fl_clash/database/database.dart';
 import 'package:fl_clash/configuration/backup_archive.dart';
 import 'package:fl_clash/configuration/workbench_backup.dart';
@@ -269,7 +270,9 @@ Future<VM2<String, String>> _makeRealProfileTask(
     rawConfig['proxy-groups'] = data.proxyGroups;
   }
   rawConfig['rules'] = rules;
-  final yaml = await _encodeYaml(Map<String, dynamic>.from(rawConfig));
+  final yaml = await _encodeYaml(
+    normalizeLegacyClientFingerprint(Map<String, dynamic>.from(rawConfig)),
+  );
   return VM2(yaml, yaml.toMd5());
 }
 

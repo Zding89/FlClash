@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/configuration/changes.dart';
+import 'package:fl_clash/configuration/manual_policy_approval.dart';
 import 'package:fl_clash/database/workbench_database.dart';
 import 'package:fl_clash/models/profile.dart';
 import 'package:fl_clash/policy/models.dart';
@@ -40,6 +41,7 @@ class LocalPolicyWorkbenchView extends ConsumerStatefulWidget {
 class _LocalPolicyWorkbenchViewState
     extends ConsumerState<LocalPolicyWorkbenchView> {
   late final WorkbenchController _controller;
+  final _contentNavigator = GlobalKey<NavigatorState>();
   bool _busy = false;
   String? _message;
   bool _failed = false;
@@ -94,9 +96,11 @@ class _LocalPolicyWorkbenchViewState
     }
   }
 
-  Future<bool> _approve(ConfigurationProposal proposal) => mounted
-      ? showAiConfigurationApproval(context, proposal)
-      : Future.value(false);
+  Future<bool> _approve(ConfigurationProposal proposal) async {
+    if (!mounted) return false;
+    if (isPlainManualPolicyChange(proposal)) return true;
+    return showAiConfigurationApproval(context, proposal);
+  }
 
   Future<void> _apply(LocalPolicyDocument before, Object candidate) =>
       _operation((isCurrent) async {
@@ -140,94 +144,97 @@ class _LocalPolicyWorkbenchViewState
     LocalPolicy? existing,
   ) async {
     var baseDocument = document;
-    await showDialog<LocalPolicy>(
-      context: context,
-      builder: (_) => LocalPolicyEditor(
-        existing: existing,
-        loadNodes: (target) =>
-            _controller.loadNodes(target, document: baseDocument),
-        sources: _sourceNames(baseDocument),
-        sourceSummaries: _nodeSourceSummaries(),
-        loadSourceSummaries: _nodeSourceSummaries,
-        onManageSources: () async {
-          baseDocument = await _manageSources(baseDocument);
-          return _sourceNames(baseDocument);
-        },
-        referencedRules: {
-          for (final set in document.nodeSets)
-            set.id: baseDocument.policies
-                .where(
-                  (rule) => rule.choices.any(
-                    (choice) =>
-                        choice.type == PolicyChoiceType.nodeSet &&
-                        choice.id == set.id,
-                  ),
-                )
-                .map((rule) => rule.label)
-                .toList(),
-        },
-        initialPriority: existing?.priority ?? 100,
-        nodeSets: document.nodeSets,
-        attributes: document.nodeAttributes,
-        onSave: (rule, sets, attributes) async {
-          final next = LocalPolicyDocument.fromJson(
-            _patch(baseDocument, {
-              'policiesEnabled': baseDocument.policies.isEmpty
-                  ? true
-                  : baseDocument.policiesEnabled,
-              'policies': insertPolicy(
-                baseDocument.policies,
-                rule,
-              ).map((p) => p.toJson()).toList(),
-              'nodeSets': sets.map((s) => s.toJson()).toList(),
-              'nodeAttributes': attributes.map(
-                (k, v) => MapEntry(k, v.toJson()),
-              ),
-              'overrides': baseDocument.overrides
+    await _contentNavigator.currentState!.push<LocalPolicy>(
+      MaterialPageRoute<LocalPolicy>(
+        builder: (_) => LocalPolicyEditor(
+          existing: existing,
+          loadNodes: (target) =>
+              _controller.loadNodes(target, document: baseDocument),
+          sources: _sourceNames(baseDocument),
+          sourceSummaries: _nodeSourceSummaries(),
+          loadSourceSummaries: _nodeSourceSummaries,
+          onManageSources: () async {
+            baseDocument = await _manageSources(baseDocument);
+            return _sourceNames(baseDocument);
+          },
+          referencedRules: {
+            for (final set in document.nodeSets)
+              set.id: baseDocument.policies
                   .where(
-                    (o) =>
-                        o.policyId != rule.id ||
-                        (existing?.targetId == rule.targetId &&
-                            o.references(rule)),
+                    (rule) => rule.choices.any(
+                      (choice) =>
+                          choice.type == PolicyChoiceType.nodeSet &&
+                          choice.id == set.id,
+                    ),
                   )
-                  .map((o) => o.toJson())
+                  .map((rule) => rule.label)
                   .toList(),
-            }),
-          );
-          await _commitDocument(baseDocument, next);
-        },
-        onPreview: (rule, sets, attributes) async {
-          final next = LocalPolicyDocument.fromJson(
-            _patch(baseDocument, {
-              'policies': insertPolicy(
-                baseDocument.policies,
-                rule,
-              ).map((p) => p.toJson()).toList(),
-              'nodeSets': sets.map((s) => s.toJson()).toList(),
-              'nodeAttributes': attributes.map(
-                (k, v) => MapEntry(k, v.toJson()),
+          },
+          initialPriority: existing?.priority ?? 100,
+          nodeSets: document.nodeSets,
+          attributes: document.nodeAttributes,
+          onSave: (rule, sets, attributes) async {
+            final next = LocalPolicyDocument.fromJson(
+              _patch(baseDocument, {
+                'policiesEnabled': baseDocument.policies.isEmpty
+                    ? true
+                    : baseDocument.policiesEnabled,
+                'policies': insertPolicy(
+                  baseDocument.policies,
+                  rule,
+                ).map((p) => p.toJson()).toList(),
+                'nodeSets': sets.map((s) => s.toJson()).toList(),
+                'nodeAttributes': attributes.map(
+                  (k, v) => MapEntry(k, v.toJson()),
+                ),
+                'overrides': baseDocument.overrides
+                    .where(
+                      (o) =>
+                          o.policyId != rule.id ||
+                          (existing?.targetId == rule.targetId &&
+                              o.references(rule)),
+                    )
+                    .map((o) => o.toJson())
+                    .toList(),
+              }),
+            );
+            await _commitDocument(baseDocument, next);
+          },
+          onPreview: (rule, sets, attributes) async {
+            final next = LocalPolicyDocument.fromJson(
+              _patch(baseDocument, {
+                'policies': insertPolicy(
+                  baseDocument.policies,
+                  rule,
+                ).map((p) => p.toJson()).toList(),
+                'nodeSets': sets.map((s) => s.toJson()).toList(),
+                'nodeAttributes': attributes.map(
+                  (k, v) => MapEntry(k, v.toJson()),
+                ),
+                'overrides': baseDocument.overrides
+                    .where(
+                      (o) =>
+                          o.policyId != rule.id ||
+                          (existing?.targetId == rule.targetId &&
+                              o.references(rule)),
+                    )
+                    .map((o) => o.toJson())
+                    .toList(),
+              }),
+            );
+            await showDialog<void>(
+              context: context,
+              builder: (_) => PolicySimulationDialog(
+                document: next,
+                targets: {
+                  rule.targetId: targets[rule.targetId] ?? rule.targetId,
+                },
+                snapshot: ref.read(localPolicyStatusProvider).value ?? const {},
+                controller: _controller,
               ),
-              'overrides': baseDocument.overrides
-                  .where(
-                    (o) =>
-                        o.policyId != rule.id ||
-                        (existing?.targetId == rule.targetId &&
-                            o.references(rule)),
-                  )
-                  .map((o) => o.toJson())
-                  .toList(),
-            }),
-          );
-          await showDialog<void>(
-            context: context,
-            builder: (_) => PolicySimulationDialog(
-              document: next,
-              targets: {rule.targetId: targets[rule.targetId] ?? rule.targetId},
-              snapshot: ref.read(localPolicyStatusProvider).value ?? const {},
-              controller: _controller,
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -291,57 +298,58 @@ class _LocalPolicyWorkbenchViewState
       final nodes = await _controller.loadNodes(target, document: baseDocument);
       if (!mounted) return;
       final sourceNames = _sourceNames(baseDocument);
-      await showDialog<PolicyNodeSetEdit>(
-        context: context,
-        builder: (_) => PolicyNodeSetEditor(
-          existing: existing,
-          targetId: target,
-          sources: sourceNames,
-          sourceSummaries: _nodeSourceSummaries(),
-          loadSourceSummaries: _nodeSourceSummaries,
-          onManageSources: () async {
-            baseDocument = await _manageSources(baseDocument);
-            return _sourceNames(baseDocument);
-          },
-          loadNodes: () =>
-              _controller.loadNodes(target, document: baseDocument),
-          nodes: nodes,
-          attributes: document.nodeAttributes,
-          snapshot: snapshot,
-          loadStatus: coreController.getLocalPolicyDetails,
-          referencedRules: document.policies
-              .where(
-                (p) => p.choices.any(
-                  (c) =>
-                      c.type == PolicyChoiceType.nodeSet &&
-                      c.id == existing?.id,
-                ),
-              )
-              .map((p) => p.label)
-              .toList(),
-          onCheck: (id) async {
-            await coreController.checkLocalPolicyNodes({
-              'revision': snapshot['revision'],
-              'nodeSetId': id,
-            });
-          },
-          onSave: (edit) async {
-            await _commitDocument(
-              baseDocument,
-              LocalPolicyDocument.fromJson(
-                _patch(baseDocument, {
-                  'nodeSets': [
-                    for (final s in baseDocument.nodeSets)
-                      (s.id == edit.nodeSet.id ? edit.nodeSet : s).toJson(),
-                    if (existing == null) edit.nodeSet.toJson(),
-                  ],
-                  'nodeAttributes': edit.attributes.map(
-                    (k, v) => MapEntry(k, v.toJson()),
+      await _contentNavigator.currentState!.push<PolicyNodeSetEdit>(
+        MaterialPageRoute<PolicyNodeSetEdit>(
+          builder: (_) => PolicyNodeSetEditor(
+            existing: existing,
+            targetId: target,
+            sources: sourceNames,
+            sourceSummaries: _nodeSourceSummaries(),
+            loadSourceSummaries: _nodeSourceSummaries,
+            onManageSources: () async {
+              baseDocument = await _manageSources(baseDocument);
+              return _sourceNames(baseDocument);
+            },
+            loadNodes: () =>
+                _controller.loadNodes(target, document: baseDocument),
+            nodes: nodes,
+            attributes: document.nodeAttributes,
+            snapshot: snapshot,
+            loadStatus: coreController.getLocalPolicyDetails,
+            referencedRules: document.policies
+                .where(
+                  (p) => p.choices.any(
+                    (c) =>
+                        c.type == PolicyChoiceType.nodeSet &&
+                        c.id == existing?.id,
                   ),
-                }),
-              ),
-            );
-          },
+                )
+                .map((p) => p.label)
+                .toList(),
+            onCheck: (id) async {
+              await coreController.checkLocalPolicyNodes({
+                'revision': snapshot['revision'],
+                'nodeSetId': id,
+              });
+            },
+            onSave: (edit) async {
+              await _commitDocument(
+                baseDocument,
+                LocalPolicyDocument.fromJson(
+                  _patch(baseDocument, {
+                    'nodeSets': [
+                      for (final s in baseDocument.nodeSets)
+                        (s.id == edit.nodeSet.id ? edit.nodeSet : s).toJson(),
+                      if (existing == null) edit.nodeSet.toJson(),
+                    ],
+                    'nodeAttributes': edit.attributes.map(
+                      (k, v) => MapEntry(k, v.toJson()),
+                    ),
+                  }),
+                ),
+              );
+            },
+          ),
         ),
       );
     } catch (_) {
@@ -1440,100 +1448,127 @@ class _LocalPolicyWorkbenchViewState
         ref.watch(localPolicyStatusProvider).asData?.value ??
         const <String, Object?>{};
     final value = ref.watch(localPoliciesProvider);
-    return DefaultTabController(
-      length: 5,
-      initialIndex: widget.initialTab.clamp(0, 4),
-      child: CommonScaffold(
-        title: strings.policyWorkbenchTitle,
-        body: value.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, _) => Center(child: Text(strings.policyOperationFailed)),
-          data: (stored) {
-            final document = stored.asStandalone();
-            final targets = {
-              localPolicyTargetId: strings.policyLocalCollection,
-            };
-            final sources = {
-              for (final profile in profiles) '${profile.id}': profile.label,
-            };
-            return Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 980),
-                child: Column(
-                  children: [
-                    if (document.migrationReviewRequired)
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(strings.policyLocalMigrationReview),
-                      ),
-                    TabBar(
-                      isScrollable: true,
-                      tabs: [
-                        Tab(text: strings.policyRulesTab),
-                        Tab(text: strings.policyNodeSets),
-                        Tab(text: strings.policyQuotaOverview),
-                        Tab(text: strings.policyAdvancedTab),
-                        Tab(text: strings.policyHistoryTab),
-                      ],
-                    ),
-                    if (_busy) const LinearProgressIndicator(),
-                    if (_message != null)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
+    return NavigatorPopHandler<Object?>(
+      onPopWithResult: (_) {
+        _contentNavigator.currentState?.maybePop();
+      },
+      child: Navigator(
+        key: _contentNavigator,
+        pages: [
+          MaterialPage<void>(
+            key: const ValueKey('policy-workbench-home'),
+            child: DefaultTabController(
+              length: 5,
+              initialIndex: widget.initialTab.clamp(0, 4),
+              child: CommonScaffold(
+                title: strings.policyWorkbenchTitle,
+                body: value.when(
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (_, _) =>
+                      Center(child: Text(strings.policyOperationFailed)),
+                  data: (stored) {
+                    final document = stored.asStandalone();
+                    final targets = {
+                      localPolicyTargetId: strings.policyLocalCollection,
+                    };
+                    final sources = {
+                      for (final profile in profiles)
+                        '${profile.id}': profile.label,
+                    };
+                    return Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 980),
+                        child: Column(
+                          children: [
+                            if (document.migrationReviewRequired)
+                              Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Text(strings.policyLocalMigrationReview),
+                              ),
+                            TabBar(
+                              isScrollable: true,
+                              tabs: [
+                                Tab(text: strings.policyRulesTab),
+                                Tab(text: strings.policyNodeSets),
+                                Tab(text: strings.policyQuotaOverview),
+                                Tab(text: strings.policyAdvancedTab),
+                                Tab(text: strings.policyHistoryTab),
+                              ],
+                            ),
+                            if (_busy) const LinearProgressIndicator(),
+                            if (_message != null)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                child: Text(
+                                  _message!,
+                                  style: _failed
+                                      ? TextStyle(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.error,
+                                        )
+                                      : null,
+                                ),
+                              ),
+                            Expanded(
+                              child: TabBarView(
+                                children: [
+                                  _rules(document, targets, snapshot),
+                                  _nodeSets(document, targets, snapshot),
+                                  _LocalQuotaPage(
+                                    document: document,
+                                    controller: _controller,
+                                    onManageSources: _busy
+                                        ? null
+                                        : () => _manageSources(document),
+                                  ),
+                                  _list([
+                                    Text(strings.policyLocalAdvancedHint),
+                                    const SizedBox(height: 12),
+                                    ExpansionTile(
+                                      key: const PageStorageKey(
+                                        'policy-update-route',
+                                      ),
+                                      title: Text(strings.policyUpdateRoute),
+                                      children: [_sourceUpdateRoute(document)],
+                                    ),
+                                    ExpansionTile(
+                                      key: const PageStorageKey(
+                                        'policy-budgets',
+                                      ),
+                                      title: Text(strings.policyBudgetTab),
+                                      children: [
+                                        _budgets(document, sources, snapshot),
+                                      ],
+                                    ),
+                                    ListTile(
+                                      leading: const Icon(Icons.data_object),
+                                      title: Text(strings.policyAdvancedJson),
+                                      onTap: _busy
+                                          ? null
+                                          : () => _json(document),
+                                    ),
+                                  ]),
+                                  _history(),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        child: Text(
-                          _message!,
-                          style: _failed
-                              ? TextStyle(
-                                  color: Theme.of(context).colorScheme.error,
-                                )
-                              : null,
-                        ),
                       ),
-                    Expanded(
-                      child: TabBarView(
-                        children: [
-                          _rules(document, targets, snapshot),
-                          _nodeSets(document, targets, snapshot),
-                          _LocalQuotaPage(
-                            document: document,
-                            controller: _controller,
-                            onManageSources: _busy
-                                ? null
-                                : () => _manageSources(document),
-                          ),
-                          _list([
-                            Text(strings.policyLocalAdvancedHint),
-                            const SizedBox(height: 12),
-                            ExpansionTile(
-                              key: const PageStorageKey('policy-update-route'),
-                              title: Text(strings.policyUpdateRoute),
-                              children: [_sourceUpdateRoute(document)],
-                            ),
-                            ExpansionTile(
-                              key: const PageStorageKey('policy-budgets'),
-                              title: Text(strings.policyBudgetTab),
-                              children: [_budgets(document, sources, snapshot)],
-                            ),
-                            ListTile(
-                              leading: const Icon(Icons.data_object),
-                              title: Text(strings.policyAdvancedJson),
-                              onTap: _busy ? null : () => _json(document),
-                            ),
-                          ]),
-                          _history(),
-                        ],
-                      ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ),
-            );
-          },
-        ),
+            ),
+          ),
+        ],
+        onDidRemovePage: (_) {},
       ),
     );
   }

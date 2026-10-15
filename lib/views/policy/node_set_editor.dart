@@ -776,13 +776,14 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 4,
           children: [
-            Expanded(
-              child: Text(
-                strings.policyNodeSetConditions,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+            Text(
+              strings.policyNodeSetConditions,
+              style: Theme.of(context).textTheme.titleMedium,
             ),
             if (widget.onManageSources != null)
               TextButton(
@@ -1142,159 +1143,151 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
       },
       child: Theme(
         data: localTheme,
-        child: LayoutBuilder(
-          builder: (context, viewport) => Dialog(
-            insetPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 24,
-            ),
-            child: SizedBox(
-              width: (viewport.maxWidth - 32).clamp(0, 1760),
-              height:
-                  (viewport.maxHeight -
-                          MediaQuery.viewInsetsOf(context).bottom -
-                          48)
-                      .clamp(180, 1200),
-              child: Form(
-                key: _form,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              IconButton(
-                                onPressed: _busy || _managingSources
-                                    ? null
-                                    : _leave,
-                                tooltip: strings.cancel,
-                                icon: const Icon(Icons.arrow_back),
+        child: Scaffold(
+          backgroundColor: localTheme.colorScheme.surface,
+          body: SafeArea(
+            child: Form(
+              key: _form,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            IconButton(
+                              onPressed: _busy || _managingSources
+                                  ? null
+                                  : _leave,
+                              tooltip: strings.cancel,
+                              icon: const Icon(Icons.arrow_back),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                strings.policyNodeSetEditTitle,
+                                style: localTheme.textTheme.titleLarge,
                               ),
-                              const SizedBox(width: 8),
+                            ),
+                          ],
+                        ),
+                        _field('label', strings.name, required: false),
+                      ],
+                    ),
+                  ),
+                  if (_busy || _managingSources)
+                    const LinearProgressIndicator(minHeight: 2),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: AbsorbPointer(
+                      absorbing: _busy || _managingSources,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final settings = Scrollbar(
+                            controller: _settingsScroll,
+                            thumbVisibility: constraints.maxWidth >= 800,
+                            child: SingleChildScrollView(
+                              key: const ValueKey('node-set-settings-scroll'),
+                              controller: _settingsScroll,
+                              padding: const EdgeInsets.all(16),
+                              child: _formContent(),
+                            ),
+                          );
+                          final members = _members();
+                          if (constraints.maxWidth >= 800) {
+                            final scale =
+                                MediaQuery.textScalerOf(context).scale(14) / 14;
+                            final settingsWidth = constraints.maxWidth >= 1000
+                                ? 324.0
+                                : 280.0;
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                SizedBox(
+                                  width: (settingsWidth * scale).clamp(
+                                    settingsWidth,
+                                    410,
+                                  ),
+                                  child: settings,
+                                ),
+                                const VerticalDivider(width: 1),
+                                Expanded(child: members),
+                              ],
+                            );
+                          }
+                          return Column(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                child: SegmentedButton<bool>(
+                                  key: const ValueKey('node-set-mobile-view'),
+                                  showSelectedIcon: false,
+                                  segments: [
+                                    ButtonSegment(
+                                      value: false,
+                                      label: Text(strings.general),
+                                    ),
+                                    ButtonSegment(
+                                      value: true,
+                                      label: Text(strings.policyNodes),
+                                    ),
+                                  ],
+                                  selected: {_showMembers},
+                                  onSelectionChanged: (values) => setState(
+                                    () => _showMembers = values.single,
+                                  ),
+                                ),
+                              ),
                               Expanded(
-                                child: Text(
-                                  strings.policyNodeSetEditTitle,
-                                  style: localTheme.textTheme.titleLarge,
+                                child: IndexedStack(
+                                  index: _showMembers ? 1 : 0,
+                                  children: [settings, members],
                                 ),
                               ),
                             ],
-                          ),
-                          _field('label', strings.name, required: false),
-                        ],
+                          );
+                        },
                       ),
                     ),
-                    if (_busy || _managingSources)
-                      const LinearProgressIndicator(minHeight: 2),
-                    const Divider(height: 1),
-                    Expanded(
-                      child: AbsorbPointer(
-                        absorbing: _busy || _managingSources,
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final settings = Scrollbar(
-                              controller: _settingsScroll,
-                              thumbVisibility: constraints.maxWidth >= 900,
-                              child: SingleChildScrollView(
-                                key: const ValueKey('node-set-settings-scroll'),
-                                controller: _settingsScroll,
-                                padding: const EdgeInsets.all(16),
-                                child: _formContent(),
-                              ),
-                            );
-                            final members = _members();
-                            if (constraints.maxWidth >= 900) {
-                              final scale =
-                                  MediaQuery.textScalerOf(context).scale(14) /
-                                  14;
-                              return Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  SizedBox(
-                                    width: (324 * scale).clamp(304, 410),
-                                    child: settings,
-                                  ),
-                                  const VerticalDivider(width: 1),
-                                  Expanded(child: members),
-                                ],
-                              );
-                            }
-                            return Column(
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  child: SegmentedButton<bool>(
-                                    key: const ValueKey('node-set-mobile-view'),
-                                    showSelectedIcon: false,
-                                    segments: [
-                                      ButtonSegment(
-                                        value: false,
-                                        label: Text(strings.general),
-                                      ),
-                                      ButtonSegment(
-                                        value: true,
-                                        label: Text(strings.policyNodes),
-                                      ),
-                                    ],
-                                    selected: {_showMembers},
-                                    onSelectionChanged: (values) => setState(
-                                      () => _showMembers = values.single,
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: IndexedStack(
-                                    index: _showMembers ? 1 : 0,
-                                    children: [settings, members],
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    if (_error != null)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 4,
-                        ),
-                        child: Text(
-                          _error!,
-                          style: TextStyle(color: theme.colorScheme.error),
-                        ),
-                      ),
-                    const Divider(height: 1),
+                  ),
+                  if (_error != null)
                     Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
-                        vertical: 10,
+                        vertical: 4,
                       ),
-                      child: OverflowBar(
-                        alignment: MainAxisAlignment.end,
-                        spacing: 12,
-                        children: [
-                          TextButton(
-                            onPressed: _busy || _managingSources
-                                ? null
-                                : _leave,
-                            child: Text(strings.cancel),
-                          ),
-                          FilledButton(
-                            onPressed: _busy || _managingSources ? null : _save,
-                            child: Text(strings.policyCheckSave),
-                          ),
-                        ],
+                      child: Text(
+                        _error!,
+                        style: TextStyle(color: theme.colorScheme.error),
                       ),
                     ),
-                  ],
-                ),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    child: OverflowBar(
+                      alignment: MainAxisAlignment.end,
+                      spacing: 12,
+                      children: [
+                        TextButton(
+                          onPressed: _busy || _managingSources ? null : _leave,
+                          child: Text(strings.cancel),
+                        ),
+                        FilledButton(
+                          onPressed: _busy || _managingSources ? null : _save,
+                          child: Text(strings.policyCheckSave),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

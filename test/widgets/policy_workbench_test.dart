@@ -6,6 +6,7 @@ import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/common/theme.dart';
 import 'package:fl_clash/views/profiles/profiles.dart';
 import 'package:fl_clash/configuration/changes.dart';
+import 'package:fl_clash/views/ai/approval.dart';
 import 'package:fl_clash/database/workbench_database.dart';
 import 'package:fl_clash/l10n/l10n.dart';
 import 'package:fl_clash/enum/enum.dart';
@@ -17,6 +18,7 @@ import 'package:fl_clash/providers/database.dart';
 import 'package:fl_clash/providers/workbench.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/views/policy/policy.dart';
+import 'package:fl_clash/views/policy/node_set_editor.dart';
 import 'package:fl_clash/views/policy/selection_fields.dart';
 import 'package:fl_clash/views/policy/rule_editor.dart';
 import 'package:fl_clash/views/policy/source_picker.dart';
@@ -112,7 +114,7 @@ class _Controller extends Mock implements WorkbenchController {
       expiresAt: 9999999999999,
       differences: [
         ConfigurationDifference(
-          path: 'policiesEnabled',
+          path: 'policies.policiesEnabled',
           before: true,
           after: false,
         ),
@@ -133,6 +135,49 @@ class _Controller extends Mock implements WorkbenchController {
     applies++;
     document = proposed ?? document;
     return {'status': 'applied'};
+  }
+}
+
+class _ScriptApprovalController extends _Controller {
+  @override
+  Future<ConfigurationProposal> proposePolicies(
+    LocalPolicyDocument value,
+  ) async {
+    final proposal = await super.proposePolicies(value);
+    return ConfigurationProposal(
+      id: proposal.id,
+      summary: proposal.summary,
+      highRisk: proposal.highRisk,
+      expiresAt: proposal.expiresAt,
+      differences: proposal.differences,
+      validation: const {'executionOnly': true},
+    );
+  }
+}
+
+class _PageController extends _Controller {
+  _PageController(this.updates);
+  final StreamController<LocalPolicyDocument> updates;
+  bool failCommit = false;
+
+  @override
+  Future<Map<String, Object?>> commit(
+    ConfigurationProposal proposal, {
+    required ConfigurationApproval approve,
+    bool Function()? isCurrent,
+  }) async {
+    if (failCommit) {
+      throw const ConfigurationChangeException(
+        'configuration_version_conflict',
+      );
+    }
+    final result = await super.commit(
+      proposal,
+      approve: approve,
+      isCurrent: isCurrent,
+    );
+    if (result['status'] == 'applied') updates.add(document);
+    return result;
   }
 }
 
@@ -178,6 +223,8 @@ Future<ProviderContainer> _mountWorkbench(
   Size size = const Size(944, 568),
   GlobalKey? capture,
   Widget? home,
+  Stream<LocalPolicyDocument>? documents,
+  double textScale = 1,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -188,7 +235,7 @@ Future<ProviderContainer> _mountWorkbench(
       workbenchControllerProvider.overrideWithValue(controller),
       workbenchDatabaseProvider.overrideWithValue(_Database()),
       localPoliciesProvider.overrideWith(
-        (_) => Stream.value(controller.document),
+        (_) => documents ?? Stream.value(controller.document),
       ),
       localPolicyStatusProvider.overrideWith(
         (_) => Stream.value({'state': 'core_disconnected'}),
@@ -217,7 +264,12 @@ Future<ProviderContainer> _mountWorkbench(
         builder: (context, child) {
           globalState.measure = Measure.of(context, 1);
           globalState.theme = CommonTheme.of(context, 1);
-          return child!;
+          return MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          );
         },
         home: RepaintBoundary(
           key: capture,
@@ -268,6 +320,248 @@ void main() {
       'MaterialIcons',
     )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
   });
+  for (final textScale in [1.0, 1.4]) {
+    testWidgets(
+      'content editor keeps two columns with a sidebar and 864px content at scale $textScale',
+      (tester) async {
+        await _mountWorkbench(
+          tester,
+          controller: _Controller(),
+          size: const Size(944, 700),
+          textScale: textScale,
+          home: const Scaffold(
+            body: Row(
+              children: [
+                SizedBox(width: 80, child: Text('Outer navigation')),
+                Expanded(child: LocalPolicyWorkbenchView(initialTab: 1)),
+              ],
+            ),
+          ),
+        );
+        final strings = AppLocalizations.current;
+        await _tap(
+          tester,
+          find.widgetWithText(FilledButton, strings.policyNodeSet),
+        );
+        final editor = find.byType(PolicyNodeSetEditor);
+        expect(tester.getSize(editor).width, 864);
+        expect(
+          find.byKey(const ValueKey('node-set-mobile-view')),
+          findsNothing,
+        );
+        final settings = find.byKey(const ValueKey('node-set-settings-scroll'));
+        final members = find.byKey(const ValueKey('node-members-scroll'));
+        expect(tester.getSize(settings).width, closeTo(280 * textScale, .01));
+        expect(
+          tester.getRect(settings).right,
+          lessThanOrEqualTo(tester.getRect(members).left),
+        );
+        final search = find.byKey(const ValueKey('node-members-search'));
+        await tester.ensureVisible(search);
+        await tester.enterText(search, 'Node A');
+        await tester.pumpAndSettle();
+        expect(
+          find.descendant(
+            of: find.byType(DataTable),
+            matching: find.text('Node A'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find
+              .byKey(const ValueKey('node-members-source-filter'))
+              .hitTestable(),
+          findsOneWidget,
+        );
+        expect(
+          find
+              .widgetWithText(FilledButton, strings.policyCheckSave)
+              .hitTestable(),
+          findsOneWidget,
+        );
+        expect(find.byTooltip(strings.cancel).hitTestable(), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(milliseconds: 1));
+      },
+    );
+  }
+
+  for (final width in [390.0, 1200.0]) {
+    testWidgets(
+      'content pages keep outer navigation and rule inputs across node group editing at $width',
+      (tester) async {
+        final updates = StreamController<LocalPolicyDocument>();
+        addTearDown(updates.close);
+        final controller = _PageController(updates)..failCommit = true;
+        updates.add(controller.document);
+        var navigationTaps = 0;
+        final navigation = TextButton(
+          onPressed: () => navigationTaps++,
+          child: const Text('Outer navigation'),
+        );
+        await _mountWorkbench(
+          tester,
+          controller: controller,
+          documents: updates.stream,
+          size: Size(width, 800),
+          home: Scaffold(
+            body: width >= 900
+                ? Row(
+                    children: [
+                      SizedBox(width: 160, child: navigation),
+                      const Expanded(child: LocalPolicyWorkbenchView()),
+                    ],
+                  )
+                : Column(
+                    children: [
+                      const Expanded(child: LocalPolicyWorkbenchView()),
+                      SizedBox(height: 48, child: navigation),
+                    ],
+                  ),
+          ),
+        );
+        final outer = tester.state<NavigatorState>(
+          find.byType(Navigator).first,
+        );
+        final strings = AppLocalizations.current;
+        await _tap(tester, find.byTooltip(strings.edit));
+        expect(find.byType(LocalPolicyEditor), findsOneWidget);
+        expect(find.byType(Dialog), findsNothing);
+        expect(outer.canPop(), isFalse);
+        final editorState = tester.state(find.byType(LocalPolicyEditor));
+        final name = find.descendant(
+          of: find.byKey(const ValueKey('policy-rule-name')),
+          matching: find.byType(TextFormField),
+        );
+        await tester.enterText(name, 'Preserved rule input');
+        await _tap(tester, find.byKey(const ValueKey('policy-add-node-set')));
+        expect(find.byType(PolicyNodeSetEditor), findsOneWidget);
+        expect(find.byType(Dialog), findsNothing);
+        expect(outer.canPop(), isFalse);
+        expect(find.text('Outer navigation').hitTestable(), findsOneWidget);
+        final groupName = find.byWidgetPredicate(
+          (widget) =>
+              widget is TextField &&
+              widget.decoration?.labelText == strings.name,
+        );
+        await tester.enterText(groupName, 'Draft group');
+        await _tap(tester, find.text(strings.policyCheckSave));
+        expect(find.byType(PolicyNodeSetEditor), findsNothing);
+        expect(tester.state(find.byType(LocalPolicyEditor)), same(editorState));
+        expect(
+          tester.widget<TextFormField>(name).controller!.text,
+          'Preserved rule input',
+        );
+        expect(find.text('Draft group'), findsWidgets);
+        await _tap(tester, find.byKey(const ValueKey('policy-edit-node-set')));
+        await tester.enterText(groupName, 'Updated draft group');
+        await _tap(tester, find.text(strings.policyCheckSave));
+        expect(tester.state(find.byType(LocalPolicyEditor)), same(editorState));
+        expect(
+          tester.widget<TextFormField>(name).controller!.text,
+          'Preserved rule input',
+        );
+        expect(find.text('Updated draft group'), findsWidgets);
+        await _tap(tester, find.widgetWithText(FilledButton, strings.save));
+        expect(find.byType(LocalPolicyEditor), findsOneWidget);
+        expect(find.text(strings.policyOperationFailed), findsOneWidget);
+        expect(
+          tester.widget<TextFormField>(name).controller!.text,
+          'Preserved rule input',
+        );
+        expect(controller.applies, 0);
+        await _tap(tester, find.text('Outer navigation'));
+        expect(navigationTaps, 1);
+        controller.failCommit = false;
+        await tester.tap(find.widgetWithText(FilledButton, strings.save));
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.byType(AiConfigurationApprovalDialog), findsNothing);
+        await tester.pumpAndSettle();
+        expect(find.byType(LocalPolicyEditor), findsNothing);
+        expect(find.text('Preserved rule input'), findsOneWidget);
+        expect(
+          controller.document.nodeSets.single.label,
+          'Updated draft group',
+        );
+        expect(
+          controller.document.policies.single.choices.single.id,
+          controller.document.nodeSets.single.id,
+        );
+        expect(controller.applies, 1);
+        expect(outer.canPop(), isFalse);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(milliseconds: 1));
+      },
+    );
+  }
+
+  testWidgets(
+    'content editor protects dirty exit and keeps root tab and provider updates',
+    (tester) async {
+      final updates = StreamController<LocalPolicyDocument>();
+      addTearDown(updates.close);
+      final controller = _PageController(updates);
+      updates.add(controller.document);
+      await _mountWorkbench(
+        tester,
+        controller: controller,
+        documents: updates.stream,
+        initialTab: 1,
+        size: const Size(1200, 850),
+      );
+      final strings = AppLocalizations.current;
+      final tabState = DefaultTabController.of(
+        tester.element(find.byType(TabBar)),
+      );
+      await _tap(
+        tester,
+        find.widgetWithText(FilledButton, strings.policyNodeSet),
+      );
+      expect(find.byType(PolicyNodeSetEditor), findsOneWidget);
+      expect(find.byType(Dialog), findsNothing);
+      final name = find.byWidgetPredicate(
+        (widget) =>
+            widget is TextField && widget.decoration?.labelText == strings.name,
+      );
+      await tester.enterText(name, 'Unsaved group');
+      final changed = LocalPolicyDocument.fromJson({
+        ...controller.document.toJson(),
+        'nodeSets': [
+          const PolicyNodeSet(
+            id: 'external-group',
+            label: 'Provider update while editing',
+            targetId: localPolicyTargetId,
+            sourceIds: ['1'],
+          ).toJson(),
+        ],
+      });
+      controller.document = changed;
+      updates.add(changed);
+      await tester.pumpAndSettle();
+      final outer = tester.state<NavigatorState>(find.byType(Navigator).first);
+      await outer.maybePop();
+      await tester.pumpAndSettle();
+      expect(find.text(strings.policyUnsavedTitle), findsOneWidget);
+      await _tap(tester, find.text(strings.policyContinueEditing));
+      expect(tester.widget<TextField>(name).controller!.text, 'Unsaved group');
+      await _tap(tester, find.byTooltip(strings.cancel));
+      await _tap(tester, find.text(strings.policyDiscardChanges));
+      expect(find.byType(PolicyNodeSetEditor), findsNothing);
+      expect(
+        DefaultTabController.of(tester.element(find.byType(TabBar))),
+        same(tabState),
+      );
+      expect(tabState.index, 1);
+      expect(find.text('Provider update while editing'), findsOneWidget);
+      expect(find.byType(Dialog), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 1));
+    },
+  );
+
   for (final width in [390.0, 1200.0]) {
     testWidgets(
       'standalone profile card retains the original layout at width $width',
@@ -390,7 +684,7 @@ void main() {
           PolicyAction.direct,
         );
         expect(controller.proposed!.localProfile.sourceProfileIds, isEmpty);
-        await tester.tap(find.text(strings.aiApprove));
+        expect(find.byType(AiConfigurationApprovalDialog), findsNothing);
         await tester.pumpAndSettle();
         expect(controller.applies, 1);
         expect(container.read(currentProfileIdProvider), 2);
@@ -401,9 +695,9 @@ void main() {
     );
   }
   testWidgets(
-    'disabling a local rule retains choices and rejecting approval prevents apply',
+    'script execution still requires confirmation and rejection prevents apply',
     (tester) async {
-      final controller = _Controller();
+      final controller = _ScriptApprovalController();
       await _mountWorkbench(tester, controller: controller);
       await tester.ensureVisible(find.byType(Switch).last);
       await tester.pumpAndSettle();
@@ -423,6 +717,26 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1));
     },
   );
+  testWidgets('manual rule toggle applies once without a duplicate dialog', (
+    tester,
+  ) async {
+    final controller = _Controller();
+    await _mountWorkbench(tester, controller: controller);
+    await tester.ensureVisible(find.byType(Switch).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(Switch).last);
+    await tester.pumpAndSettle();
+    expect(find.byType(AiConfigurationApprovalDialog), findsNothing);
+    expect(controller.applies, 1);
+    expect(controller.document.policies.single.enabled, isFalse);
+    expect(controller.document.policies.single.candidateNodeIds, [
+      '1:a',
+      '1:b',
+    ]);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 1));
+  });
   testWidgets(
     'local group list has no target binding and uses friendly filter summaries',
     (tester) async {
@@ -505,6 +819,11 @@ void main() {
       await _tap(tester, find.text(strings.policySubscriptionSources));
       expect(find.byType(PolicySourcePicker), findsOneWidget);
       await _tap(tester, find.byKey(const ValueKey('policy-source-2')));
+      await _tap(tester, find.text(strings.cancel));
+      expect(controller.applies, 0);
+      expect(controller.proposed, isNull);
+      await _tap(tester, find.text(strings.policySubscriptionSources));
+      await _tap(tester, find.byKey(const ValueKey('policy-source-2')));
       await tester.tap(find.text(strings.save));
       await tester.pump(const Duration(milliseconds: 400));
       expect(controller.proposed!.localProfile.sourceProfileIds, [1, 2]);
@@ -521,29 +840,13 @@ void main() {
       );
       expect(container.read(currentProfileIdProvider), 2);
       expect(controller.selectedTargets, isEmpty);
-      await tester.tap(find.text(strings.aiReject));
       await tester.pumpAndSettle();
-      expect(controller.applies, 0);
-      expect(find.byType(PolicySourcePicker), findsOneWidget);
-      expect(find.text(strings.policyRejectedStatus), findsOneWidget);
+      expect(find.byType(AiConfigurationApprovalDialog), findsNothing);
+      expect(controller.applies, 1);
+      expect(find.byType(PolicySourcePicker), findsNothing);
+      expect(find.text(strings.policyRejectedStatus), findsNothing);
       expect(find.text(strings.policyOperationFailed), findsNothing);
-      expect(
-        tester
-            .widget<FilledButton>(
-              find.widgetWithText(FilledButton, strings.save),
-            )
-            .onPressed,
-        isNotNull,
-      );
-      expect(
-        tester
-            .widget<CheckboxListTile>(
-              find.byKey(const ValueKey('policy-source-2')),
-            )
-            .value,
-        isTrue,
-      );
-      await _tap(tester, find.text(strings.cancel));
+      expect(controller.document.localProfile.sourceProfileIds, [1, 2]);
       await _tap(tester, find.widgetWithText(Tab, strings.policyAdvancedTab));
       await _tap(tester, find.text(strings.policyBudgetTab));
       expect(find.text(strings.policyAddBudget), findsOneWidget);
@@ -620,7 +923,7 @@ void main() {
         ),
       );
       await tester.pump(const Duration(milliseconds: 400));
-      await tester.tap(find.text(strings.aiApprove));
+      expect(find.byType(AiConfigurationApprovalDialog), findsNothing);
       await tester.pumpAndSettle();
       expect(controller.applies, 1);
       expect(controller.document.localProfile.sourceProfileIds, [2]);
@@ -631,7 +934,7 @@ void main() {
       await tester.ensureVisible(saveRule);
       await tester.tap(saveRule);
       await tester.pump(const Duration(milliseconds: 400));
-      await tester.tap(find.text(strings.aiApprove));
+      expect(find.byType(AiConfigurationApprovalDialog), findsNothing);
       await tester.pumpAndSettle();
       expect(controller.applies, 2);
       expect(controller.document.localProfile.sourceProfileIds, [2]);
@@ -643,26 +946,27 @@ void main() {
     },
   );
 
-  testWidgets('source save stops if the workbench is disposed after approval', (
-    tester,
-  ) async {
-    final controller = _DelayedCommitController();
-    await _mountWorkbench(tester, controller: controller);
-    final strings = AppLocalizations.current;
-    await _tap(tester, find.text(strings.policySubscriptionSources));
-    await _tap(tester, find.byKey(const ValueKey('policy-source-1')));
-    await tester.tap(find.text(strings.save));
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.tap(find.text(strings.aiApprove));
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(controller.approved.isCompleted, isTrue);
-    await tester.pumpWidget(const SizedBox());
-    controller.release.complete();
-    await tester.pumpAndSettle();
-    expect(controller.applies, 0);
-    expect(controller.document.localProfile.sourceProfileIds, [1, 2]);
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'source save stops if the workbench is disposed after explicit save',
+    (tester) async {
+      final controller = _DelayedCommitController();
+      await _mountWorkbench(tester, controller: controller);
+      final strings = AppLocalizations.current;
+      await _tap(tester, find.text(strings.policySubscriptionSources));
+      await _tap(tester, find.byKey(const ValueKey('policy-source-1')));
+      await tester.tap(find.text(strings.save));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byType(AiConfigurationApprovalDialog), findsNothing);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(controller.approved.isCompleted, isTrue);
+      await tester.pumpWidget(const SizedBox());
+      controller.release.complete();
+      await tester.pumpAndSettle();
+      expect(controller.applies, 0);
+      expect(controller.document.localProfile.sourceProfileIds, [1, 2]);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'source capacity errors keep the current configuration unchanged',

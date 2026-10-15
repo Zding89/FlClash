@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:fl_clash/common/profile_compatibility.dart';
+
 import 'models.dart';
 
 final class PolicySource {
@@ -51,6 +53,7 @@ final class LocalPolicyCompiler {
   const LocalPolicyCompiler();
 
   List<LocalNode> extractNodes(PolicySource source) {
+    final fingerprint = legacyClientFingerprint(source.raw);
     final rawProxies = source.raw['proxies'] ?? <Object?>[];
     if (rawProxies is! List) {
       throw const FormatException('Invalid source proxy list');
@@ -85,7 +88,7 @@ final class LocalPolicyCompiler {
           label: label,
           sourceLabel: source.label,
           protocol: protocol,
-          raw: raw,
+          raw: inheritLegacyClientFingerprint(raw, fingerprint),
           attributes: NodeAttributes.infer(label, raw),
         ),
       );
