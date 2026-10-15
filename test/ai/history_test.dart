@@ -4,6 +4,9 @@ import 'dart:io';
 
 import 'package:drift/native.dart';
 import 'package:fl_clash/ai/history.dart';
+import 'package:fl_clash/ai/context.dart';
+import 'package:fl_clash/ai/policy_contract.dart';
+import 'package:fl_clash/policy/models.dart';
 import 'package:fl_clash/database/workbench_database.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -562,4 +565,97 @@ void main() {
     expect(entry.diagnostics.single['status'], 'draft');
     expect(jsonEncode(entry.toJson()), isNot(contains('must-not-persist')));
   });
+  test(
+    'actual local rule capabilities and latest draft snapshots survive app history roundtrip',
+    () async {
+      final contract = AgentPolicyContract.describe(
+        const LocalPolicyDocument().asStandalone(),
+      );
+      final context = aiContextMessages([
+        {'role': 'user', 'content': '继续调整本地规则'},
+        {
+          'role': 'assistant',
+          'content': [
+            {
+              'type': 'toolCall',
+              'id': 'pinned-catalog',
+              'name': 'policies_catalog',
+              'arguments': <String, Object?>{},
+            },
+          ],
+        },
+        {
+          'role': 'toolResult',
+          'toolCallId': 'pinned-catalog',
+          'toolName': 'policies_catalog',
+          'isError': false,
+          'content': [
+            {
+              'type': 'text',
+              'text': jsonEncode({
+                'patchSchema': AgentPolicyContract.patchSchema,
+                'contract': contract,
+              }),
+            },
+          ],
+        },
+        {
+          'role': 'assistant',
+          'content': [
+            {
+              'type': 'toolCall',
+              'id': 'pinned-draft',
+              'name': 'policies_draft_read',
+              'arguments': {'id': 'actual-latest-draft'},
+            },
+          ],
+        },
+        {
+          'role': 'toolResult',
+          'toolCallId': 'pinned-draft',
+          'toolName': 'policies_draft_read',
+          'isError': false,
+          'content': [
+            {
+              'type': 'text',
+              'text': jsonEncode({
+                'id': 'actual-latest-draft',
+                'status': 'draft',
+                'businessSummary': {
+                  'ruleCount': 4,
+                  'targetId': localPolicyTargetId,
+                },
+                'validation': {'valid': true},
+              }),
+            },
+          ],
+        },
+        {
+          'role': 'assistant',
+          'content': [
+            {'type': 'text', 'text': '已读取最新草稿'},
+          ],
+        },
+      ], sanitize: (value) => aiHistoryText(value, const []));
+      await store.save(
+        AiConversation(
+          id: _id(9),
+          updatedAt: 9,
+          messages: const [
+            {'role': 'user', 'content': '继续调整本地规则'},
+            {'role': 'assistant', 'content': '已读取最新草稿'},
+          ],
+          context: context,
+        ),
+      );
+      final restored = (await store.list()).single;
+      expect(restored.context, hasLength(6));
+      final encoded = jsonEncode(restored.context);
+      expect(encoded, contains('GEOIP,CN'));
+      expect(encoded, contains('destinationRegion'));
+      expect(encoded, contains('actual-latest-draft'));
+      expect(encoded, contains('ruleCount'));
+      expect(restored.context.first['role'], 'user');
+    },
+  );
 }

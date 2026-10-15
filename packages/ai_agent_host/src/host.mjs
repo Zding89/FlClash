@@ -136,7 +136,8 @@ function exportContext(messages, model, key) {
       kept.splice(0, nextUser);
       pinned = pinSnapshots();
     }
-    if (kept.length + pinned.length <= 100 && bytes([...pinned, ...kept]) <= MAX_CONTEXT_BYTES) kept.unshift(...pinned);
+    const firstUser = kept.findIndex(message => message.role === 'user');
+    if (firstUser >= 0 && kept.length + pinned.length <= 100 && bytes([...pinned, ...kept]) <= MAX_CONTEXT_BYTES) kept.splice(firstUser + 1, 0, ...pinned);
   }
   if (kept.length === 0 && canonical.some(message => message.role === 'toolResult')) throw new Error('contextLimit');
   const result = pairedContext(redactKey(kept, key));

@@ -448,6 +448,13 @@ test('large catalog capabilities and the latest draft business state survive req
   bounded.host.receive(input({ context, user: 'new detail '.repeat(7500) })); await bounded.done();
   const boundedContext = bounded.events.find(event => event.type === 'context').data;
   assert.equal(boundedContext.truncated, true);
+  assert.equal(boundedContext.messages[0].role, 'user');
+  const nextUser = boundedContext.messages.findIndex((message, index) => index > 0 && message.role === 'user');
+  const firstGroup = boundedContext.messages.slice(1, nextUser < 0 ? boundedContext.messages.length : nextUser);
+  assert.deepEqual(firstGroup.slice(0, 4).map(message => message.role), ['assistant', 'toolResult', 'assistant', 'toolResult']);
+  assert.deepEqual(firstGroup.slice(0, 4).filter(message => message.role === 'toolResult').map(message => message.toolName), ['policies_catalog', 'policies_draft_read']);
+  const firstCalls = firstGroup.flatMap(message => message.role === 'assistant' ? message.content.filter(part => part.type === 'toolCall').map(part => part.id) : []);
+  assert.deepEqual(firstGroup.filter(message => message.role === 'toolResult').map(message => message.toolCallId), firstCalls);
   assert.ok(boundedContext.messages.length <= 100);
   assert.ok(Buffer.byteLength(JSON.stringify(boundedContext.messages)) <= MAX_CONTEXT_BYTES);
 });
