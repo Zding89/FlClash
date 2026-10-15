@@ -9049,10 +9049,10 @@ class AppLocalizations {
     );
   }
 
-  /// `Select independently; edit sources and local rules`
+  /// `Combine subscription nodes and define routing rules`
   String get policyLocalProfileHint {
     return Intl.message(
-      'Select independently; edit sources and local rules',
+      'Combine subscription nodes and define routing rules',
       name: 'policyLocalProfileHint',
       desc: '',
       args: [],
@@ -9069,20 +9069,20 @@ class AppLocalizations {
     );
   }
 
-  /// `Use only nodes from these subscriptions. Subscription rules, groups, scripts and DNS are not inherited. Select up to 20 sources.`
+  /// `Select the subscriptions whose nodes you want to use, then set up node groups and routing rules. Only nodes are combined; subscription rules, groups, scripts and DNS are not inherited. Select up to 20 sources.`
   String get policyLocalSourcesHint {
     return Intl.message(
-      'Use only nodes from these subscriptions. Subscription rules, groups, scripts and DNS are not inherited. Select up to 20 sources.',
+      'Select the subscriptions whose nodes you want to use, then set up node groups and routing rules. Only nodes are combined; subscription rules, groups, scripts and DNS are not inherited. Select up to 20 sources.',
       name: 'policyLocalSourcesHint',
       desc: '',
       args: [],
     );
   }
 
-  /// `No subscription sources selected; direct and block rules can still be added.`
+  /// `Select subscription sources to use proxy nodes. Direct and block rules do not need sources.`
   String get policyLocalSourcesEmpty {
     return Intl.message(
-      'No subscription sources selected; direct and block rules can still be added.',
+      'Select subscription sources to use proxy nodes. Direct and block rules do not need sources.',
       name: 'policyLocalSourcesEmpty',
       desc: '',
       args: [],
@@ -9114,6 +9114,181 @@ class AppLocalizations {
     return Intl.message(
       'Select up to 20 subscription sources',
       name: 'policyLocalSourceLimit',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `No subscriptions yet. Add one to continue.`
+  String get policyLocalNoSubscriptions {
+    return Intl.message(
+      'No subscriptions yet. Add one to continue.',
+      name: 'policyLocalNoSubscriptions',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `These settings are optional and can be skipped during initial setup.`
+  String get policyLocalAdvancedHint {
+    return Intl.message(
+      'These settings are optional and can be skipped during initial setup.',
+      name: 'policyLocalAdvancedHint',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Subscription overview`
+  String get policyQuotaOverview {
+    return Intl.message(
+      'Subscription overview',
+      name: 'policyQuotaOverview',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Total quota`
+  String get policyQuotaTotal {
+    return Intl.message(
+      'Total quota',
+      name: 'policyQuotaTotal',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Used`
+  String get policyQuotaUsed {
+    return Intl.message('Used', name: 'policyQuotaUsed', desc: '', args: []);
+  }
+
+  /// `Remaining`
+  String get policyQuotaRemaining {
+    return Intl.message(
+      'Remaining',
+      name: 'policyQuotaRemaining',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Expires within 30 days`
+  String get policyQuotaExpiringSoon {
+    return Intl.message(
+      'Expires within 30 days',
+      name: 'policyQuotaExpiringSoon',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Expires later`
+  String get policyQuotaExpiringLater {
+    return Intl.message(
+      'Expires later',
+      name: 'policyQuotaExpiringLater',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `No expiry`
+  String get policyQuotaUnlimited {
+    return Intl.message(
+      'No expiry',
+      name: 'policyQuotaUnlimited',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Expired`
+  String get policyQuotaExpired {
+    return Intl.message(
+      'Expired',
+      name: 'policyQuotaExpired',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Expiry unknown`
+  String get policyQuotaUnknownExpiry {
+    return Intl.message(
+      'Expiry unknown',
+      name: 'policyQuotaUnknownExpiry',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Some quotas are unknown`
+  String get policyQuotaPartiallyUnknown {
+    return Intl.message(
+      'Some quotas are unknown',
+      name: 'policyQuotaPartiallyUnknown',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Over quota`
+  String get policyQuotaOverage {
+    return Intl.message(
+      'Over quota',
+      name: 'policyQuotaOverage',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Quota unknown`
+  String get policyQuotaUnknown {
+    return Intl.message(
+      'Quota unknown',
+      name: 'policyQuotaUnknown',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `No subscriptions selected`
+  String get policyQuotaNoSources {
+    return Intl.message(
+      'No subscriptions selected',
+      name: 'policyQuotaNoSources',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Local configuration selected`
+  String get policyLocalSelected {
+    return Intl.message(
+      'Local configuration selected',
+      name: 'policyLocalSelected',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Select on Profiles`
+  String get policyLocalChoose {
+    return Intl.message(
+      'Select on Profiles',
+      name: 'policyLocalChoose',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Add subscription`
+  String get policyAddSubscription {
+    return Intl.message(
+      'Add subscription',
+      name: 'policyAddSubscription',
       desc: '',
       args: [],
     );

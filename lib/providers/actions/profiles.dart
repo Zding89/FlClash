@@ -186,12 +186,14 @@ class ProfilesAction extends _$ProfilesAction {
     return id == ref.read(currentProfileIdProvider);
   }
 
-  Future<void> addProfileFormFile() async {
+  Future<Profile?> addProfileFormFile({bool navigateToProfiles = true}) async {
     final platformFile = await globalState.safeRun(picker.pickerFile);
-    if (platformFile == null) return;
+    if (platformFile == null) return null;
     final bytes = await platformFile.readBytes();
-    globalState.navigatorKey.currentState?.popUntil((route) => route.isFirst);
-    ref.read(currentPageLabelProvider.notifier).toProfiles();
+    if (navigateToProfiles) {
+      globalState.navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      ref.read(currentPageLabelProvider.notifier).toProfiles();
+    }
     final profile = await globalState.loadingRun(
       tag: LoadingTag.profiles,
       () async {
@@ -202,13 +204,20 @@ class ProfilesAction extends _$ProfilesAction {
     if (profile != null) {
       putProfile(profile);
     }
+    return profile;
   }
 
-  Future<void> addProfileFormURL(String url) async {
-    if (globalState.navigatorKey.currentState?.canPop() ?? false) {
+  Future<Profile?> addProfileFormURL(
+    String url, {
+    bool navigateToProfiles = true,
+  }) async {
+    if (navigateToProfiles &&
+        (globalState.navigatorKey.currentState?.canPop() ?? false)) {
       globalState.navigatorKey.currentState?.popUntil((route) => route.isFirst);
     }
-    ref.read(currentPageLabelProvider.notifier).value = PageLabel.profiles;
+    if (navigateToProfiles) {
+      ref.read(currentPageLabelProvider.notifier).value = PageLabel.profiles;
+    }
     final profile = await globalState.loadingRun(
       tag: LoadingTag.profiles,
       () async {
@@ -223,6 +232,7 @@ class ProfilesAction extends _$ProfilesAction {
     if (profile != null) {
       putProfile(profile);
     }
+    return profile;
   }
 
   Future<void> setProfileAndAutoApply(Profile profile) async {
@@ -239,10 +249,12 @@ class ProfilesAction extends _$ProfilesAction {
     }
   }
 
-  Future<void> addProfileFormQrCode() async {
+  Future<Profile?> addProfileFormQrCode({
+    bool navigateToProfiles = true,
+  }) async {
     final url = await globalState.safeRun(picker.pickerConfigQRCode);
-    if (url == null) return;
-    addProfileFormURL(url);
+    if (url == null) return null;
+    return addProfileFormURL(url, navigateToProfiles: navigateToProfiles);
   }
 
   Future<void> reorder(List<Profile> profiles) =>

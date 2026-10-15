@@ -214,15 +214,6 @@ Future<void> mount(
   );
   await tap(
     tester,
-    find
-        .widgetWithText(
-          ListTile,
-          AppLocalizations.current.policySubscriptionSources,
-        )
-        .first,
-  );
-  await tap(
-    tester,
     find.widgetWithText(
       ExpansionTile,
       AppLocalizations.current.policyBudgetTab,

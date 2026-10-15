@@ -1086,6 +1086,9 @@ class MessageLookup extends MessageLookupByLibrary {
       "Создать объединённый профиль",
     ),
     "policyAddRule": MessageLookupByLibrary.simpleMessage("Добавить правило"),
+    "policyAddSubscription": MessageLookupByLibrary.simpleMessage(
+      "Добавить подписку",
+    ),
     "policyAdmission": MessageLookupByLibrary.simpleMessage(
       "Срок действия и остаток квоты",
     ),
@@ -1355,6 +1358,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyLoadNodes": MessageLookupByLibrary.simpleMessage(
       "Загрузить доступные узлы",
     ),
+    "policyLocalAdvancedHint": MessageLookupByLibrary.simpleMessage(
+      "Эти настройки необязательны. При первом запуске их можно пропустить.",
+    ),
+    "policyLocalChoose": MessageLookupByLibrary.simpleMessage(
+      "Выбрать в профилях",
+    ),
     "policyLocalCollection": MessageLookupByLibrary.simpleMessage(
       "Локальная конфигурация",
     ),
@@ -1364,17 +1373,23 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyLocalMigrationReview": MessageLookupByLibrary.simpleMessage(
       "Прежние правила сохранены и приостановлены. Проверьте их перед выбором локальной конфигурации.",
     ),
+    "policyLocalNoSubscriptions": MessageLookupByLibrary.simpleMessage(
+      "Подписок пока нет. Добавьте подписку.",
+    ),
     "policyLocalProfileHint": MessageLookupByLibrary.simpleMessage(
-      "Выбирайте отдельно; редактируйте источники и локальные правила",
+      "Объединение узлов подписок и настройка маршрутизации",
+    ),
+    "policyLocalSelected": MessageLookupByLibrary.simpleMessage(
+      "Выбрана локальная конфигурация",
     ),
     "policyLocalSourceLimit": MessageLookupByLibrary.simpleMessage(
       "Можно выбрать до 20 источников подписок",
     ),
     "policyLocalSourcesEmpty": MessageLookupByLibrary.simpleMessage(
-      "Источники подписок не выбраны; можно добавить правила прямого подключения и блокировки.",
+      "Для прокси-узлов выберите источники подписок. Правила прямого подключения и блокировки не требуют источников.",
     ),
     "policyLocalSourcesHint": MessageLookupByLibrary.simpleMessage(
-      "Используются только узлы выбранных подписок. Их правила, группы, скрипты и DNS не наследуются. Можно выбрать до 20 источников.",
+      "Выберите подписки с нужными узлами, затем настройте группы и правила маршрутизации. Объединяются только узлы; правила, группы, скрипты и DNS подписок не наследуются. До 20 источников.",
     ),
     "policyManualAttribute": MessageLookupByLibrary.simpleMessage(
       "Подтверждено вручную",
@@ -1515,6 +1530,37 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyProcessName": MessageLookupByLibrary.simpleMessage("Имя процесса"),
     "policyProcessPath": MessageLookupByLibrary.simpleMessage("Путь процесса"),
     "policyProcessing": MessageLookupByLibrary.simpleMessage("Действие"),
+    "policyQuotaExpired": MessageLookupByLibrary.simpleMessage("Срок истёк"),
+    "policyQuotaExpiringLater": MessageLookupByLibrary.simpleMessage(
+      "Истекает позже",
+    ),
+    "policyQuotaExpiringSoon": MessageLookupByLibrary.simpleMessage(
+      "Истекает в течение 30 дней",
+    ),
+    "policyQuotaNoSources": MessageLookupByLibrary.simpleMessage(
+      "Подписки не выбраны",
+    ),
+    "policyQuotaOverage": MessageLookupByLibrary.simpleMessage(
+      "Превышение квоты",
+    ),
+    "policyQuotaOverview": MessageLookupByLibrary.simpleMessage(
+      "Обзор подписок",
+    ),
+    "policyQuotaPartiallyUnknown": MessageLookupByLibrary.simpleMessage(
+      "Некоторые квоты неизвестны",
+    ),
+    "policyQuotaRemaining": MessageLookupByLibrary.simpleMessage("Осталось"),
+    "policyQuotaTotal": MessageLookupByLibrary.simpleMessage("Общая квота"),
+    "policyQuotaUnknown": MessageLookupByLibrary.simpleMessage(
+      "Квота неизвестна",
+    ),
+    "policyQuotaUnknownExpiry": MessageLookupByLibrary.simpleMessage(
+      "Срок неизвестен",
+    ),
+    "policyQuotaUnlimited": MessageLookupByLibrary.simpleMessage(
+      "Без срока действия",
+    ),
+    "policyQuotaUsed": MessageLookupByLibrary.simpleMessage("Использовано"),
     "policyRecovery": MessageLookupByLibrary.simpleMessage(
       "Восстановление и пауза",
     ),

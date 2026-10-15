@@ -1,4 +1,5 @@
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/models/profile.dart';
 import 'package:fl_clash/pages/scan.dart';
 import 'package:fl_clash/providers/action.dart';
 import 'package:fl_clash/state.dart';
@@ -7,26 +8,39 @@ import 'package:flutter/material.dart';
 
 class AddProfileView extends StatelessWidget {
   final BuildContext context;
+  final bool navigateToProfiles;
 
-  const AddProfileView({super.key, required this.context});
+  const AddProfileView({
+    super.key,
+    required this.context,
+    this.navigateToProfiles = true,
+  });
 
   Future<void> _handleAddProfileFormFile() async {
-    globalState.container
+    final profile = await globalState.container
         .read(profilesActionProvider.notifier)
-        .addProfileFormFile();
+        .addProfileFormFile(navigateToProfiles: navigateToProfiles);
+    _closeAfterImport(profile);
   }
 
   Future<void> _handleAddProfileFormURL(String url) async {
-    globalState.container
+    final profile = await globalState.container
         .read(profilesActionProvider.notifier)
-        .addProfileFormURL(url);
+        .addProfileFormURL(url, navigateToProfiles: navigateToProfiles);
+    _closeAfterImport(profile);
+  }
+
+  void _closeAfterImport(Profile? profile) {
+    if (navigateToProfiles || profile == null || !context.mounted) return;
+    Navigator.of(context).pop();
   }
 
   Future<void> _toScan() async {
     if (system.isDesktop) {
-      globalState.container
+      final profile = await globalState.container
           .read(profilesActionProvider.notifier)
-          .addProfileFormQrCode();
+          .addProfileFormQrCode(navigateToProfiles: navigateToProfiles);
+      _closeAfterImport(profile);
       return;
     }
     final url = await BaseNavigator.push(context, const ScanPage());

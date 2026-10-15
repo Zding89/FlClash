@@ -27,6 +27,8 @@ class PolicyNodeSetEditor extends StatefulWidget {
   final Future<void> Function(PolicyNodeSetEdit)? onSave;
   final Future<void> Function(String)? onCheck;
   final Future<Map<String, Object?>> Function(Map<String, Object?>)? loadStatus;
+  final Future<Map<String, String>> Function()? onManageSources;
+  final Future<List<LocalNode>> Function()? loadNodes;
   const PolicyNodeSetEditor({
     super.key,
     this.existing,
@@ -39,6 +41,8 @@ class PolicyNodeSetEditor extends StatefulWidget {
     this.onSave,
     this.onCheck,
     this.loadStatus,
+    this.onManageSources,
+    this.loadNodes,
   });
   @override
   State<PolicyNodeSetEditor> createState() => _PolicyNodeSetEditorState();
@@ -64,6 +68,7 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
   bool _advanced = false;
   bool _showAll = false;
   bool _busy = false;
+  bool _managingSources = false;
   bool _validityEdited = false;
   bool _updatingValidity = false;
   String _validityText = '';
@@ -71,6 +76,8 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
   String _initial = '';
   String _lastFingerprint = '';
   final _attributes = <String, NodeAttributes>{};
+  late Map<String, String> _sourceOptions;
+  late List<LocalNode> _nodes;
   Timer? _statusTimer;
   Map<String, Object?>? _details;
   int _statusEpoch = 0;
@@ -81,6 +88,8 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
   void initState() {
     super.initState();
     final set = widget.existing;
+    _sourceOptions = {...widget.sources};
+    _nodes = [...widget.nodes];
     final probe =
         set?.probe ??
         const PolicyProbe(
@@ -88,7 +97,7 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
           method: 'GET',
           expectedStatus: '204',
         );
-    _sources = {...?set?.sourceIds};
+    _sources = set == null ? {..._sourceOptions.keys} : {...set.sourceIds};
     _regions = {...?set?.regions};
     _unknown = set?.unknownMultiplier ?? UnknownMultiplier.assumeOne;
     _strategy = set?.strategy ?? NodeSetStrategy.stable;
@@ -240,7 +249,7 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
     final existingWait =
         (existingCycle - ((existingTasks + 7) ~/ 8) * (existingTimeout + 1))
             .clamp(0, 200000);
-    final tasks = (widget.nodes.length + existingTasks).clamp(0, 5000);
+    final tasks = (_nodes.length + existingTasks).clamp(0, 5000);
     final timeout = inputNumber('timeout', 5, 60);
     final maxTimeout = timeout > existingTimeout ? timeout : existingTimeout;
     final interval = inputNumber('interval', 60, 86400);
@@ -265,6 +274,42 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
     _validityText = value;
     controller.text = value;
     _updatingValidity = false;
+  }
+
+  Future<void> _manageSources() async {
+    final callback = widget.onManageSources;
+    if (_busy || _managingSources || callback == null) return;
+    setState(() => _managingSources = true);
+    try {
+      final sources = await callback();
+      if (!mounted) return;
+      var nodes = _nodes;
+      if (widget.loadNodes != null) {
+        try {
+          nodes = await widget.loadNodes!();
+        } catch (_) {
+          nodes = nodes
+              .where((node) => sources.containsKey(node.sourceId))
+              .toList();
+          if (mounted) {
+            setState(
+              () => _error = context.appLocalizations.policyOperationFailed,
+            );
+          }
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        _sourceOptions = {...sources};
+        _nodes = nodes;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = context.appLocalizations.policyInvalidData);
+      }
+    } finally {
+      if (mounted) setState(() => _managingSources = false);
+    }
   }
 
   @override
@@ -302,7 +347,7 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
   }
 
   Future<void> _leave() async {
-    if (_busy) return;
+    if (_busy || _managingSources) return;
     if (_initial != _fingerprint) {
       final strings = context.appLocalizations;
       final discard = await showDialog<bool>(
@@ -672,6 +717,17 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
 
   Widget _formContent() {
     final strings = context.appLocalizations;
+    final sourceAction = widget.onManageSources == null
+        ? const SizedBox.shrink()
+        : Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              key: const ValueKey('policy-node-set-manage-sources'),
+              onPressed: _busy || _managingSources ? null : _manageSources,
+              icon: const Icon(Icons.source_outlined),
+              label: Text(strings.policySubscriptionSources),
+            ),
+          );
     if (_advanced) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -686,6 +742,7 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
                 setState(() => _advanced = values.single),
           ),
           const SizedBox(height: 16),
+          sourceAction,
           _advancedContent(),
           if (widget.referencedRules.isNotEmpty)
             Text(
@@ -707,19 +764,20 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
               setState(() => _advanced = values.single),
         ),
         const SizedBox(height: 16),
+        sourceAction,
         Text(strings.policyNodeSetHint),
         const SizedBox(height: 12),
         _field('label', strings.name, required: false),
         PolicyMultiSelect(
           label: strings.policyIncludeSources,
-          options: widget.sources,
+          options: _sourceOptions,
           value: _sources.toList(),
           enabled: !_busy,
           onChanged: (values) => setState(() => _sources = values.toSet()),
         ),
         PolicyMultiSelect(
           label: strings.policyExcludeSources,
-          options: widget.sources,
+          options: _sourceOptions,
           value: _excludedSources.toList(),
           enabled: !_busy,
           onChanged: (values) =>
@@ -785,7 +843,7 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
                   index: index,
                   child: const Icon(Icons.drag_indicator),
                 ),
-                title: Text(widget.sources[id] ?? id),
+                title: Text(_sourceOptions[id] ?? id),
               );
             },
           ),
@@ -885,7 +943,7 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
     try {
       set = _value();
     } catch (_) {}
-    final allNodes = widget.nodes
+    final allNodes = _nodes
         .map(
           (n) => LocalNode(
             id: n.id,
@@ -1135,11 +1193,11 @@ class _PolicyNodeSetEditorState extends State<PolicyNodeSetEditor> {
         ),
         actions: [
           TextButton(
-            onPressed: _busy ? null : _leave,
+            onPressed: _busy || _managingSources ? null : _leave,
             child: Text(strings.cancel),
           ),
           FilledButton(
-            onPressed: _busy ? null : _save,
+            onPressed: _busy || _managingSources ? null : _save,
             child: Text(strings.policyCheckSave),
           ),
         ],

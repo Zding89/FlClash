@@ -15,19 +15,24 @@ class LocalPolicyEditor extends StatefulWidget {
     super.key,
     this.existing,
     this.targets = const {},
+    this.sources = const {},
     required this.loadNodes,
     this.initialPriority = 100,
     this.nodeSets = const [],
     this.attributes = const {},
+    this.referencedRules = const {},
     this.onSave,
     this.onPreview,
+    this.onManageSources,
   });
   final LocalPolicy? existing;
   final Map<String, String> targets;
+  final Map<String, String> sources;
   final Future<List<LocalNode>> Function(String) loadNodes;
   final int initialPriority;
   final List<PolicyNodeSet> nodeSets;
   final Map<String, NodeAttributes> attributes;
+  final Map<String, List<String>> referencedRules;
   final Future<void> Function(
     LocalPolicy,
     List<PolicyNodeSet>,
@@ -40,6 +45,7 @@ class LocalPolicyEditor extends StatefulWidget {
     Map<String, NodeAttributes>,
   )?
   onPreview;
+  final Future<Map<String, String>> Function()? onManageSources;
   @override
   State<LocalPolicyEditor> createState() => _LocalPolicyEditorState();
 }
@@ -52,7 +58,9 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
   late List<PolicyChoice> _choices;
   late List<PolicyNodeSet> _nodeSets;
   late Map<String, NodeAttributes> _attributes;
+  late Map<String, String> _sources;
   bool _saving = false;
+  bool _managingSources = false;
   String _initial = '';
   late PolicyAction _action;
   late PolicySchedule _time;
@@ -78,6 +86,7 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
           ];
     _nodeSets = [...widget.nodeSets];
     _attributes = {...widget.attributes};
+    _sources = {...widget.sources};
     _action = policy?.action ?? PolicyAction.proxy;
     _time = policy?.schedule ?? const PolicySchedule();
     _enabled = policy?.enabled ?? true;
@@ -141,7 +150,12 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
       if (mounted && _nodeEpoch == epoch) setState(() => _nodes = nodes);
     } catch (_) {
       if (mounted && _nodeEpoch == epoch) {
-        setState(() => _error = context.appLocalizations.policyOperationFailed);
+        setState(() {
+          _nodes = _nodes
+              .where((node) => _sources.containsKey(node.sourceId))
+              .toList();
+          _error = context.appLocalizations.policyOperationFailed;
+        });
       }
     } finally {
       if (mounted && _nodeEpoch == epoch) setState(() => _loading = false);
@@ -285,6 +299,7 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
     'fields': _fields.map((k, v) => MapEntry(k, v.text)),
     'choices': _choices.map((c) => c.toJson()).toList(),
     'sets': _nodeSets.map((s) => s.toJson()).toList(),
+    'attributes': _attributes.map((k, v) => MapEntry(k, v.toJson())),
     'action': _action.name,
     'scheduleValue': _time.toJson(),
     'enabled': _enabled,
@@ -294,7 +309,7 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
   });
 
   Future<void> _leave() async {
-    if (_saving) return;
+    if (_saving || _managingSources) return;
     if (_initial != _fingerprint) {
       final strings = context.appLocalizations;
       final discard = await showDialog<bool>(
@@ -319,8 +334,9 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
   }
 
   Future<void> _save() async {
+    if (_saving || _managingSources) return;
     final value = _value();
-    if (value == null || _saving) return;
+    if (value == null) return;
     FocusScope.of(context).unfocus();
     setState(() {
       _saving = true;
@@ -360,19 +376,75 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
       context: context,
       builder: (_) => PolicyNodeSetEditor(
         targetId: _target,
-        sources: {for (final n in _nodes) n.sourceId: n.sourceLabel},
+        sources: {
+          ..._sources,
+          for (final n in _nodes) n.sourceId: n.sourceLabel,
+        },
         nodes: _nodes,
         attributes: _attributes,
+        referencedRules: const [],
+        onManageSources: widget.onManageSources == null ? null : _manageSources,
+        loadNodes: () => widget.loadNodes(_target),
       ),
     );
     if (next == null || !mounted) return;
     setState(() {
       _nodeSets.add(next.nodeSet);
       _attributes.addAll(next.attributes);
-      _choices.add(
+      _choices = [
         PolicyChoice(type: PolicyChoiceType.nodeSet, id: next.nodeSet.id),
-      );
+      ];
     });
+  }
+
+  Future<void> _editSet(PolicyNodeSet set) async {
+    final next = await showDialog<PolicyNodeSetEdit>(
+      context: context,
+      builder: (_) => PolicyNodeSetEditor(
+        existing: set,
+        targetId: _target,
+        sources: {
+          ..._sources,
+          for (final n in _nodes) n.sourceId: n.sourceLabel,
+        },
+        nodes: _nodes,
+        attributes: _attributes,
+        referencedRules: widget.referencedRules[set.id] ?? const [],
+        onManageSources: widget.onManageSources == null ? null : _manageSources,
+        loadNodes: () => widget.loadNodes(_target),
+      ),
+    );
+    if (next == null || !mounted) return;
+    setState(() {
+      final index = _nodeSets.indexWhere((value) => value.id == set.id);
+      if (index == -1) {
+        _nodeSets.add(next.nodeSet);
+      } else {
+        _nodeSets[index] = next.nodeSet;
+      }
+      _attributes.addAll(next.attributes);
+    });
+  }
+
+  Future<Map<String, String>> _manageSources() async {
+    if (_saving || _managingSources || widget.onManageSources == null) {
+      return _sources;
+    }
+    setState(() => _managingSources = true);
+    try {
+      final sources = await widget.onManageSources!();
+      if (!mounted) return sources;
+      setState(() => _sources = {...sources});
+      await _load();
+      return sources;
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = context.appLocalizations.policyOperationFailed);
+      }
+      return _sources;
+    } finally {
+      if (mounted) setState(() => _managingSources = false);
+    }
   }
 
   Widget _choiceEditor() {
@@ -388,6 +460,10 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
     final selectedKey = selected == null
         ? null
         : '${selected.type.name}:${selected.id}';
+    final selectedId = selected?.id;
+    final selectedSet = selected?.type == PolicyChoiceType.nodeSet
+        ? _nodeSets.where((set) => set.id == selectedId).firstOrNull
+        : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -411,6 +487,16 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
         ),
         if (_action == PolicyAction.proxy) ...[
           const SizedBox(height: 12),
+          if (widget.onManageSources != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const ValueKey('policy-manage-subscription-sources'),
+                onPressed: _saving || _managingSources ? null : _manageSources,
+                icon: const Icon(Icons.source_outlined),
+                label: Text(strings.policySubscriptionSources),
+              ),
+            ),
           if (_choices.length > 1) Text(strings.policyLegacySelections),
           if (_choices.length > 1)
             Text(
@@ -455,10 +541,25 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
           ),
           Align(
             alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: _saving || _nodes.isEmpty ? null : _newSet,
-              icon: const Icon(Icons.add),
-              label: Text(strings.policyNodeSet),
+            child: Wrap(
+              spacing: 8,
+              children: [
+                TextButton.icon(
+                  key: const ValueKey('policy-add-node-set'),
+                  onPressed: _saving || _managingSources ? null : _newSet,
+                  icon: const Icon(Icons.add),
+                  label: Text(strings.policyNodeSet),
+                ),
+                if (selectedSet != null)
+                  TextButton.icon(
+                    key: const ValueKey('policy-edit-node-set'),
+                    onPressed: _saving || _managingSources
+                        ? null
+                        : () => _editSet(selectedSet),
+                    icon: const Icon(Icons.edit_outlined),
+                    label: Text(strings.edit),
+                  ),
+              ],
             ),
           ),
           Text(
@@ -548,7 +649,7 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
           width: 1200,
           child: SingleChildScrollView(
             child: AbsorbPointer(
-              absorbing: _saving,
+              absorbing: _saving || _managingSources,
               child: Form(
                 key: _form,
                 child: LayoutBuilder(
@@ -717,11 +818,11 @@ class _LocalPolicyEditorState extends State<LocalPolicyEditor> {
         ),
         actions: [
           TextButton(
-            onPressed: _saving ? null : _leave,
+            onPressed: _saving || _managingSources ? null : _leave,
             child: Text(strings.cancel),
           ),
           FilledButton(
-            onPressed: _loading || _saving ? null : _save,
+            onPressed: _loading || _saving || _managingSources ? null : _save,
             child: Text(strings.save),
           ),
         ],

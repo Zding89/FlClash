@@ -21,7 +21,9 @@ import 'editors.dart';
 import 'rule_editor.dart';
 import 'simulation.dart';
 import 'widgets.dart';
+import 'source_picker.dart';
 import 'selection_fields.dart';
+import 'quota_overview.dart';
 import 'node_set_editor.dart';
 import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/core/controller.dart';
@@ -136,29 +138,49 @@ class _LocalPolicyWorkbenchViewState
     Map<String, String> targets,
     LocalPolicy? existing,
   ) async {
+    var baseDocument = document;
     await showDialog<LocalPolicy>(
       context: context,
       builder: (_) => LocalPolicyEditor(
         existing: existing,
-        loadNodes: (target) => _controller.loadNodes(target),
+        loadNodes: (target) =>
+            _controller.loadNodes(target, document: baseDocument),
+        sources: _sourceNames(baseDocument),
+        onManageSources: () async {
+          baseDocument = await _manageSources(baseDocument);
+          return _sourceNames(baseDocument);
+        },
+        referencedRules: {
+          for (final set in document.nodeSets)
+            set.id: baseDocument.policies
+                .where(
+                  (rule) => rule.choices.any(
+                    (choice) =>
+                        choice.type == PolicyChoiceType.nodeSet &&
+                        choice.id == set.id,
+                  ),
+                )
+                .map((rule) => rule.label)
+                .toList(),
+        },
         initialPriority: existing?.priority ?? 100,
         nodeSets: document.nodeSets,
         attributes: document.nodeAttributes,
         onSave: (rule, sets, attributes) async {
           final next = LocalPolicyDocument.fromJson(
-            _patch(document, {
-              'policiesEnabled': document.policies.isEmpty
+            _patch(baseDocument, {
+              'policiesEnabled': baseDocument.policies.isEmpty
                   ? true
-                  : document.policiesEnabled,
+                  : baseDocument.policiesEnabled,
               'policies': insertPolicy(
-                document.policies,
+                baseDocument.policies,
                 rule,
               ).map((p) => p.toJson()).toList(),
               'nodeSets': sets.map((s) => s.toJson()).toList(),
               'nodeAttributes': attributes.map(
                 (k, v) => MapEntry(k, v.toJson()),
               ),
-              'overrides': document.overrides
+              'overrides': baseDocument.overrides
                   .where(
                     (o) =>
                         o.policyId != rule.id ||
@@ -169,20 +191,20 @@ class _LocalPolicyWorkbenchViewState
                   .toList(),
             }),
           );
-          await _commitDocument(document, next);
+          await _commitDocument(baseDocument, next);
         },
         onPreview: (rule, sets, attributes) async {
           final next = LocalPolicyDocument.fromJson(
-            _patch(document, {
+            _patch(baseDocument, {
               'policies': insertPolicy(
-                document.policies,
+                baseDocument.policies,
                 rule,
               ).map((p) => p.toJson()).toList(),
               'nodeSets': sets.map((s) => s.toJson()).toList(),
               'nodeAttributes': attributes.map(
                 (k, v) => MapEntry(k, v.toJson()),
               ),
-              'overrides': document.overrides
+              'overrides': baseDocument.overrides
                   .where(
                     (o) =>
                         o.policyId != rule.id ||
@@ -211,6 +233,11 @@ class _LocalPolicyWorkbenchViewState
     LocalPolicyDocument before,
     LocalPolicyDocument next,
   ) async {
+    final epoch = _epoch;
+    bool isCurrent() => mounted && _epoch == epoch;
+    if (!isCurrent()) {
+      throw const ConfigurationChangeException('configuration_cancelled');
+    }
     if (policyDigest(
           (await _controller.readPolicies()).asStandalone().toJson(),
         ) !=
@@ -219,8 +246,15 @@ class _LocalPolicyWorkbenchViewState
         'configuration_version_conflict',
       );
     }
+    if (!isCurrent()) {
+      throw const ConfigurationChangeException('configuration_cancelled');
+    }
     final proposal = await _controller.proposePolicies(next);
-    final result = await _controller.commit(proposal, approve: _approve);
+    final result = await _controller.commit(
+      proposal,
+      approve: _approve,
+      isCurrent: isCurrent,
+    );
     if (result['status'] != 'applied') {
       throw const ConfigurationChangeException('configuration_cancelled');
     }
@@ -240,31 +274,24 @@ class _LocalPolicyWorkbenchViewState
     Map<String, Object?> snapshot,
     PolicyNodeSet? existing,
   ) async {
+    var baseDocument = document;
     const target = localPolicyTargetId;
     try {
-      final nodes = await _controller.loadNodes(target);
+      final nodes = await _controller.loadNodes(target, document: baseDocument);
       if (!mounted) return;
-      final sourceIds = target.startsWith('integration:')
-          ? document.integrations
-                .firstWhere((i) => i.targetId == target)
-                .sourceProfileIds
-                .map((id) => '$id')
-                .toSet()
-          : ref
-                .read(profilesProvider)
-                .map((profile) => '${profile.id}')
-                .toSet();
-      final sourceNames = {
-        for (final profile in ref.read(profilesProvider))
-          if (sourceIds.contains('${profile.id}'))
-            '${profile.id}': profile.realLabel,
-      };
+      final sourceNames = _sourceNames(baseDocument);
       await showDialog<PolicyNodeSetEdit>(
         context: context,
         builder: (_) => PolicyNodeSetEditor(
           existing: existing,
           targetId: target,
           sources: sourceNames,
+          onManageSources: () async {
+            baseDocument = await _manageSources(baseDocument);
+            return _sourceNames(baseDocument);
+          },
+          loadNodes: () =>
+              _controller.loadNodes(target, document: baseDocument),
           nodes: nodes,
           attributes: document.nodeAttributes,
           snapshot: snapshot,
@@ -287,11 +314,11 @@ class _LocalPolicyWorkbenchViewState
           },
           onSave: (edit) async {
             await _commitDocument(
-              document,
+              baseDocument,
               LocalPolicyDocument.fromJson(
-                _patch(document, {
+                _patch(baseDocument, {
                   'nodeSets': [
-                    for (final s in document.nodeSets)
+                    for (final s in baseDocument.nodeSets)
                       (s.id == edit.nodeSet.id ? edit.nodeSet : s).toJson(),
                     if (existing == null) edit.nodeSet.toJson(),
                   ],
@@ -324,7 +351,7 @@ class _LocalPolicyWorkbenchViewState
       const SizedBox(height: 12),
       Text(strings.policyNodeSetHint),
       const SizedBox(height: 8),
-      Text(strings.policySharedSetImpact),
+      Align(alignment: Alignment.centerLeft, child: _sourceEntry(document)),
       for (final set in document.nodeSets.where((s) => s.targetId == selected))
         Card(
           child: ListTile(
@@ -385,8 +412,6 @@ class _LocalPolicyWorkbenchViewState
         icon: const Icon(Icons.add),
         label: Text(strings.policyNodeSet),
       ),
-      if (document.localProfile.sourceProfileIds.isEmpty)
-        Text(strings.policyLocalSourcesEmpty),
     ]);
   }
 
@@ -466,6 +491,55 @@ class _LocalPolicyWorkbenchViewState
     }
   }
 
+  Map<String, String> _sourceNames(LocalPolicyDocument document) {
+    if (!mounted) return const {};
+    final selected = document.localProfile.sourceProfileIds.toSet();
+    return {
+      for (final profile in ref.read(profilesProvider))
+        if (selected.contains(profile.id)) '${profile.id}': profile.realLabel,
+    };
+  }
+
+  Future<LocalPolicyDocument> _manageSources(LocalPolicyDocument before) async {
+    var saved = before;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PolicySourcePicker(
+        selected: before.localProfile.sourceProfileIds,
+        onSave: (ids) async {
+          final next = LocalPolicyDocument.fromJson(
+            _patch(before, {
+              'integrations': [
+                for (final integration in before.integrations)
+                  integration.id == localPolicyProfileId
+                      ? {...integration.toJson(), 'sourceProfileIds': ids}
+                      : integration.toJson(),
+              ],
+            }),
+          );
+          if (policyDigest(before.toJson()) != policyDigest(next.toJson())) {
+            await _commitDocument(before, next);
+            saved = (await _controller.readPolicies()).asStandalone();
+          }
+        },
+      ),
+    );
+    return saved;
+  }
+
+  Widget _sourceEntry(LocalPolicyDocument document) => TextButton.icon(
+    onPressed: _busy ? null : () => _manageSources(document),
+    icon: const Icon(Icons.source_outlined),
+    label: Text(context.appLocalizations.policySubscriptionSources),
+  );
+
+  void _openProfiles() {
+    final navigator = Navigator.of(context);
+    ref.read(currentPageLabelProvider.notifier).toPage(PageLabel.profiles);
+    navigator.popUntil((route) => route.isFirst);
+  }
+
   Widget _list(List<Widget> children) =>
       ListView(padding: const EdgeInsets.all(16), children: children);
 
@@ -482,51 +556,9 @@ class _LocalPolicyWorkbenchViewState
     ),
   );
 
-  Widget _sources(LocalPolicyDocument document, List<Profile> profiles) {
+  Widget _sourceUpdateRoute(LocalPolicyDocument document) {
     final strings = context.appLocalizations;
-    final local = document.localProfile;
-    final selected = local.sourceProfileIds.map((id) => '$id').toList();
     return _section([
-      Text(strings.policyLocalSourcesHint),
-      const SizedBox(height: 12),
-      PolicyMultiSelect(
-        label: strings.policySubscriptionSources,
-        options: {
-          for (final profile in profiles) '${profile.id}': profile.realLabel,
-        },
-        value: selected,
-        enabled: !_busy,
-        onChanged: (ids) {
-          if (!mounted || _busy) return;
-          if (ids.length > 20) {
-            setState(() {
-              _failed = true;
-              _message = strings.policyLocalSourceLimit;
-            });
-            return;
-          }
-          _apply(
-            document,
-            _patch(document, {
-              'integrations': [
-                for (final integration in document.integrations)
-                  integration.id == localPolicyProfileId
-                      ? {
-                          ...integration.toJson(),
-                          'sourceProfileIds': ids.map(int.parse).toList(),
-                        }
-                      : integration.toJson(),
-              ],
-            }),
-          );
-        },
-      ),
-      if (selected.isEmpty) Text(strings.policyLocalSourcesEmpty),
-      for (final profile in profiles.where(
-        (profile) => selected.contains('${profile.id}'),
-      ))
-        Card(child: _PolicySourceFacts(profile: profile)),
-      const SizedBox(height: 16),
       DropdownButtonFormField<SourceUpdateRoute>(
         key: ValueKey(document.sourceUpdateRoute),
         initialValue: document.sourceUpdateRoute,
@@ -770,11 +802,43 @@ class _LocalPolicyWorkbenchViewState
 
     return _list([
       const SizedBox(height: 12),
-      if (document.localProfile.sourceProfileIds.isEmpty)
-        Text(strings.policyLocalSourcesEmpty),
-      Text(strings.policyRuleOrderHint),
-      const SizedBox(height: 8),
-      Text(strings.policyLocalDefaultReject),
+      Wrap(
+        spacing: 12,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          _sourceEntry(document),
+          TextButton.icon(
+            onPressed: _openProfiles,
+            icon: Icon(
+              document.moduleEnabled && document.integrationEnabled
+                  ? Icons.check_circle_outline
+                  : Icons.radio_button_unchecked,
+            ),
+            label: Text(
+              document.moduleEnabled && document.integrationEnabled
+                  ? strings.policyLocalSelected
+                  : strings.policyLocalChoose,
+            ),
+          ),
+        ],
+      ),
+      Row(
+        children: [
+          Expanded(
+            child: Text(
+              strings.policyRuleOrderHint,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+          IconButton(
+            tooltip: strings.policyLocalDefaultReject,
+            onPressed: () => ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+              SnackBar(content: Text(strings.policyLocalDefaultReject)),
+            ),
+            icon: const Icon(Icons.info_outline, size: 18),
+          ),
+        ],
+      ),
       const SizedBox(height: 12),
       Wrap(
         spacing: 12,
@@ -1364,22 +1428,10 @@ class _LocalPolicyWorkbenchViewState
         const <String, Object?>{};
     final value = ref.watch(localPoliciesProvider);
     return DefaultTabController(
-      length: 4,
-      initialIndex: switch (widget.initialTab) {
-        4 => 3,
-        final index => index.clamp(0, 3),
-      },
+      length: 5,
+      initialIndex: widget.initialTab.clamp(0, 4),
       child: CommonScaffold(
         title: strings.policyWorkbenchTitle,
-        actions: [
-          IconButton(
-            onPressed: _busy || value.asData == null
-                ? null
-                : () => _json(value.asData!.value.asStandalone()),
-            tooltip: strings.policyAdvancedJson,
-            icon: const Icon(Icons.data_object),
-          ),
-        ],
         body: value.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, _) => Center(child: Text(strings.policyOperationFailed)),
@@ -1407,6 +1459,7 @@ class _LocalPolicyWorkbenchViewState
                       tabs: [
                         Tab(text: strings.policyRulesTab),
                         Tab(text: strings.policyNodeSets),
+                        Tab(text: strings.policyQuotaOverview),
                         Tab(text: strings.policyAdvancedTab),
                         Tab(text: strings.policyHistoryTab),
                       ],
@@ -1432,17 +1485,30 @@ class _LocalPolicyWorkbenchViewState
                         children: [
                           _rules(document, targets, snapshot),
                           _nodeSets(document, targets, snapshot),
+                          _LocalQuotaPage(
+                            document: document,
+                            controller: _controller,
+                            onManageSources: _busy
+                                ? null
+                                : () => _manageSources(document),
+                          ),
                           _list([
+                            Text(strings.policyLocalAdvancedHint),
+                            const SizedBox(height: 12),
                             ExpansionTile(
-                              key: const PageStorageKey('policy-sources'),
-                              initiallyExpanded: true,
-                              title: Text(strings.policySubscriptionSources),
-                              children: [_sources(document, profiles)],
+                              key: const PageStorageKey('policy-update-route'),
+                              title: Text(strings.policyUpdateRoute),
+                              children: [_sourceUpdateRoute(document)],
                             ),
                             ExpansionTile(
                               key: const PageStorageKey('policy-budgets'),
                               title: Text(strings.policyBudgetTab),
                               children: [_budgets(document, sources, snapshot)],
+                            ),
+                            ListTile(
+                              leading: const Icon(Icons.data_object),
+                              title: Text(strings.policyAdvancedJson),
+                              onTap: _busy ? null : () => _json(document),
                             ),
                           ]),
                           _history(),
@@ -1460,34 +1526,59 @@ class _LocalPolicyWorkbenchViewState
   }
 }
 
-class _PolicySourceFacts extends ConsumerWidget {
-  const _PolicySourceFacts({required this.profile});
-  final Profile profile;
+class _LocalQuotaPage extends ConsumerStatefulWidget {
+  const _LocalQuotaPage({
+    required this.document,
+    required this.controller,
+    this.onManageSources,
+  });
+
+  final LocalPolicyDocument document;
+  final WorkbenchController controller;
+  final VoidCallback? onManageSources;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final strings = context.appLocalizations;
-    final metadata = profile.subscriptionInfo?.metadata;
-    final remaining = metadata?.remainingBytes;
-    return ExpansionTile(
-      title: Text(profile.realLabel),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: SubscriptionInfoView(
-          subscriptionInfo: profile.subscriptionInfo,
-          showUnknown: true,
-          updatedAt: profile.lastUpdateDate,
-        ),
+  ConsumerState<_LocalQuotaPage> createState() => _LocalQuotaPageState();
+}
+
+class _LocalQuotaPageState extends ConsumerState<_LocalQuotaPage> {
+  String? _sourceKey;
+  Future<List<LocalNode>>? _nodes;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = widget.document.localProfile.sourceProfileIds.toSet();
+    final profiles = ref
+        .watch(profilesProvider)
+        .where((profile) => selected.contains(profile.id))
+        .toList();
+    final sourceKey = policyDigest({
+      'integration': widget.document.localProfile.toJson(),
+      'attributes': widget.document.nodeAttributes.map(
+        (key, value) => MapEntry(key, value.toJson()),
       ),
-      children: [
-        ListTile(
-          title: Text(strings.policySourceQuota),
-          subtitle: Text(
-            remaining == null
-                ? strings.policyTrafficUnknown
-                : '${policyGiB(remaining)} GiB',
-          ),
-        ),
+      'profiles': [
+        for (final profile in profiles)
+          {
+            'id': profile.id,
+            'updated': profile.lastUpdateDate?.millisecondsSinceEpoch,
+          },
       ],
+    });
+    if (_sourceKey != sourceKey) {
+      _sourceKey = sourceKey;
+      _nodes = widget.controller.loadNodes(
+        localPolicyTargetId,
+        document: widget.document,
+      );
+    }
+    return FutureBuilder<List<LocalNode>>(
+      future: _nodes,
+      builder: (_, snapshot) => LocalQuotaOverview(
+        profiles: profiles,
+        nodes: snapshot.data ?? const [],
+        onManageSources: widget.onManageSources,
+      ),
     );
   }
 }

@@ -1046,6 +1046,9 @@ class MessageLookup extends MessageLookupByLibrary {
       "Create merged profile",
     ),
     "policyAddRule": MessageLookupByLibrary.simpleMessage("Add rule"),
+    "policyAddSubscription": MessageLookupByLibrary.simpleMessage(
+      "Add subscription",
+    ),
     "policyAdmission": MessageLookupByLibrary.simpleMessage(
       "Expiry and remaining quota",
     ),
@@ -1311,6 +1314,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyLoadNodes": MessageLookupByLibrary.simpleMessage(
       "Load available nodes",
     ),
+    "policyLocalAdvancedHint": MessageLookupByLibrary.simpleMessage(
+      "These settings are optional and can be skipped during initial setup.",
+    ),
+    "policyLocalChoose": MessageLookupByLibrary.simpleMessage(
+      "Select on Profiles",
+    ),
     "policyLocalCollection": MessageLookupByLibrary.simpleMessage(
       "Local configuration",
     ),
@@ -1320,17 +1329,23 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyLocalMigrationReview": MessageLookupByLibrary.simpleMessage(
       "Previous rules are preserved and paused. Review them before selecting the local configuration.",
     ),
+    "policyLocalNoSubscriptions": MessageLookupByLibrary.simpleMessage(
+      "No subscriptions yet. Add one to continue.",
+    ),
     "policyLocalProfileHint": MessageLookupByLibrary.simpleMessage(
-      "Select independently; edit sources and local rules",
+      "Combine subscription nodes and define routing rules",
+    ),
+    "policyLocalSelected": MessageLookupByLibrary.simpleMessage(
+      "Local configuration selected",
     ),
     "policyLocalSourceLimit": MessageLookupByLibrary.simpleMessage(
       "Select up to 20 subscription sources",
     ),
     "policyLocalSourcesEmpty": MessageLookupByLibrary.simpleMessage(
-      "No subscription sources selected; direct and block rules can still be added.",
+      "Select subscription sources to use proxy nodes. Direct and block rules do not need sources.",
     ),
     "policyLocalSourcesHint": MessageLookupByLibrary.simpleMessage(
-      "Use only nodes from these subscriptions. Subscription rules, groups, scripts and DNS are not inherited. Select up to 20 sources.",
+      "Select the subscriptions whose nodes you want to use, then set up node groups and routing rules. Only nodes are combined; subscription rules, groups, scripts and DNS are not inherited. Select up to 20 sources.",
     ),
     "policyManualAttribute": MessageLookupByLibrary.simpleMessage(
       "Manually confirmed",
@@ -1467,6 +1482,31 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyProcessName": MessageLookupByLibrary.simpleMessage("Process name"),
     "policyProcessPath": MessageLookupByLibrary.simpleMessage("Process path"),
     "policyProcessing": MessageLookupByLibrary.simpleMessage("Processing"),
+    "policyQuotaExpired": MessageLookupByLibrary.simpleMessage("Expired"),
+    "policyQuotaExpiringLater": MessageLookupByLibrary.simpleMessage(
+      "Expires later",
+    ),
+    "policyQuotaExpiringSoon": MessageLookupByLibrary.simpleMessage(
+      "Expires within 30 days",
+    ),
+    "policyQuotaNoSources": MessageLookupByLibrary.simpleMessage(
+      "No subscriptions selected",
+    ),
+    "policyQuotaOverage": MessageLookupByLibrary.simpleMessage("Over quota"),
+    "policyQuotaOverview": MessageLookupByLibrary.simpleMessage(
+      "Subscription overview",
+    ),
+    "policyQuotaPartiallyUnknown": MessageLookupByLibrary.simpleMessage(
+      "Some quotas are unknown",
+    ),
+    "policyQuotaRemaining": MessageLookupByLibrary.simpleMessage("Remaining"),
+    "policyQuotaTotal": MessageLookupByLibrary.simpleMessage("Total quota"),
+    "policyQuotaUnknown": MessageLookupByLibrary.simpleMessage("Quota unknown"),
+    "policyQuotaUnknownExpiry": MessageLookupByLibrary.simpleMessage(
+      "Expiry unknown",
+    ),
+    "policyQuotaUnlimited": MessageLookupByLibrary.simpleMessage("No expiry"),
+    "policyQuotaUsed": MessageLookupByLibrary.simpleMessage("Used"),
     "policyRecovery": MessageLookupByLibrary.simpleMessage(
       "Recovery and cooldown",
     ),

@@ -828,6 +828,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyAddBudget": MessageLookupByLibrary.simpleMessage("通信量制限を追加"),
     "policyAddIntegration": MessageLookupByLibrary.simpleMessage("統合プロファイルを作成"),
     "policyAddRule": MessageLookupByLibrary.simpleMessage("ルールを追加"),
+    "policyAddSubscription": MessageLookupByLibrary.simpleMessage("購読を追加"),
     "policyAdmission": MessageLookupByLibrary.simpleMessage("有効期限と残量"),
     "policyAdvancedJson": MessageLookupByLibrary.simpleMessage("詳細 JSON"),
     "policyAdvancedTab": MessageLookupByLibrary.simpleMessage("詳細"),
@@ -1001,6 +1002,10 @@ class MessageLookup extends MessageLookupByLibrary {
       "別のグループまたはノードを選ぶまで既存の選択を保持します",
     ),
     "policyLoadNodes": MessageLookupByLibrary.simpleMessage("利用可能なノードを読み込む"),
+    "policyLocalAdvancedHint": MessageLookupByLibrary.simpleMessage(
+      "以下は任意の設定です。初回はスキップできます。",
+    ),
+    "policyLocalChoose": MessageLookupByLibrary.simpleMessage("プロファイルで選択"),
     "policyLocalCollection": MessageLookupByLibrary.simpleMessage("ローカル設定"),
     "policyLocalDefaultReject": MessageLookupByLibrary.simpleMessage(
       "利用可能な結果を返すルールがない場合、接続を拒否します。",
@@ -1008,17 +1013,21 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyLocalMigrationReview": MessageLookupByLibrary.simpleMessage(
       "以前のルールは保存して一時停止しました。確認後にローカル設定を選択してください。",
     ),
-    "policyLocalProfileHint": MessageLookupByLibrary.simpleMessage(
-      "独立して選択し、ソースとローカルルールを編集",
+    "policyLocalNoSubscriptions": MessageLookupByLibrary.simpleMessage(
+      "購読がありません。追加してください。",
     ),
+    "policyLocalProfileHint": MessageLookupByLibrary.simpleMessage(
+      "購読ノードを統合し、振り分けルールを設定",
+    ),
+    "policyLocalSelected": MessageLookupByLibrary.simpleMessage("ローカル設定を選択中"),
     "policyLocalSourceLimit": MessageLookupByLibrary.simpleMessage(
       "購読ソースは最大20件選べます",
     ),
     "policyLocalSourcesEmpty": MessageLookupByLibrary.simpleMessage(
-      "購読ソースが未選択です。直接接続やブロックのルールは追加できます。",
+      "プロキシノードを使うには購読ソースを選んでください。直接接続とブロックのルールには不要です。",
     ),
     "policyLocalSourcesHint": MessageLookupByLibrary.simpleMessage(
-      "選んだ購読のノードのみ使用します。購読のルール、グループ、スクリプト、DNSは引き継ぎません。最大20件選べます。",
+      "使用するノードの購読を選び、ノードグループと振り分けルールを設定します。ノードのみ統合し、購読のルール、グループ、スクリプト、DNSは引き継ぎません。最大20件選べます。",
     ),
     "policyManualAttribute": MessageLookupByLibrary.simpleMessage("手動確認"),
     "policyManualOrigin": MessageLookupByLibrary.simpleMessage("手動追加"),
@@ -1103,6 +1112,21 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyProcessName": MessageLookupByLibrary.simpleMessage("プロセス名"),
     "policyProcessPath": MessageLookupByLibrary.simpleMessage("プロセスのパス"),
     "policyProcessing": MessageLookupByLibrary.simpleMessage("処理方法"),
+    "policyQuotaExpired": MessageLookupByLibrary.simpleMessage("期限切れ"),
+    "policyQuotaExpiringLater": MessageLookupByLibrary.simpleMessage("それ以降に期限"),
+    "policyQuotaExpiringSoon": MessageLookupByLibrary.simpleMessage("30日以内に期限"),
+    "policyQuotaNoSources": MessageLookupByLibrary.simpleMessage("購読が未選択です"),
+    "policyQuotaOverage": MessageLookupByLibrary.simpleMessage("容量超過"),
+    "policyQuotaOverview": MessageLookupByLibrary.simpleMessage("購読の概要"),
+    "policyQuotaPartiallyUnknown": MessageLookupByLibrary.simpleMessage(
+      "一部の容量が不明",
+    ),
+    "policyQuotaRemaining": MessageLookupByLibrary.simpleMessage("残量"),
+    "policyQuotaTotal": MessageLookupByLibrary.simpleMessage("合計容量"),
+    "policyQuotaUnknown": MessageLookupByLibrary.simpleMessage("容量不明"),
+    "policyQuotaUnknownExpiry": MessageLookupByLibrary.simpleMessage("期限不明"),
+    "policyQuotaUnlimited": MessageLookupByLibrary.simpleMessage("有効期限なし"),
+    "policyQuotaUsed": MessageLookupByLibrary.simpleMessage("使用済み"),
     "policyRecovery": MessageLookupByLibrary.simpleMessage("復旧とクールダウン"),
     "policyRecoveryCheck": MessageLookupByLibrary.simpleMessage("確認して復元"),
     "policyRecoveryKeep": MessageLookupByLibrary.simpleMessage("確認済みの現在の設定を保持"),

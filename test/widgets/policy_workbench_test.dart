@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -7,8 +8,10 @@ import 'package:fl_clash/views/profiles/profiles.dart';
 import 'package:fl_clash/configuration/changes.dart';
 import 'package:fl_clash/database/workbench_database.dart';
 import 'package:fl_clash/l10n/l10n.dart';
+import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/profile.dart';
 import 'package:fl_clash/providers/config.dart';
+import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/policy/models.dart';
 import 'package:fl_clash/providers/database.dart';
 import 'package:fl_clash/providers/workbench.dart';
@@ -16,6 +19,8 @@ import 'package:fl_clash/state.dart';
 import 'package:fl_clash/views/policy/policy.dart';
 import 'package:fl_clash/views/policy/selection_fields.dart';
 import 'package:fl_clash/views/policy/rule_editor.dart';
+import 'package:fl_clash/views/policy/source_picker.dart';
+import 'package:fl_clash/views/policy/quota_overview.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -53,7 +58,7 @@ class _Database extends Mock implements WorkbenchDatabase {
 
 class _Controller extends Mock implements WorkbenchController {
   _Controller([this.document = _document]);
-  final LocalPolicyDocument document;
+  LocalPolicyDocument document;
   final loadedTargets = <String>[];
   final selectedTargets = <Map<String, Object?>>[];
   LocalPolicyDocument? proposed;
@@ -126,6 +131,27 @@ class _Controller extends Mock implements WorkbenchController {
       return {'status': 'rejected'};
     }
     applies++;
+    document = proposed ?? document;
+    return {'status': 'applied'};
+  }
+}
+
+class _DelayedCommitController extends _Controller {
+  final approved = Completer<void>();
+  final release = Completer<void>();
+
+  @override
+  Future<Map<String, Object?>> commit(
+    ConfigurationProposal proposal, {
+    required ConfigurationApproval approve,
+    bool Function()? isCurrent,
+  }) async {
+    if (!await approve(proposal)) return {'status': 'rejected'};
+    approved.complete();
+    await release.future;
+    if (isCurrent?.call() == false) return {'status': 'rejected'};
+    applies++;
+    document = proposed ?? document;
     return {'status': 'applied'};
   }
 }
@@ -170,6 +196,7 @@ Future<ProviderContainer> _mountWorkbench(
     UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
+        locale: capture == null ? null : const Locale('zh', 'CN'),
         theme: capture == null ? null : ThemeData(fontFamily: 'StandaloneFont'),
         localizationsDelegates: const [
           AppLocalizations.delegate,
@@ -252,38 +279,66 @@ void main() {
         await tester.pump(const Duration(milliseconds: 1));
       },
     );
-    testWidgets('standalone rules and sources fit width $width', (
-      tester,
-    ) async {
-      final key = GlobalKey();
-      await _mountWorkbench(
-        tester,
-        controller: _Controller(),
-        size: Size(width, 900),
-        capture: key,
-      );
-      expect(find.text(AppLocalizations.current.policyTarget), findsNothing);
-      expect(
-        find.text(AppLocalizations.current.policyLocalDefaultReject),
-        findsOneWidget,
-      );
-      expect(tester.takeException(), isNull);
-      await _capture(tester, key, 'rules-$width');
-      await _tap(
-        tester,
-        find.widgetWithText(Tab, AppLocalizations.current.policyAdvancedTab),
-      );
-      expect(find.byType(PolicyMultiSelect), findsOneWidget);
-      expect(
-        find.text(AppLocalizations.current.policyAddIntegration),
-        findsNothing,
-      );
-      expect(tester.takeException(), isNull);
-      await _capture(tester, key, 'sources-$width');
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump(const Duration(milliseconds: 1));
-    });
+    testWidgets(
+      'local workbench navigation keeps rules as the primary page at width $width',
+      (tester) async {
+        final key = GlobalKey();
+        final controller = _Controller();
+        await _mountWorkbench(
+          tester,
+          controller: controller,
+          size: Size(width, 900),
+          capture: key,
+        );
+        final strings = AppLocalizations.current;
+        expect(
+          tester.widgetList<Tab>(find.byType(Tab)).map((tab) => tab.text),
+          [
+            strings.policyRulesTab,
+            strings.policyNodeSets,
+            strings.policyQuotaOverview,
+            strings.policyAdvancedTab,
+            strings.policyHistoryTab,
+          ],
+        );
+        expect(find.text(strings.policyLocalChoose), findsOneWidget);
+        expect(find.text(strings.policyAddRule), findsOneWidget);
+        expect(find.text(strings.policyTarget), findsNothing);
+        expect(
+          find.byType(DropdownButtonFormField<SourceUpdateRoute>),
+          findsNothing,
+        );
+        expect(find.byIcon(Icons.data_object), findsNothing);
+        expect(tester.takeException(), isNull);
+        await _capture(tester, key, 'rules-$width');
+        await _tap(tester, find.text(strings.policySubscriptionSources));
+        expect(find.byType(PolicySourcePicker), findsOneWidget);
+        await _tap(tester, find.text(strings.cancel));
+        expect(find.byType(PolicySourcePicker), findsNothing);
+        await _tap(tester, find.widgetWithText(Tab, strings.policyNodeSets));
+        expect(find.text(strings.policyNodeSetHint), findsOneWidget);
+        await _capture(tester, key, 'groups-$width');
+        await _tap(
+          tester,
+          find.widgetWithText(Tab, strings.policyQuotaOverview),
+        );
+        expect(find.byType(LocalQuotaOverview), findsOneWidget);
+        await _capture(tester, key, 'quota-$width');
+        await _tap(tester, find.widgetWithText(Tab, strings.policyAdvancedTab));
+        expect(find.text(strings.policyLocalAdvancedHint), findsOneWidget);
+        expect(find.byType(PolicyMultiSelect), findsNothing);
+        expect(find.text(strings.policyAddIntegration), findsNothing);
+        expect(find.byIcon(Icons.data_object), findsOneWidget);
+        await _capture(tester, key, 'advanced-$width');
+        expect(controller.proposed, isNull);
+        expect(controller.selectedTargets, isEmpty);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(milliseconds: 1));
+      },
+    );
   }
+
   for (final size in [const Size(360, 740), const Size(944, 568)]) {
     testWidgets(
       'empty local configuration saves direct rules without sources at $size',
@@ -298,9 +353,12 @@ void main() {
           size: size,
         );
         final strings = AppLocalizations.current;
-        expect(find.byType(Tab), findsNWidgets(4));
+        expect(find.byType(Tab), findsNWidgets(5));
         expect(find.text(strings.policyTarget), findsNothing);
-        expect(find.text(strings.policyLocalDefaultReject), findsOneWidget);
+        expect(
+          find.byTooltip(strings.policyLocalDefaultReject),
+          findsOneWidget,
+        );
         await _tap(tester, find.text(strings.policyAddRule));
         expect(find.byType(LocalPolicyEditor), findsOneWidget);
         expect(find.text(strings.policyTarget), findsNothing);
@@ -431,22 +489,14 @@ void main() {
         ],
       });
       final controller = _Controller(document);
-      final container = await _mountWorkbench(
-        tester,
-        controller: controller,
-        initialTab: 2,
-      );
+      final container = await _mountWorkbench(tester, controller: controller);
       final strings = AppLocalizations.current;
       expect(find.text(strings.policyAddIntegration), findsNothing);
       expect(find.text(strings.policyAddBudget), findsNothing);
-      final select = find.widgetWithText(
-        PolicyMultiSelect,
-        strings.policySubscriptionSources,
-      );
-      await _tap(tester, select);
-      await tester.tap(find.widgetWithText(CheckboxListTile, 'Source 2'));
-      await tester.tap(find.text(strings.confirm));
-      await tester.pump();
+      await _tap(tester, find.text(strings.policySubscriptionSources));
+      expect(find.byType(PolicySourcePicker), findsOneWidget);
+      await _tap(tester, find.byKey(const ValueKey('policy-source-2')));
+      await tester.tap(find.text(strings.save));
       await tester.pump(const Duration(milliseconds: 400));
       expect(controller.proposed!.localProfile.sourceProfileIds, [1, 2]);
       expect(controller.proposed!.localProfile.nameFilter, 'preserved');
@@ -465,6 +515,17 @@ void main() {
       await tester.tap(find.text(strings.aiReject));
       await tester.pumpAndSettle();
       expect(controller.applies, 0);
+      expect(find.byType(PolicySourcePicker), findsOneWidget);
+      expect(
+        tester
+            .widget<CheckboxListTile>(
+              find.byKey(const ValueKey('policy-source-2')),
+            )
+            .value,
+        isTrue,
+      );
+      await _tap(tester, find.text(strings.cancel));
+      await _tap(tester, find.widgetWithText(Tab, strings.policyAdvancedTab));
       await _tap(tester, find.text(strings.policyBudgetTab));
       expect(find.text(strings.policyAddBudget), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -472,29 +533,128 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1));
     },
   );
+
+  testWidgets(
+    'editing a rule after approved source management keeps the latest base document',
+    (tester) async {
+      final controller = _Controller();
+      await _mountWorkbench(tester, controller: controller);
+      final strings = AppLocalizations.current;
+      await _tap(tester, find.byTooltip(strings.edit));
+      expect(find.byType(LocalPolicyEditor), findsOneWidget);
+      await tester.enterText(
+        find.descendant(
+          of: find.byKey(const ValueKey('policy-rule-name')),
+          matching: find.byType(TextFormField),
+        ),
+        '保留并更新的规则',
+      );
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('policy-manage-subscription-sources')),
+      );
+      await tester.pumpAndSettle();
+      final manageSources = tester.widget<TextButton>(
+        find.byKey(const ValueKey('policy-manage-subscription-sources')),
+      );
+      expect(manageSources.onPressed, isNotNull);
+      manageSources.onPressed!();
+      await tester.pumpAndSettle();
+      expect(find.byType(PolicySourcePicker), findsOneWidget);
+      await _tap(tester, find.byKey(const ValueKey('policy-source-1')));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(PolicySourcePicker),
+          matching: find.text(strings.save),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text(strings.aiApprove));
+      await tester.pumpAndSettle();
+      expect(controller.applies, 1);
+      expect(controller.document.localProfile.sourceProfileIds, [2]);
+      expect(find.byType(PolicySourcePicker), findsNothing);
+      expect(find.text('保留并更新的规则'), findsOneWidget);
+
+      final saveRule = find.widgetWithText(FilledButton, strings.save);
+      await tester.ensureVisible(saveRule);
+      await tester.tap(saveRule);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text(strings.aiApprove));
+      await tester.pumpAndSettle();
+      expect(controller.applies, 2);
+      expect(controller.document.localProfile.sourceProfileIds, [2]);
+      expect(controller.document.policies.single.label, '保留并更新的规则');
+      expect(find.text(strings.policyOperationFailed), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(milliseconds: 1));
+    },
+  );
+
+  testWidgets('source save stops if the workbench is disposed after approval', (
+    tester,
+  ) async {
+    final controller = _DelayedCommitController();
+    await _mountWorkbench(tester, controller: controller);
+    final strings = AppLocalizations.current;
+    await _tap(tester, find.text(strings.policySubscriptionSources));
+    await _tap(tester, find.byKey(const ValueKey('policy-source-1')));
+    await tester.tap(find.text(strings.save));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text(strings.aiApprove));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(controller.approved.isCompleted, isTrue);
+    await tester.pumpWidget(const SizedBox());
+    controller.release.complete();
+    await tester.pumpAndSettle();
+    expect(controller.applies, 0);
+    expect(controller.document.localProfile.sourceProfileIds, [1, 2]);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'source capacity errors keep the current configuration unchanged',
     (tester) async {
       final controller = _Controller();
-      await _mountWorkbench(tester, controller: controller, initialTab: 2);
-      tester
-          .widget<PolicyMultiSelect>(find.byType(PolicyMultiSelect))
-          .onChanged(List.generate(21, (index) => '${index + 1}'));
+      final profiles = [
+        for (var id = 1; id <= 21; id++)
+          Profile(
+            id: id,
+            label: 'Source $id',
+            autoUpdateDuration: Duration.zero,
+          ),
+      ];
+      await _mountWorkbench(tester, controller: controller, profiles: profiles);
+      await _tap(
+        tester,
+        find.text(AppLocalizations.current.policySubscriptionSources),
+      );
+      for (var id = 1; id <= 21; id++) {
+        final checkbox = find.byKey(ValueKey('policy-source-$id'));
+        final tile = tester.widget<CheckboxListTile>(checkbox);
+        if (tile.value != true) await _tap(tester, checkbox);
+      }
+      await _tap(tester, find.text(AppLocalizations.current.save));
       await tester.pumpAndSettle();
       expect(
         find.text(AppLocalizations.current.policyLocalSourceLimit),
         findsOneWidget,
       );
       expect(controller.proposed, isNull);
+      expect(
+        tester
+            .widget<CheckboxListTile>(
+              find.byKey(const ValueKey('policy-source-21')),
+            )
+            .value,
+        isTrue,
+      );
+      await _tap(tester, find.byKey(const ValueKey('policy-source-21')));
+      await _tap(tester, find.text(AppLocalizations.current.cancel));
+      expect(find.byType(PolicySourcePicker), findsNothing);
       expect(tester.takeException(), isNull);
-      final callback = tester
-          .widget<PolicyMultiSelect>(find.byType(PolicyMultiSelect))
-          .onChanged;
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(milliseconds: 1));
-      callback(['1']);
-      expect(tester.takeException(), isNull);
-      expect(controller.proposed, isNull);
     },
   );
 
@@ -527,7 +687,129 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1));
     },
   );
-  testWidgets('history remains available as the fourth tab', (tester) async {
+  testWidgets(
+    'empty source picker can be canceled without selecting a configuration',
+    (tester) async {
+      final controller = _Controller(
+        const LocalPolicyDocument().asStandalone(),
+      );
+      final container = await _mountWorkbench(
+        tester,
+        controller: controller,
+        profiles: [],
+      );
+      await _tap(
+        tester,
+        find.text(AppLocalizations.current.policySubscriptionSources),
+      );
+      expect(find.byType(PolicySourcePicker), findsOneWidget);
+      expect(
+        find.text(AppLocalizations.current.policyLocalNoSubscriptions),
+        findsOneWidget,
+      );
+      await _tap(tester, find.text(AppLocalizations.current.cancel));
+      expect(container.read(currentProfileIdProvider), 2);
+      expect(controller.selectedTargets, isEmpty);
+      expect(controller.proposed, isNull);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    },
+  );
+  testWidgets(
+    'profiles shortcut returns through stacked routes without configuration writes',
+    (tester) async {
+      final controller = _Controller(
+        const LocalPolicyDocument().asStandalone(),
+      );
+      final container = await _mountWorkbench(
+        tester,
+        controller: controller,
+        profiles: [],
+        home: Consumer(
+          builder: (context, ref, _) => Scaffold(
+            body: Column(
+              children: [
+                Text('Root page: ${ref.watch(currentPageLabelProvider).name}'),
+                TextButton(
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (intermediateContext) => Scaffold(
+                        body: Column(
+                          children: [
+                            const Text('Intermediate page'),
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.of(intermediateContext).push<void>(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const LocalPolicyWorkbenchView(),
+                                    ),
+                                  ),
+                              child: const Text('Open workbench'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  child: const Text('Open intermediate page'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await _tap(tester, find.text('Open intermediate page'));
+      await _tap(tester, find.text('Open workbench'));
+      expect(find.byType(LocalPolicyWorkbenchView), findsOneWidget);
+      await _tap(tester, find.text(AppLocalizations.current.policyLocalChoose));
+      expect(find.text('Root page: profiles'), findsOneWidget);
+      expect(find.text('Intermediate page', skipOffstage: false), findsNothing);
+      expect(
+        find.byType(LocalPolicyWorkbenchView, skipOffstage: false),
+        findsNothing,
+      );
+      expect(
+        Navigator.of(tester.element(find.text('Root page: profiles'))).canPop(),
+        false,
+      );
+      expect(container.read(currentPageLabelProvider), PageLabel.profiles);
+      expect(container.read(currentProfileIdProvider), 2);
+      expect(controller.selectedTargets, isEmpty);
+      expect(controller.proposed, isNull);
+      expect(controller.applies, 0);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    },
+  );
+  testWidgets(
+    'selected local configuration shows its saved changes apply there',
+    (tester) async {
+      final controller = _Controller(
+        LocalPolicyDocument.fromJson({
+          ..._document.toJson(),
+          'moduleEnabled': true,
+          'integrationEnabled': true,
+        }),
+      );
+      await _mountWorkbench(tester, controller: controller);
+      expect(
+        find.text(AppLocalizations.current.policyLocalSelected),
+        findsOneWidget,
+      );
+      expect(
+        find.text(AppLocalizations.current.policyLocalChoose),
+        findsNothing,
+      );
+      expect(controller.selectedTargets, isEmpty);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+    },
+  );
+  testWidgets('history remains available as the fifth tab', (tester) async {
     await _mountWorkbench(tester, controller: _Controller(), initialTab: 4);
     expect(
       find.text(AppLocalizations.current.policyEmptyHistory),

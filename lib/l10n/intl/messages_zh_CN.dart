@@ -730,6 +730,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyAddBudget": MessageLookupByLibrary.simpleMessage("添加流量限额"),
     "policyAddIntegration": MessageLookupByLibrary.simpleMessage("新建合并配置"),
     "policyAddRule": MessageLookupByLibrary.simpleMessage("添加规则"),
+    "policyAddSubscription": MessageLookupByLibrary.simpleMessage("添加订阅"),
     "policyAdmission": MessageLookupByLibrary.simpleMessage("有效期与剩余额度"),
     "policyAdvancedJson": MessageLookupByLibrary.simpleMessage("高级结构化 JSON"),
     "policyAdvancedTab": MessageLookupByLibrary.simpleMessage("高级"),
@@ -877,6 +878,10 @@ class MessageLookup extends MessageLookupByLibrary {
       "原有多个选择仍保留；选择新的节点组或节点后才会替换",
     ),
     "policyLoadNodes": MessageLookupByLibrary.simpleMessage("读取可用节点"),
+    "policyLocalAdvancedHint": MessageLookupByLibrary.simpleMessage(
+      "以下均为可选设置，首次使用可以跳过。",
+    ),
+    "policyLocalChoose": MessageLookupByLibrary.simpleMessage("到配置页选用"),
     "policyLocalCollection": MessageLookupByLibrary.simpleMessage("本地配置"),
     "policyLocalDefaultReject": MessageLookupByLibrary.simpleMessage(
       "没有规则匹配到可用结果时，拒绝连接。",
@@ -884,17 +889,21 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyLocalMigrationReview": MessageLookupByLibrary.simpleMessage(
       "旧规则已保留并暂停，请检查后再选择本地配置。",
     ),
-    "policyLocalProfileHint": MessageLookupByLibrary.simpleMessage(
-      "独立选择使用，编辑来源和本地规则",
+    "policyLocalNoSubscriptions": MessageLookupByLibrary.simpleMessage(
+      "还没有订阅，可先添加。",
     ),
+    "policyLocalProfileHint": MessageLookupByLibrary.simpleMessage(
+      "合并订阅节点，自定义分流规则",
+    ),
+    "policyLocalSelected": MessageLookupByLibrary.simpleMessage("已选用本地配置"),
     "policyLocalSourceLimit": MessageLookupByLibrary.simpleMessage(
       "最多选择20个订阅来源",
     ),
     "policyLocalSourcesEmpty": MessageLookupByLibrary.simpleMessage(
-      "还未选择订阅来源；可以先添加直连或拦截规则。",
+      "使用机场节点需要先选择订阅来源；直连和拦截不需要。",
     ),
     "policyLocalSourcesHint": MessageLookupByLibrary.simpleMessage(
-      "只使用所选订阅的节点，不继承订阅的规则、策略组、脚本或 DNS。最多选择20个来源。",
+      "先勾选要使用节点的订阅，再设置节点组和分流规则。只合并节点，不带入订阅原有的规则、策略组、脚本或 DNS。最多选择20个来源。",
     ),
     "policyManualAttribute": MessageLookupByLibrary.simpleMessage("人工确认"),
     "policyManualOrigin": MessageLookupByLibrary.simpleMessage("手动添加"),
@@ -971,6 +980,21 @@ class MessageLookup extends MessageLookupByLibrary {
     "policyProcessName": MessageLookupByLibrary.simpleMessage("应用进程名"),
     "policyProcessPath": MessageLookupByLibrary.simpleMessage("应用进程路径"),
     "policyProcessing": MessageLookupByLibrary.simpleMessage("处理方式"),
+    "policyQuotaExpired": MessageLookupByLibrary.simpleMessage("已到期"),
+    "policyQuotaExpiringLater": MessageLookupByLibrary.simpleMessage("之后到期"),
+    "policyQuotaExpiringSoon": MessageLookupByLibrary.simpleMessage("30天内到期"),
+    "policyQuotaNoSources": MessageLookupByLibrary.simpleMessage("尚未选择订阅"),
+    "policyQuotaOverage": MessageLookupByLibrary.simpleMessage("超出额度"),
+    "policyQuotaOverview": MessageLookupByLibrary.simpleMessage("订阅概览"),
+    "policyQuotaPartiallyUnknown": MessageLookupByLibrary.simpleMessage(
+      "部分额度未知",
+    ),
+    "policyQuotaRemaining": MessageLookupByLibrary.simpleMessage("剩余"),
+    "policyQuotaTotal": MessageLookupByLibrary.simpleMessage("总额度"),
+    "policyQuotaUnknown": MessageLookupByLibrary.simpleMessage("额度未知"),
+    "policyQuotaUnknownExpiry": MessageLookupByLibrary.simpleMessage("到期未知"),
+    "policyQuotaUnlimited": MessageLookupByLibrary.simpleMessage("长期有效"),
+    "policyQuotaUsed": MessageLookupByLibrary.simpleMessage("已用"),
     "policyRecovery": MessageLookupByLibrary.simpleMessage("恢复与冷却"),
     "policyRecoveryCheck": MessageLookupByLibrary.simpleMessage("检查并恢复"),
     "policyRecoveryKeep": MessageLookupByLibrary.simpleMessage("保留已检查的当前设置"),

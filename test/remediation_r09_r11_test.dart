@@ -3,6 +3,7 @@ import 'package:fl_clash/policy/models.dart';
 import 'package:fl_clash/views/policy/editors.dart';
 import 'package:fl_clash/views/policy/node_set_editor.dart';
 import 'package:fl_clash/views/policy/widgets.dart';
+import 'package:fl_clash/views/policy/selection_fields.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -66,9 +67,14 @@ Finder field(String label) => find.byWidgetPredicate(
 );
 
 Future<void> selectSource(WidgetTester tester) async {
-  final label = find.text(AppLocalizations.current.policyIncludeSources);
-  await tester.ensureVisible(label);
-  await tester.tap(label);
+  final sourceField = find.byWidgetPredicate(
+    (widget) =>
+        widget is PolicyMultiSelect &&
+        widget.label == AppLocalizations.current.policyIncludeSources,
+  );
+  if (tester.widget<PolicyMultiSelect>(sourceField).value.contains('1')) return;
+  await tester.ensureVisible(sourceField);
+  await tester.tap(sourceField);
   await tester.pumpAndSettle();
   await tester.tap(find.widgetWithText(CheckboxListTile, 'Source'));
   await tester.tap(find.text(AppLocalizations.current.confirm));

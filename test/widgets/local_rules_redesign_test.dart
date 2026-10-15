@@ -594,6 +594,10 @@ void main() {
         );
         if (!desktop) await _tapVisible(tester, find.text('Open rules'));
         final strings = AppLocalizations.current;
+        await _tapVisible(
+          tester,
+          find.widgetWithText(Tab, strings.policyRulesTab),
+        );
         await tester.scrollUntilVisible(
           find.text(strings.policyAiOptimizeRule),
           200,
@@ -781,6 +785,10 @@ void main() {
         workbench: controller,
       );
       final strings = AppLocalizations.current;
+      await _tapVisible(
+        tester,
+        find.widgetWithText(Tab, strings.policyRulesTab),
+      );
       expect(
         tester.getTopLeft(find.text(strings.policyAddRule)).dy,
         lessThan(
@@ -888,6 +896,10 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await _pump(tester, const LocalPolicyWorkbenchView(), const Size(390, 700));
+    await _tapVisible(
+      tester,
+      find.widgetWithText(Tab, AppLocalizations.current.policyRulesTab),
+    );
     await _capture(tester, '02-rules-narrow');
     await _tapVisible(
       tester,
