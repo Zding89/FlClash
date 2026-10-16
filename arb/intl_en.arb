@@ -1224,5 +1224,108 @@
   "policyCheckRetry": "Retry reading status",
   "aiPolicySavedOnly": "Saved; not active",
   "aiPolicyEffectiveVerified": "Saved; activation verified",
-  "aiPolicySavedUnverified": "Saved; runtime state unverified"
+  "aiPolicySavedUnverified": "Saved; runtime state unverified",
+  "aiPolicyChangeAdded": "Add {kind} “{label}”",
+  "@aiPolicyChangeAdded": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyChangeRemoved": "Remove {kind} “{label}”",
+  "@aiPolicyChangeRemoved": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyChangeField": "{kind} “{label}” · {field}: {value}",
+  "@aiPolicyChangeField": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "label": {
+        "type": "String"
+      },
+      "field": {
+        "type": "String"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyChangeAdjusted": "Adjusted",
+  "aiPolicyChangeMore": "{count} more changes",
+  "@aiPolicyChangeMore": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyChangeBaseline": "All pending changes compared with the saved configuration",
+  "aiPolicyChangePosition": "Position {position}",
+  "@aiPolicyChangePosition": {
+    "placeholders": {
+      "position": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyFilterConditions": "Filter conditions",
+  "aiPolicyCompletionEvidenceRequired": "The result has not been verified. Ask the assistant to check the current plan or operation status.",
+  "aiPolicyChangeEmpty": "None",
+  "aiPolicyChangeEnabled": "Enabled",
+  "aiPolicyChangeDisabled": "Disabled",
+  "aiPolicyChangeRuleOrder": "Rule order",
+  "aiPolicyChangeOtherFields": "Other settings",
+  "aiPolicyChangeReferences": "{count} items",
+  "@aiPolicyChangeReferences": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "aiReviewAndConfirm": "View and confirm",
+  "aiReviewActionScope": "Operation scope",
+  "aiReviewTarget": "Target",
+  "aiReviewOtherSetting": "Other option",
+  "aiReviewSensitiveValue": "Protected value updated",
+  "aiReviewUnknownValue": "Not recorded",
+  "aiReviewChange": "Changes",
+  "aiReviewSelectNode": "Switch node",
+  "aiReviewSelectProfile": "Switch configuration",
+  "aiReviewSetConnection": "Connection switch",
+  "aiReviewRefresh": "Refresh subscriptions",
+  "aiReviewResource": "Update resource",
+  "aiReviewProbe": "Check nodes",
+  "aiReviewClose": "Close",
+  "aiReviewChanged": "Updated",
+  "aiReviewWindowSize": "Window size",
+  "aiReviewWindowPosition": "Window position",
+  "aiReviewDns": "DNS settings",
+  "aiReviewUnknownAction": "Application operation",
+  "aiReviewUnavailable": "This operation cannot currently be confirmed. Check its status again.",
+  "aiReviewCancelOperation": "Cancel operation",
+  "aiReviewCancelProbe": "Cancel node check",
+  "aiReviewReadFile": "Read local file",
+  "aiReviewWriteFile": "Write local file",
+  "aiReviewHideApplication": "Hide application",
+  "aiReviewDiagnostics": "Run diagnostics",
+  "aiReviewGrantFile": "Select local file",
+  "aiReviewCliCredentials": "Local control credentials",
+  "aiReviewContent": "Configuration content",
+  "aiReviewCloseConnections": "Close connections",
+  "aiReviewFetchThenApply": "After fetching the latest content, review its changes before applying."
 }

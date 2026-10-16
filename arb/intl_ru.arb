@@ -1210,5 +1210,108 @@
   "policyCheckRetry": "Повторить чтение статуса",
   "aiPolicySavedOnly": "Сохранено, но не действует",
   "aiPolicyEffectiveVerified": "Сохранено, действие проверено",
-  "aiPolicySavedUnverified": "Сохранено, состояние выполнения не подтверждено"
+  "aiPolicySavedUnverified": "Сохранено, состояние выполнения не подтверждено",
+  "aiPolicyChangeAdded": "Добавить {kind} «{label}»",
+  "@aiPolicyChangeAdded": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyChangeRemoved": "Удалить {kind} «{label}»",
+  "@aiPolicyChangeRemoved": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyChangeField": "{kind} «{label}» · {field}: {value}",
+  "@aiPolicyChangeField": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "label": {
+        "type": "String"
+      },
+      "field": {
+        "type": "String"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyChangeAdjusted": "Изменено",
+  "aiPolicyChangeMore": "Ещё изменений: {count}",
+  "@aiPolicyChangeMore": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyChangeBaseline": "Все ожидающие изменения относительно сохранённой конфигурации",
+  "aiPolicyChangePosition": "Позиция {position}",
+  "@aiPolicyChangePosition": {
+    "placeholders": {
+      "position": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyFilterConditions": "Условия фильтрации",
+  "aiPolicyCompletionEvidenceRequired": "Результат операции ещё не проверен. Попросите помощника проверить текущий план или состояние операции.",
+  "aiPolicyChangeEmpty": "Нет",
+  "aiPolicyChangeEnabled": "Включено",
+  "aiPolicyChangeDisabled": "Выключено",
+  "aiPolicyChangeRuleOrder": "Порядок правил",
+  "aiPolicyChangeOtherFields": "Другие настройки",
+  "aiPolicyChangeReferences": "Элементов: {count}",
+  "@aiPolicyChangeReferences": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "aiReviewAndConfirm": "Просмотреть и подтвердить",
+  "aiReviewActionScope": "Область операции",
+  "aiReviewTarget": "Объект операции",
+  "aiReviewOtherSetting": "Другой параметр",
+  "aiReviewSensitiveValue": "Обновление защищённых данных",
+  "aiReviewUnknownValue": "Не записано",
+  "aiReviewChange": "Изменения",
+  "aiReviewSelectNode": "Переключить узел",
+  "aiReviewSelectProfile": "Переключить конфигурацию",
+  "aiReviewSetConnection": "Переключение подключения",
+  "aiReviewRefresh": "Обновить подписки",
+  "aiReviewResource": "Обновить ресурс",
+  "aiReviewProbe": "Проверить узлы",
+  "aiReviewClose": "Закрыть",
+  "aiReviewChanged": "Изменено",
+  "aiReviewWindowSize": "Размер окна",
+  "aiReviewWindowPosition": "Положение окна",
+  "aiReviewDns": "Настройки DNS",
+  "aiReviewUnknownAction": "Операция приложения",
+  "aiReviewUnavailable": "Сейчас эту операцию подтвердить нельзя. Проверьте её состояние ещё раз.",
+  "aiReviewCancelOperation": "Отменить операцию",
+  "aiReviewCancelProbe": "Отменить проверку узлов",
+  "aiReviewReadFile": "Чтение локального файла",
+  "aiReviewWriteFile": "Запись локального файла",
+  "aiReviewHideApplication": "Скрыть приложение",
+  "aiReviewDiagnostics": "Запустить диагностику",
+  "aiReviewGrantFile": "Выбрать локальный файл",
+  "aiReviewCliCredentials": "Данные локального управления",
+  "aiReviewContent": "Содержимое конфигурации",
+  "aiReviewCloseConnections": "Закрыть подключения",
+  "aiReviewFetchThenApply": "После получения новых данных проверьте изменения перед применением."
 }

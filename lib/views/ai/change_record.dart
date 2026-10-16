@@ -13,6 +13,8 @@ ConfigurationProposal aiStoredProposal(WorkbenchChange row) {
     expiresAt: row.expiresAt,
     differences: configurationDifferences(before, after),
     validation: {
+      'reviewStatus': aiStoredChangeStatus(row),
+      'reviewCategory': row.category,
       if (row.category == 'policies' && before is Map && after is Map)
         'localPolicyDocuments': {
           'before': before['policies'],

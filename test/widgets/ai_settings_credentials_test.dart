@@ -106,6 +106,7 @@ class _Controller extends Mock implements WorkbenchController {
     ConfigurationProposal proposal, {
     required ConfigurationApproval approve,
     bool Function()? isCurrent,
+    bool requireApproval = false,
   }) async {
     if (!scriptPreview) {
       throw const ConfigurationChangeException('configuration_apply_failed');
@@ -630,9 +631,9 @@ void main() {
         find.text(AppLocalizations.current.aiFinalConfigDifferences),
         findsOneWidget,
       );
-      expect(find.text('mode'), findsOneWidget);
+      expect(find.text(AppLocalizations.current.mode), findsOneWidget);
       expect(controller.credentials.secret, 'new-secret');
-      await tester.tap(find.text(AppLocalizations.current.aiReject));
+      await tester.tap(find.text(AppLocalizations.current.cancel).last);
       await tester.pumpAndSettle();
       expect(controller.finalApproved, false);
       expect(controller.credentials.secret, 'old-secret');

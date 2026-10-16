@@ -15,6 +15,7 @@ import 'package:fl_clash/providers/state.dart';
 import 'package:fl_clash/providers/ai_history.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/views/ai/assistant.dart';
+import 'package:fl_clash/views/ai/approval.dart';
 import 'package:fl_clash/views/ai/composer_context.dart';
 import 'package:fl_clash/views/ai/settings.dart';
 import 'package:fl_clash/views/ai/presentation.dart';
@@ -290,6 +291,35 @@ const _proposal = ConfigurationProposal(
 );
 
 class _CapabilityService extends Mock implements ApplicationCapabilityService {
+  ConfigurationProposal? reviewProposal;
+  int localConfirms = 0;
+  Map<String, Object?>? localConfirmResult;
+  int localCancels = 0;
+  @override
+  Future<ConfigurationProposal> reviewChange(String id) async {
+    if (reviewProposal == null) throw StateError('missing review fixture');
+    return reviewProposal!;
+  }
+
+  @override
+  Future<Map<String, Object?>> confirmReviewedChange(
+    String id, {
+    required ConfigurationApproval approve,
+    bool Function()? isCurrent,
+  }) async {
+    localConfirms++;
+    final accepted = await approve(reviewProposal!);
+    return accepted && localConfirmResult != null
+        ? localConfirmResult!
+        : {'operationId': id, 'status': accepted ? 'completed' : 'cancelled'};
+  }
+
+  @override
+  Future<Map<String, Object?>> cancelReviewedChange(String id) async {
+    localCancels++;
+    return {'operationId': id, 'status': 'cancelled'};
+  }
+
   bool? approved;
   Completer<Map<String, Object?>>? readPending;
   Map<String, Object?>? runtimeReadResult;
@@ -2101,6 +2131,262 @@ void main() {
     },
   );
 
+  for (final choice in ['confirm', 'dialog_cancel', 'card_cancel']) {
+    testWidgets(
+      'staged card $choice uses local owner without another model request',
+      (tester) async {
+        const proposal = ConfigurationProposal(
+          id: 'local-review',
+          summary: 'internal action description',
+          highRisk: true,
+          expiresAt: 9999999999999,
+          differences: [
+            ConfigurationDifference(
+              path: 'node',
+              before: '美国节点',
+              after: '香港节点',
+            ),
+          ],
+          validation: {
+            'reviewStatus': 'pending_confirmation',
+            'reviewCategory': 'capability:proxy_select',
+            'agentReview': {
+              'command': 'proxy_select',
+              'before': {'group': '自动选择', 'node': '美国节点'},
+              'after': {'group': '自动选择', 'node': '香港节点'},
+              'labels': {},
+            },
+          },
+        );
+        final transport = _RequestTransport('application_invoke', {
+          'command': 'proxy_select',
+          'params': {'group': '自动选择', 'node': '香港节点'},
+        });
+        final capabilities = _CapabilityService()
+          ..reviewProposal = proposal
+          ..mutationResult = {
+            'status': 'pending_confirmation',
+            'proposal': proposal.toJson(),
+          };
+        final container = await _mount(
+          tester,
+          _Controller(
+            AgentRuntime(launcher: () async => transport),
+            _Credentials(),
+          ),
+          capabilities: capabilities,
+        );
+        addTearDown(container.dispose);
+        await tester.enterText(
+          find.byKey(const ValueKey('ai-prompt')),
+          '切换香港节点',
+        );
+        await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+        await waitAiCondition(
+          tester,
+          () =>
+              transport.toolResults == 1 &&
+              find.byKey(const ValueKey('ai-send')).evaluate().isNotEmpty,
+          'Draft must finish without applying',
+        );
+        expect(capabilities.localConfirms, 0);
+        expect(find.text(AppLocalizations.current.aiApprove), findsNothing);
+        if (choice == 'card_cancel') {
+          await _tapAi(tester, find.text(AppLocalizations.current.cancel));
+        } else {
+          await _tapAi(
+            tester,
+            find.text(AppLocalizations.current.aiReviewAndConfirm),
+          );
+          expect(find.byType(AiConfigurationApprovalDialog), findsOneWidget);
+          expect(capabilities.localConfirms, 0);
+          await _tapAi(
+            tester,
+            find
+                .text(
+                  choice == 'confirm'
+                      ? AppLocalizations.current.aiApprove
+                      : AppLocalizations.current.cancel,
+                )
+                .last,
+          );
+        }
+        await tester.pumpAndSettle();
+        expect(capabilities.localConfirms, choice == 'confirm' ? 1 : 0);
+        expect(capabilities.localCancels, choice == 'confirm' ? 0 : 1);
+        expect(transport.promptCalls, 1);
+        expect(find.byType(AiConfigurationApprovalDialog), findsNothing);
+        final saved =
+            (await container.read(aiHistoryStoreProvider).list()).single;
+        expect(saved.recoveryRequired, true);
+        await tester.enterText(
+          find.byKey(const ValueKey('ai-prompt')),
+          '检查当前操作状态',
+        );
+        await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+        expect(transport.promptCalls, 2);
+        expect(transport.prompt!['data']['recoveryRequired'], true);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+      },
+    );
+  }
+
+  testWidgets('batch proposals become separate reviewable cards', (
+    tester,
+  ) async {
+    final second = ConfigurationProposal(
+      id: 'second-draft',
+      summary: 'second',
+      highRisk: true,
+      expiresAt: _proposal.expiresAt,
+      differences: _proposal.differences,
+      validation: const {},
+    );
+    final transport = _RequestTransport('application_invoke', {
+      'command': 'proxy_select',
+      'params': {'group': 'auto', 'node': 'node'},
+    });
+    final capabilities = _CapabilityService()
+      ..mutationResult = {
+        'status': 'pending_confirmation',
+        'result': {
+          'proposals': [
+            {'proposal': _proposal.toJson()},
+            {'proposal': second.toJson()},
+          ],
+        },
+      };
+    final container = await _mount(
+      tester,
+      _Controller(
+        AgentRuntime(launcher: () async => transport),
+        _Credentials(),
+      ),
+      capabilities: capabilities,
+    );
+    addTearDown(container.dispose);
+    await tester.enterText(find.byKey(const ValueKey('ai-prompt')), '刷新订阅');
+    await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+    await waitAiCondition(
+      tester,
+      () =>
+          transport.toolResults == 1 &&
+          find.byKey(const ValueKey('ai-send')).evaluate().isNotEmpty,
+      'Both draft cards must arrive',
+    );
+    expect(
+      find.byKey(const ValueKey('ai-result-visual-proposal')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('ai-result-second-draft')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widgetList<AiToolResultCard>(find.byType(AiToolResultCard))
+          .every((card) => card.onReview != null && card.onApprove == null),
+      true,
+    );
+    expect(capabilities.localConfirms, 0);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+    'approved preparation exposes new child drafts locally without reapproving parent',
+    (tester) async {
+      const parent = ConfigurationProposal(
+        id: 'refresh-parent',
+        summary: 'refresh',
+        highRisk: true,
+        expiresAt: 9999999999999,
+        differences: [],
+        validation: {
+          'reviewStatus': 'pending_confirmation',
+          'reviewCategory': 'capability:profiles_refresh_all',
+          'agentReview': {
+            'command': 'profiles_refresh_all',
+            'before': {},
+            'after': {},
+            'labels': {},
+          },
+        },
+      );
+      final transport = _RequestTransport('application_invoke', {
+        'command': 'proxy_select',
+        'params': {'group': 'auto', 'node': 'node'},
+      });
+      final capabilities = _CapabilityService()
+        ..reviewProposal = parent
+        ..mutationResult = {
+          'status': 'pending_confirmation',
+          'proposal': parent.toJson(),
+        }
+        ..localConfirmResult = {
+          'status': 'proposal_ready',
+          'operationId': parent.id,
+          'result': {
+            'proposals': [
+              {'proposal': _proposal.toJson()},
+            ],
+          },
+        };
+      final container = await _mount(
+        tester,
+        _Controller(
+          AgentRuntime(launcher: () async => transport),
+          _Credentials(),
+        ),
+        capabilities: capabilities,
+      );
+      addTearDown(container.dispose);
+      await tester.enterText(find.byKey(const ValueKey('ai-prompt')), '刷新订阅');
+      await _tapAi(tester, find.byKey(const ValueKey('ai-send')));
+      await waitAiCondition(
+        tester,
+        () =>
+            transport.toolResults == 1 &&
+            find.byKey(const ValueKey('ai-send')).evaluate().isNotEmpty,
+        'Refresh intent must be staged',
+      );
+      await _tapAi(
+        tester,
+        find.text(AppLocalizations.current.aiReviewAndConfirm),
+      );
+      await _tapAi(
+        tester,
+        find.text(
+          '${AppLocalizations.current.confirm} · ${AppLocalizations.current.download}',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('ai-result-visual-proposal')),
+        findsOneWidget,
+      );
+      final cards = tester.widgetList<AiToolResultCard>(
+        find.byType(AiToolResultCard),
+      );
+      final parentCard = cards.firstWhere(
+        (card) => card.proposal?.id == parent.id,
+      );
+      expect(parentCard.awaitingApproval, false);
+      expect(parentCard.onCancel, isNull);
+      final childCard = cards.firstWhere(
+        (card) => card.proposal?.id == _proposal.id,
+      );
+      expect(childCard.awaitingApproval, true);
+      expect(capabilities.localConfirms, 1);
+      expect(transport.promptCalls, 1);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
   for (final width in [1100.0, 944.0, 390.0, 360.0]) {
     testWidgets(
       'read results stay hidden while pending approval is usable $width',
@@ -2146,15 +2432,18 @@ void main() {
         expect(find.byKey(const ValueKey('ai-result-check')), findsNothing);
         expect(find.text(AppLocalizations.current.aiCheckResult), findsNothing);
         await tester.scrollUntilVisible(
-          find.text(AppLocalizations.current.aiReviewPlan),
+          find.text(AppLocalizations.current.aiReviewAndConfirm),
           150,
           scrollable: _conversationScrollable(tester),
         );
         await captureAiVisual(tester, 'v3-pending-${width.toInt()}');
         await tester.ensureVisible(
-          find.text(AppLocalizations.current.aiReviewPlan),
+          find.text(AppLocalizations.current.aiReviewAndConfirm),
         );
-        await _tapAi(tester, find.text(AppLocalizations.current.aiReviewPlan));
+        await _tapAi(
+          tester,
+          find.text(AppLocalizations.current.aiReviewAndConfirm),
+        );
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
         expect(
@@ -2163,20 +2452,6 @@ void main() {
         );
         expect(capabilities.approved, isNull);
         await _tapAi(tester, find.text(AppLocalizations.current.cancel).last);
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 300));
-        await tester.ensureVisible(
-          find.text(AppLocalizations.current.aiApprove),
-        );
-        await _tapAi(tester, find.text(AppLocalizations.current.aiApprove));
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 300));
-        expect(
-          find.text(AppLocalizations.current.aiFinalConfigDifferences),
-          findsOneWidget,
-        );
-        expect(capabilities.approved, isNull);
-        await _tapAi(tester, find.text(AppLocalizations.current.aiReject));
         await tester.pumpAndSettle();
         expect(capabilities.approved, false);
         expect(
@@ -2256,8 +2531,13 @@ void main() {
     for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
-    await tester.ensureVisible(find.text(AppLocalizations.current.aiApprove));
-    await _tapAi(tester, find.text(AppLocalizations.current.aiApprove));
+    await tester.ensureVisible(
+      find.text(AppLocalizations.current.aiReviewAndConfirm),
+    );
+    await _tapAi(
+      tester,
+      find.text(AppLocalizations.current.aiReviewAndConfirm),
+    );
     await tester.pump(const Duration(milliseconds: 300));
     expect(capabilities.approved, isNull);
     expect(

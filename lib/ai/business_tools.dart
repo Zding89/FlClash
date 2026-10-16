@@ -303,7 +303,7 @@ final class AgentBusinessTools {
     ),
     _tool(
       'policy_draft_edit',
-      'Create or continue a version-bound local policy draft using typed actions. To continue an unapplied draft, supply BOTH draftId=policy_draft_read.id and version=policy_draft_read.version. Without draftId this edits the saved document and requires workspace_overview.version. Creates allocate IDs locally; clientKey can reference a new set within this batch. Update preserves omitted fields. moveRule uses beforeId, or null to move last. No application occurs.',
+      'Create or continue a version-bound local policy draft using typed actions. Default to the smallest requested change: update only the targeted resource and fields, preserving all other resources and order. Never remove and recreate an existing resource for a partial edit. To continue an unapplied draft, supply BOTH draftId=policy_draft_read.id and version=policy_draft_read.version. Without draftId this edits the saved document and requires workspace_overview.version. Creates allocate IDs locally; clientKey can reference a new set within this batch. Update preserves omitted fields, including nested fields; supplied lists replace only that field. moveRule uses beforeId, or null to move last. No application occurs.',
       {
         'draftId': {
           ..._text,

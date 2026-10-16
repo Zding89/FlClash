@@ -205,6 +205,7 @@ class _FixtureWorkbench extends Mock implements WorkbenchController {
     LocalPolicyDocument document, {
     String? draftId,
     String? expectedPolicyDigest,
+    String? changeSummary,
   }) async {
     proposed = document;
     return const ConfigurationProposal(
@@ -222,6 +223,7 @@ class _FixtureWorkbench extends Mock implements WorkbenchController {
     ConfigurationProposal proposal, {
     required ConfigurationApproval approve,
     bool Function()? isCurrent,
+    bool requireApproval = false,
   }) async {
     commits++;
     if (fail) {

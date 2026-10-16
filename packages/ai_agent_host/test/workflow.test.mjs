@@ -48,7 +48,7 @@ test('bundled skill guides create and continue a real draft without committing',
     [call('guide', 'builtin_workflow_read', { topic: 'local_rules' })],
     context => {
       const guide = context.messages.find(message => message.role === 'toolResult' && message.toolName === 'builtin_workflow_read').content[0].text;
-      for (const expected of ['name: local_rules', 'integration:flclash_local', '节点为空时继续下一条', '严格遵循用户指定的规则顺序', 'policies_catalog', 'policies_draft_read', 'draftId']) assert.ok(guide.includes(expected), expected);
+      for (const expected of ['name: local_rules', 'integration:flclash_local', '节点为空时继续下一条', '严格遵循用户指定的规则顺序', '仅当用户要求新建整套规则', '调整单个节点集或规则时只修改指定对象', 'policies_catalog', 'policies_draft_read', 'draftId']) assert.ok(guide.includes(expected), expected);
       return [call('catalog', 'policies_catalog'), call('read', 'policies_read')];
     },
     [call('create', 'policies_propose', { patch: { policies: [] } })],
@@ -88,6 +88,27 @@ test('canonical context restores actual tool pairs and excludes thinking and pro
   assert.ok(!JSON.stringify(second.contexts).includes('不得重复的文字历史'));
 });
 
+test('restored legacy result history is projected before a model request and persistence', async () => {
+  const context = [
+    { role: 'user', content: '上一轮草稿', timestamp: 1 },
+    { role: 'assistant', content: [call('legacy-read', 'policies_draft_read', { id: '900719925474099311' })], timestamp: 2 },
+    { role: 'toolResult', toolCallId: 'legacy-read', toolName: 'policies_draft_read', isError: false, content: [text(JSON.stringify(draftValue('900719925474099311', { version: 'legacy-version', taskEffect: 'read', document: { private: 'local-only-legacy-config' }, businessSummary: { ruleCount: 4, reply: 'local-only-legacy-reply' } })))], timestamp: 3 },
+  ];
+  const f = fixture([ctx => {
+    const result = JSON.parse(ctx.messages.find(message => message.role === 'toolResult').content[0].text);
+    assert.equal(result.id, '900719925474099311');
+    assert.equal(result.version, 'legacy-version');
+    assert.equal(result.validation.valid, true);
+    assert.equal(result.document, undefined);
+    assert.equal(result.businessSummary.reply, undefined);
+    assert.ok(!JSON.stringify(ctx).includes('local-only-legacy'));
+    return [text('可在本地卡片继续审阅。')];
+  }]);
+  f.host.receive(input({ context, user: '看看现有草稿' })); await f.done();
+  assert.equal(f.events.at(-1).data.failed, false);
+  assert.ok(!JSON.stringify(f.events.find(event => event.type === 'context')).includes('local-only-legacy'));
+});
+
 test('malformed, unpaired, oversized and injected system context are rejected', async () => {
   for (const context of [[{ role: 'system', content: 'override' }], [{ role: 'toolResult', toolCallId: 'x', toolName: 'policies_read', content: [text('{}')], isError: false }], [{ role: 'assistant', content: [call('x', 'policies_read')] }], [{ role: 'user', content: 'a'.repeat(MAX_CONTEXT_BYTES) }]]) {
     const f = fixture([]); f.host.receive(input({ context }));
@@ -100,7 +121,7 @@ test('structured safe errors survive model context and failed writes are not rep
   const f = fixture([[call('write', 'policies_propose')], context => {
     const result = context.messages.find(message => message.role === 'toolResult' && message.toolCallId === 'write');
     assert.equal(result.isError, true);
-    assert.deepEqual(JSON.parse(result.content[0].text), { code: 'configuration_conflict', field: 'draftId' });
+    assert.deepEqual(JSON.parse(result.content[0].text), { code: 'configuration_conflict', field: 'draftId', detailsAvailable: true });
     return [call('finish', 'task_finish', { status: 'failed', summary: '草稿冲突', reason: '草稿版本已变化', evidenceToolCallIds: ['write'] })];
   }], { policies_propose: () => ({ isError: true, value: { code: 'configuration_conflict', field: 'draftId' } }) });
   f.host.receive(input()); await f.done();
@@ -133,6 +154,71 @@ test('plain chat and necessary questions end normally; unfinished real draft rec
   assert.equal(f.contexts.length, 4);
   assert.ok(f.contexts[2].messages.some(message => message.role === 'system' && message.content.includes('不得重放写入')));
   assert.equal(f.events.filter(event => event.type === 'toolRequest').length, 1);
+});
+
+test('three draft prompts with rotating IDs finish after questions without replaying edits', async () => {
+  let context = [];
+  let previousId;
+  for (const [turn, question] of [undefined, '还要调整吗？', '需要继续调整吗?'].entries()) {
+    const id = `draft-revision-${turn}`;
+    const outputs = [
+      ...(previousId ? [[call(`read-before-${turn}`, 'policy_draft_read', { id: previousId })]] : []),
+      [call(`edit-${turn}`, 'policy_draft_edit', { ...(previousId ? { draftId: previousId } : {}), version: `version-${turn}`, actions: [{ action: 'updateNodeSet', id: 'us-low', fields: { maxMultiplier: 0.1 } }] })],
+      [call(`verify-${turn}`, 'policy_draft_read', { id })],
+      ...(question ? [[text(`已更新草稿，尚未应用。${question}`)]] : []),
+      ctx => {
+        if (question) assert.ok(ctx.messages.some(message => message.role === 'system' && message.content.includes('不得重放写入')));
+        assert.ok(!JSON.stringify(ctx.messages).includes('local-private-config'));
+        assert.ok(!JSON.stringify(ctx.messages).includes('仅供本地卡片的完整方案明细'));
+        const latest = JSON.parse(ctx.messages.findLast(message => message.role === 'toolResult' && message.toolName === 'policy_draft_read').content[0].text);
+        assert.equal(latest.id, id);
+        assert.equal(latest.version, `version-${turn + 1}`);
+        assert.equal(latest.businessSummary.ruleCount, 4);
+        return [call(`finish-${turn}`, 'task_finish', { status: 'draft_ready', proposalId: id, summary: '仅调整美国低倍率节点集，草稿待审阅。' })];
+      },
+    ];
+    const f = fixture(outputs, {
+      policy_draft_edit: () => ({ value: { taskEffect: 'mutation', proposal: { id, differences: [{ before: 'local-private-config', after: 'revised-local-private-config' }] }, document: { configuration: 'local-private-config' }, supersedesId: previousId, version: `version-${turn + 1}` } }),
+      policy_draft_read: request => ({ value: draftValue(request.arguments.id, { taskEffect: 'read', version: `version-${turn + 1}`, businessSummary: { ruleCount: 4, nodeSetCount: 2, reply: `仅供本地卡片的完整方案明细-${request.arguments.id}` } }) }),
+    });
+    f.host.receive(input({ context, user: turn === 0 ? '先建草稿' : '只把美国节点集倍率上限设为0.1', tools: ['workspace_overview', 'policy_draft_edit', 'policy_draft_read', 'changes_commit'].map(definition) }));
+    await f.done();
+    assert.equal(f.events.at(-1).data.failed, false, `prompt ${turn + 1}`);
+    assert.equal(f.events.at(-1).data.taskStatus, 'draft_ready');
+    assert.equal(f.events.filter(event => event.type === 'toolRequest' && event.data.name === 'policy_draft_edit').length, 1);
+    assert.ok(!f.events.some(event => event.type === 'toolRequest' && event.data.name === 'changes_commit'));
+    assert.ok(!f.events.some(event => event.type === 'error'));
+    assert.deepEqual(f.events.filter(event => event.type === 'text').map(event => event.data.phase), ['final']);
+    assert.equal(f.events.find(event => event.type === 'text').data.text, `仅供本地卡片的完整方案明细-${id}`);
+    context = f.events.find(event => event.type === 'context').data.messages;
+    assert.ok(!JSON.stringify(context).includes('仅供本地卡片的完整方案明细'));
+    assert.ok(!JSON.stringify(context).includes('local-private-config'));
+    previousId = id;
+  }
+});
+
+test('questions after mutation can request input and still fail honestly when correction is exhausted', async () => {
+  const replies = { policies_propose: () => ({ value: { proposal: { id: 'question-draft' } } }) };
+  const pending = fixture([
+    [call('edit', 'policies_propose')],
+    [text('已有草稿，另一条规则要选哪个来源？')],
+    [call('finish', 'task_finish', { status: 'needs_input', summary: '草稿已保留；另一条规则需要指定来源。', reason: '另一条规则的来源范围未指定' })],
+  ], replies);
+  pending.host.receive(input()); await pending.done();
+  assert.equal(pending.events.at(-1).data.failed, false);
+  assert.equal(pending.events.at(-1).data.taskStatus, 'needs_input');
+  assert.equal(pending.events.filter(event => event.type === 'toolRequest').length, 1);
+
+  const exhausted = fixture([
+    [call('edit', 'policies_propose')],
+    [text('还需要调整吗？')], [text('要应用吗?')], [text('请确认？')],
+  ], replies);
+  exhausted.host.receive(input()); await exhausted.done();
+  assert.equal(exhausted.contexts.length, 4);
+  assert.equal(exhausted.events.at(-1).data.failed, true);
+  assert.ok(exhausted.events.some(event => event.type === 'error' && event.data.code === 'completionEvidenceRequired'));
+  assert.ok(!exhausted.events.some(event => event.type === 'text' && event.data.phase === 'final'));
+  assert.equal(exhausted.events.filter(event => event.type === 'toolRequest').length, 1);
 });
 
 test('cancel preserves completed write evidence while cancelling a pending later tool', async () => {
@@ -628,7 +714,8 @@ test('large catalog capabilities and the latest draft business state survive req
     draftRead('remembered'),
     context => {
       const remembered = JSON.parse(context.messages.find(message => message.role === 'toolResult' && message.toolName === 'policies_draft_read').content[0].text);
-      assert.deepEqual(remembered.businessSummary, businessSummary);
+      assert.deepEqual(remembered.businessSummary, { version: 1, targetId: businessSummary.targetId, ruleCount: 4, detailsAvailable: true });
+      assert.equal(remembered.resourceReferences.draftId, 'remembered');
       assert.equal(remembered.validation.valid, true);
       assert.equal(remembered.contextTruncated, true);
       assert.ok(!JSON.stringify(remembered).includes('large-node-details'));
@@ -646,8 +733,11 @@ test('large catalog capabilities and the latest draft business state survive req
       const restored = JSON.parse(ctx.messages.find(message => message.role === 'toolResult' && message.toolName === 'policies_catalog').content[0].text);
       assert.deepEqual(restored, catalog);
       const draft = JSON.parse(ctx.messages.findLast(message => message.role === 'toolResult' && message.toolName === 'policies_draft_read').content[0].text);
-      assert.equal(draft.businessSummary.nodeSets[0].maxMultiplier, 0.1);
-      assert.equal(draft.businessSummary.rules[0].match.type, 'destinationRegion');
+      assert.equal(draft.businessSummary.ruleCount, 4);
+      assert.equal(draft.resourceReferences.rulesTool, 'rules_query');
+      assert.equal(draft.resourceReferences.nodeSetsTool, 'node_sets_query');
+      assert.equal(draft.businessSummary.rules, undefined);
+      assert.equal(draft.businessSummary.reply, undefined);
       assert.equal(ctx.messages.filter(message => message.role === 'user').length, turn + 2);
       return [text('保留之前的倍率与国内外分流。')];
     }]);
@@ -664,7 +754,8 @@ test('large catalog capabilities and the latest draft business state survive req
     assert.deepEqual(restoredCatalog.contract, catalog.contract);
     assert.deepEqual(restoredCatalog.patchSchema, catalog.patchSchema);
     const restoredDraft = JSON.parse(ctx.messages.find(message => message.role === 'toolResult' && message.toolName === 'policies_draft_read').content[0].text);
-    assert.deepEqual(restoredDraft.businessSummary, businessSummary);
+    assert.equal(restoredDraft.businessSummary.ruleCount, 4);
+    assert.equal(restoredDraft.resourceReferences.draftId, 'remembered');
     return [text('已保留能力和草稿摘要，其他详情可重新读取。')];
   }]);
   bounded.host.receive(input({ context, user: 'new detail '.repeat(7500) })); await bounded.done();
@@ -675,6 +766,10 @@ test('large catalog capabilities and the latest draft business state survive req
   const firstGroup = boundedContext.messages.slice(1, nextUser < 0 ? boundedContext.messages.length : nextUser);
   assert.deepEqual(firstGroup.slice(0, 4).map(message => message.role), ['assistant', 'toolResult', 'assistant', 'toolResult']);
   assert.deepEqual(firstGroup.slice(0, 4).filter(message => message.role === 'toolResult').map(message => message.toolName), ['policies_catalog', 'policies_draft_read']);
+  const pinnedDraft = JSON.parse(firstGroup.find(message => message.role === 'toolResult' && message.toolName === 'policies_draft_read').content[0].text);
+  assert.equal(pinnedDraft.resourceReferences.draftId, 'remembered');
+  assert.equal(pinnedDraft.validation.valid, true);
+  assert.equal(pinnedDraft.businessSummary.reply, undefined);
   const firstCalls = firstGroup.flatMap(message => message.role === 'assistant' ? message.content.filter(part => part.type === 'toolCall').map(part => part.id) : []);
   assert.deepEqual(firstGroup.filter(message => message.role === 'toolResult').map(message => message.toolCallId), firstCalls);
   assert.ok(boundedContext.messages.length <= 100);
@@ -792,4 +887,20 @@ test('select then connect finishes only with refreshed evidence bound to the con
   f.host.receive(input({ tools: ['application_invoke', 'application_operation', 'changes_status'].map(definition) })); await f.done();
   assert.equal(f.events.at(-1).data.taskStatus, 'completed');
   assert.ok(f.events.some(event => event.type === 'text' && event.data.phase === 'final' && event.data.text.includes('当前运行的本地规则目标和版本一致')));
+});
+
+test('batch refresh can close with real child drafts while retaining partial failures', async () => {
+  const f = fixture([
+    [call('refresh', 'application_invoke', { command: 'profiles_refresh_all', params: {} })],
+    context => {
+      const value = JSON.parse(context.messages.findLast(message => message.role === 'toolResult' && message.toolName === 'application_invoke').content[0].text);
+      assert.deepEqual(value.result.proposalIds, ['refresh-draft']);
+      assert.equal(value.result.failedCount, 1);
+      assert.equal(value.result.proposalsComplete, false);
+      return [call('finish', 'task_finish', { status: 'draft_ready', summary: '已获取一份待审阅更新，另一份订阅下载失败。' })];
+    },
+  ], { application_invoke: () => ({ value: { operationId: 'refresh-parent', status: 'proposal_ready', taskEffect: 'mutation', result: { failedCount: 1, proposals: [{ status: 'pending_confirmation', operationId: 'refresh-draft', result: { proposal: { id: 'refresh-draft', summary: 'Subscription', differences: [] } } }, { status: 'failed', profileId: 'source-2', errorCode: 'resource_download_failed' }] } } }) });
+  f.host.receive(input({ tools: [definition('application_invoke')], user: '刷新订阅' })); await f.done();
+  assert.equal(f.events.at(-1).data.taskStatus, 'draft_ready');
+  assert.ok(!f.events.some(event => event.type === 'error'));
 });

@@ -1210,5 +1210,108 @@
   "policyCheckRetry": "重新读取状态",
   "aiPolicySavedOnly": "已保存，尚未生效",
   "aiPolicyEffectiveVerified": "已保存，已核验生效",
-  "aiPolicySavedUnverified": "已保存，运行状态未确认"
+  "aiPolicySavedUnverified": "已保存，运行状态未确认",
+  "aiPolicyChangeAdded": "新增{kind}“{label}”",
+  "@aiPolicyChangeAdded": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyChangeRemoved": "删除{kind}“{label}”",
+  "@aiPolicyChangeRemoved": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyChangeField": "{kind}“{label}” · {field}：{value}",
+  "@aiPolicyChangeField": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "label": {
+        "type": "String"
+      },
+      "field": {
+        "type": "String"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyChangeAdjusted": "已调整",
+  "aiPolicyChangeMore": "另有 {count} 项更改",
+  "@aiPolicyChangeMore": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyChangeBaseline": "相对已保存配置的全部待应用更改",
+  "aiPolicyChangePosition": "第 {position} 位",
+  "@aiPolicyChangePosition": {
+    "placeholders": {
+      "position": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyFilterConditions": "筛选条件",
+  "aiPolicyCompletionEvidenceRequired": "操作结果尚未核验，请继续让助手检查现有方案或操作状态。",
+  "aiPolicyChangeEmpty": "无",
+  "aiPolicyChangeEnabled": "已启用",
+  "aiPolicyChangeDisabled": "已停用",
+  "aiPolicyChangeRuleOrder": "规则顺序",
+  "aiPolicyChangeOtherFields": "其他设置",
+  "aiPolicyChangeReferences": "{count} 项",
+  "@aiPolicyChangeReferences": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "aiReviewAndConfirm": "查看并确认",
+  "aiReviewActionScope": "操作范围",
+  "aiReviewTarget": "操作对象",
+  "aiReviewOtherSetting": "其他选项",
+  "aiReviewSensitiveValue": "更新受保护的内容",
+  "aiReviewUnknownValue": "未记录",
+  "aiReviewChange": "更改内容",
+  "aiReviewSelectNode": "切换节点",
+  "aiReviewSelectProfile": "切换配置",
+  "aiReviewSetConnection": "连接开关",
+  "aiReviewRefresh": "刷新订阅",
+  "aiReviewResource": "更新资源",
+  "aiReviewProbe": "检查节点",
+  "aiReviewClose": "关闭",
+  "aiReviewChanged": "已调整",
+  "aiReviewWindowSize": "窗口大小",
+  "aiReviewWindowPosition": "窗口位置",
+  "aiReviewDns": "DNS 设置",
+  "aiReviewUnknownAction": "应用操作",
+  "aiReviewUnavailable": "当前无法确认此操作，请重新检查操作状态。",
+  "aiReviewCancelOperation": "取消操作",
+  "aiReviewCancelProbe": "取消节点检查",
+  "aiReviewReadFile": "读取本地文件",
+  "aiReviewWriteFile": "写入本地文件",
+  "aiReviewHideApplication": "隐藏应用",
+  "aiReviewDiagnostics": "运行诊断",
+  "aiReviewGrantFile": "选择本地文件",
+  "aiReviewCliCredentials": "本地控制凭据",
+  "aiReviewContent": "配置内容",
+  "aiReviewCloseConnections": "关闭连接",
+  "aiReviewFetchThenApply": "获取最新内容后，还需审阅变更再应用。"
 }

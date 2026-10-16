@@ -24,6 +24,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'policy_contract.dart';
 import 'policy_summary.dart';
 import 'business_tools.dart';
+import 'policy_change_summary.dart';
 import 'runtime.dart';
 
 abstract interface class AgentResourceGateway {
@@ -158,6 +159,7 @@ final class AgentTools {
   final WorkbenchController controller;
   final ConfigurationApproval approve;
   final bool exposeApplication;
+  final bool requireApproval;
   late final ResourceChangeService resources;
   late final AgentResourceGateway gateway;
   late final AgentBusinessTools business;
@@ -166,6 +168,7 @@ final class AgentTools {
     required this.controller,
     required this.approve,
     this.exposeApplication = true,
+    this.requireApproval = true,
     ResourceChangeService? resources,
     AgentResourceGateway? gateway,
   }) {
@@ -744,6 +747,7 @@ final class AgentTools {
           (command is String && _mutating(command, const {}));
     }
     return name == 'policy_draft_edit' ||
+        name == 'profiles_refresh_all' ||
         name == 'backup_panel' ||
         name == 'profile_import_panel' ||
         RegExp(
@@ -883,11 +887,25 @@ final class AgentTools {
         '${profile.id}': profile.realLabel,
     };
     final before = await controller.readPolicies();
+    final previous = draftId == null
+        ? before
+        : await controller.readPolicyDraft(draftId);
     _current(request);
     final proposal = await controller.proposePolicies(
       next,
       draftId: draftId,
       expectedPolicyDigest: expectedPolicyDigest,
+      changeSummary: aiPolicyChangeSummary(
+        configurationDifferences(
+          {'policies': previous.toJson()},
+          {'policies': next.toJson()},
+        ),
+        nodeSetLabels: {
+          for (final set in [...previous.nodeSets, ...next.nodeSets])
+            set.id: set.label,
+        },
+        sourceLabels: labels,
+      ),
     );
     final row = await controller.store.readChange(proposal.id);
     final saved = row == null
@@ -1351,6 +1369,7 @@ final class AgentTools {
             id,
             approve: approve,
             isCurrent: request.isCurrent,
+            requireApproval: requireApproval,
           );
         }
         if (row.category.startsWith('recovery:')) {
@@ -1368,11 +1387,13 @@ final class AgentTools {
                   id,
                   approve: approve,
                   isCurrent: request.isCurrent,
+                  requireApproval: requireApproval,
                 )
               : controller.changes.commitRecovery(
                   await controller.changes.readProposal(id),
                   approve: approve,
                   isCurrent: request.isCurrent,
+                  requireApproval: requireApproval,
                 );
         }
         if (row.category.startsWith('capability:')) {
@@ -1385,6 +1406,7 @@ final class AgentTools {
             id,
             approve: approve,
             isCurrent: request.isCurrent,
+            requireApproval: requireApproval,
           );
         }
         if (row.category.startsWith('action:')) {
@@ -1410,6 +1432,7 @@ final class AgentTools {
           proposal,
           approve: approve,
           isCurrent: request.isCurrent,
+          requireApproval: requireApproval,
         );
       case 'changes_status':
         final id = args['id'];
@@ -1491,6 +1514,13 @@ final class AgentTools {
           'total': profiles.length,
         };
       case 'profile_propose':
+        if (exposeApplication &&
+            (args['operation'] == 'add' ||
+                args['operation'] == 'refresh' ||
+                args['patch'] is Map &&
+                    (args['patch'] as Map).containsKey('url'))) {
+          return _applicationCommand(request);
+        }
         return _profileProposal(request);
       case 'rules_read':
       case 'groups_read':
@@ -1630,11 +1660,13 @@ final class AgentTools {
         if (args['enabled'] is! bool) {
           throw const FormatException('Invalid enabled');
         }
+        if (exposeApplication) return _applicationCommand(request);
         return _action(request, currentAppLocalizations.usage, () async {
           await gateway.setUsageEnabled(args['enabled'] as bool);
           return {'status': 'applied'};
         });
       case 'usage_clear':
+        if (exposeApplication) return _applicationCommand(request);
         return _action(request, currentAppLocalizations.usage, () async {
           await gateway.clearUsage();
           return {'status': 'applied', 'reversible': false};
@@ -2176,7 +2208,15 @@ final class AgentTools {
           after: request.arguments,
         ),
       ],
-      validation: const {'reversible': false},
+      validation: {
+        'reversible': false,
+        'agentReview': {
+          'command': request.name,
+          'before': <String, Object?>{},
+          'after': request.arguments,
+          'labels': <String, String>{},
+        },
+      },
     );
     if (!await approve(proposal)) {
       await controller.store.changeStatus(id, 'rejected');

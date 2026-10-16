@@ -27,6 +27,7 @@ import 'composer_context.dart';
 import 'errors.dart';
 import 'settings.dart';
 import 'presentation.dart';
+import 'review.dart';
 import 'history.dart';
 import 'message.dart';
 
@@ -51,6 +52,10 @@ class _ConversationMessage {
   ConfigurationProposal? proposal;
   bool failed = false;
   Completer<bool>? approval;
+  bool reviewing = false;
+  bool queryResult = false;
+  String? queryCommand;
+  int? epoch;
 }
 
 class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
@@ -70,6 +75,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
   final _changeIds = <String>{};
   final _changeReferences = <String, int>{};
   final _historySecrets = <String>{};
+  final _reviewSessions = <Completer<void>>{};
   List<Map<String, Object?>> _context = [];
   final _diagnostics = <Map<String, Object?>>[];
   int _contextMessageCount = 0;
@@ -254,11 +260,39 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     if (mounted) _followOutput(force: true);
   }
 
+  bool _showBusinessRead(AgentToolRequest request, AgentToolResult result) {
+    if (result.isError || result.value['errorCode'] != null) return false;
+    final command = request.name == 'application_invoke'
+        ? request.arguments['command']
+        : request.name;
+    if (!const {
+      'runtime_read',
+      'network_status',
+      'proxies_read',
+      'connections_read',
+      'usage_read',
+      'usage_history',
+      'profiles_list',
+      'providers_read',
+    }.contains(command)) {
+      return false;
+    }
+    if (_messages.any(
+      (message) => message.epoch == _epoch && message.proposal != null,
+    )) {
+      return false;
+    }
+    return aiReadableResultRows(
+      context.appLocalizations,
+      result.value,
+    ).isNotEmpty;
+  }
+
   bool _showToolResult(AgentToolResult result) =>
       result.isError ||
       result.value['errorCode'] != null ||
       result.value['error'] != null ||
-      aiResultProposal(result.value) != null ||
+      aiResultProposals(result.value).isNotEmpty ||
       const {
         'failed',
         'conflict',
@@ -294,8 +328,9 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
               ));
       if (!mutating) return;
     }
-    final proposal = aiResultProposal(value);
-    if (proposal != null) _linkChange(proposal.id);
+    for (final proposal in aiResultProposals(value)) {
+      _linkChange(proposal.id);
+    }
     final operation = value['operationId'];
     if (operation is String) _linkChange(operation);
     final nested = value['result'];
@@ -346,6 +381,32 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
               }
             }(),
       ]);
+      final reviewProposals = <String, ConfigurationProposal>{};
+      final existingProposals = {
+        for (final message in _messages)
+          if (message.proposal != null) message.proposal!.id: message.proposal!,
+      };
+      await Future.wait([
+        for (final row in rows)
+          if (row != null)
+            () async {
+              if (existingProposals[row.id] case final proposal?) {
+                if (proposal.validation['reviewCategory'] != null) {
+                  reviewProposals[row.id] = proposal;
+                  return;
+                }
+              }
+              try {
+                reviewProposals[row.id] = await ref
+                    .read(applicationCapabilityServiceProvider)
+                    .reviewChange(row.id);
+              } catch (_) {
+                if (!row.category.startsWith('capability:')) {
+                  reviewProposals[row.id] = aiStoredProposal(row);
+                }
+              }
+            }(),
+      ]);
       Map<String, Object?>? currentState;
       if (rows.any(
         (row) =>
@@ -390,7 +451,10 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
                     (message.changeId ?? message.proposal?.id) == row.id,
               )
               .firstOrNull;
-          if (existing?.approval?.isCompleted == false) continue;
+          if (existing?.approval?.isCompleted == false ||
+              existing?.reviewing == true) {
+            continue;
+          }
           if (row.status == 'superseded') {
             _messages.removeWhere((message) => message.proposal?.id == row.id);
             continue;
@@ -415,6 +479,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
             status = 'unverified';
           }
           if (existing != null) {
+            existing.proposal = reviewProposals[row.id] ?? existing.proposal;
             existing.result = operationResults[row.id] ?? {'status': status};
             existing.failed = const {'failed', 'interrupted'}.contains(status);
             continue;
@@ -423,7 +488,7 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
           final message = _ConversationMessage('tool', '')
             ..changeId = row.id
             ..operationSummary = operation ? row.summary : null
-            ..proposal = operation ? null : aiStoredProposal(row)
+            ..proposal = reviewProposals[row.id]
             ..result = operationResults[row.id] ?? {'status': status};
           if (restoring && status == 'requires_recovery') {
             _recoveryRequired = true;
@@ -457,6 +522,9 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
   }
 
   void _cancelApprovals() {
+    for (final session in _reviewSessions.toList()) {
+      if (!session.isCompleted) session.complete();
+    }
     for (final message in _messages) {
       if (message.approval != null && !message.approval!.isCompleted) {
         message.result = const {'status': 'cancelled'};
@@ -467,7 +535,21 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
 
   void _appendToolMessage(_ConversationMessage message) {
     _assistantMessage = null;
+    message.epoch ??= _epoch;
+    if (message.queryResult) {
+      _messages.removeWhere(
+        (entry) =>
+            entry.queryResult &&
+            entry.epoch == _epoch &&
+            entry.queryCommand == message.queryCommand,
+      );
+    }
     final proposalId = message.proposal?.id;
+    if (proposalId != null) {
+      _messages.removeWhere(
+        (entry) => entry.queryResult && entry.epoch == _epoch,
+      );
+    }
     final result = message.result;
     final nested = result?['result'];
     final supersedesId =
@@ -499,13 +581,45 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     if (!mounted || epoch != _epoch || !_busy || _runtime?.isClosed != false) {
       return false;
     }
+    var reviewProposal = proposal;
+    if ((proposal.validation['reviewTarget'] == null ||
+            proposal.validation['aiReviewConnections'] == null) &&
+        proposal.differences.any(
+          (change) =>
+              change.path.startsWith('protected') ||
+              change.path.startsWith('profile.') ||
+              change.path.startsWith('script.') ||
+              change.path.startsWith('ai.'),
+        )) {
+      try {
+        final local = await ref
+            .read(applicationCapabilityServiceProvider)
+            .reviewChange(proposal.id);
+        final target = local.validation['reviewTarget'];
+        final connections = local.validation['aiReviewConnections'];
+        if (target is String || connections is Map) {
+          reviewProposal = ConfigurationProposal(
+            id: proposal.id,
+            summary: proposal.summary,
+            highRisk: proposal.highRisk,
+            expiresAt: proposal.expiresAt,
+            differences: proposal.differences,
+            validation: {
+              ...proposal.validation,
+              if (target is String) 'reviewTarget': target,
+              if (connections is Map) 'aiReviewConnections': connections,
+            },
+          );
+        }
+      } catch (_) {}
+    }
     _linkChange(proposal.id);
     await _persistConversation();
     if (!mounted || epoch != _epoch || !_busy || _runtime?.isClosed != false) {
       return false;
     }
     final message = _ConversationMessage('tool', '')
-      ..proposal = proposal
+      ..proposal = reviewProposal
       ..approval = Completer<bool>();
     setState(() => _appendToolMessage(message));
     _followOutput();
@@ -819,12 +933,26 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
             _linkResult(request, result.value);
             setState(() {
               _status = context.appLocalizations.aiThinking;
-              if (_showToolResult(result)) {
+              final proposals = aiResultProposals(result.value);
+              if (proposals.isNotEmpty) {
+                for (final proposal in proposals) {
+                  _appendToolMessage(
+                    _ConversationMessage('tool', '')
+                      ..result = result.value
+                      ..proposal = proposal
+                      ..failed = result.isError,
+                  );
+                }
+              } else if (_showToolResult(result) ||
+                  _showBusinessRead(request, result)) {
                 _appendToolMessage(
                   _ConversationMessage('tool', '')
                     ..result = result.value
                     ..changeId = result.value['operationId'] as String?
-                    ..proposal = aiResultProposal(result.value)
+                    ..queryResult = _showBusinessRead(request, result)
+                    ..queryCommand = request.name == 'application_invoke'
+                        ? request.arguments['command'] as String?
+                        : request.name
                     ..failed = result.isError,
                 );
               }
@@ -1284,114 +1412,166 @@ class _AiAssistantViewState extends ConsumerState<AiAssistantView> {
     );
   }
 
+  Future<bool> _reviewDialog(
+    ConfigurationProposal proposal,
+    Completer<void> session, {
+    bool readOnly = false,
+  }) => mounted && !session.isCompleted
+      ? showAiConfigurationApproval(
+          context,
+          proposal,
+          readOnly: readOnly,
+          cancelled: session.future,
+        )
+      : Future.value(false);
+
+  void _resolveApproval(_ConversationMessage message, bool approved) {
+    if (message.approval == null || message.approval!.isCompleted) return;
+    setState(() {
+      message.result = {'status': approved ? 'approved' : 'rejected'};
+      message.approval!.complete(approved);
+    });
+  }
+
+  Future<void> _reviewMessage(_ConversationMessage message) async {
+    if (message.reviewing || message.proposal == null) return;
+    final epoch = _epoch;
+    final session = Completer<void>();
+    _reviewSessions.add(session);
+    setState(() => message.reviewing = true);
+    final pending = message.approval?.isCompleted == false;
+    bool current() => mounted && epoch == _epoch && !session.isCompleted;
+    try {
+      final service = ref.read(applicationCapabilityServiceProvider);
+      var proposal = message.proposal!;
+      if (!pending) {
+        try {
+          proposal = await service.reviewChange(proposal.id);
+        } catch (_) {
+          if (aiReviewCanConfirm(
+            proposal,
+            message.result?['status'] as String?,
+          )) {
+            rethrow;
+          }
+        }
+      }
+      if (!current()) return;
+      final actionable =
+          pending && aiReviewCanConfirm(proposal, 'pending_confirmation') ||
+          aiReviewCanConfirm(proposal, message.result?['status'] as String?) &&
+              aiReviewCanConfirm(
+                proposal,
+                proposal.validation['reviewStatus'] as String?,
+              );
+      final approved = await _reviewDialog(
+        proposal,
+        session,
+        readOnly: !actionable,
+      );
+      if (!current()) return;
+      if (!actionable) {
+        if (pending) _resolveApproval(message, false);
+        return;
+      }
+      if (pending) {
+        _resolveApproval(message, approved);
+        return;
+      }
+      final result = approved
+          ? await service.confirmReviewedChange(
+              proposal.id,
+              approve: aiAfterReviewApproval(
+                proposal,
+                onReview: (next) => _reviewDialog(next, session),
+                isCurrent: current,
+              ),
+              isCurrent: current,
+            )
+          : await service.cancelReviewedChange(proposal.id);
+      if (!current()) return;
+      setState(() {
+        _recoveryRequired = true;
+        message.proposal = proposal;
+        message.result = result;
+        message.failed = result['status'] == 'failed';
+        for (final child in aiResultProposals(result)) {
+          if (child.id == proposal.id) continue;
+          _linkChange(child.id);
+          _appendToolMessage(
+            _ConversationMessage('tool', '')
+              ..proposal = child
+              ..result = {'status': 'draft'},
+          );
+        }
+      });
+      await _refreshLinkedCards();
+      await _persistConversation();
+    } catch (error) {
+      if (mounted) {
+        if (pending) _resolveApproval(message, false);
+        if (epoch == _epoch) {
+          setState(() => _error = aiErrorText(context, error));
+        }
+      }
+    } finally {
+      _reviewSessions.remove(session);
+      if (!session.isCompleted) session.complete();
+      message.reviewing = false;
+      if (mounted) setState(() {});
+    }
+  }
+
+  Future<void> _cancelMessage(_ConversationMessage message) async {
+    if (message.reviewing || message.proposal == null) return;
+    if (message.approval?.isCompleted == false) {
+      _resolveApproval(message, false);
+      return;
+    }
+    if (!aiReviewCanConfirm(
+      message.proposal!,
+      message.result?['status'] as String?,
+    )) {
+      return;
+    }
+    setState(() => message.reviewing = true);
+    try {
+      final result = await ref
+          .read(applicationCapabilityServiceProvider)
+          .cancelReviewedChange(message.proposal!.id);
+      if (mounted) {
+        setState(() {
+          _recoveryRequired = true;
+          message.result = result;
+        });
+        await _persistConversation();
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = aiErrorText(context, error));
+    } finally {
+      message.reviewing = false;
+      if (mounted) setState(() {});
+    }
+  }
+
   Widget _message(_ConversationMessage message) {
     if (message.role != 'tool') return _MessageCard(message: message);
     final pending = message.approval != null && !message.approval!.isCompleted;
-    void resolve(bool approved) {
-      if (!pending) return;
-      if (message.approval!.isCompleted) return;
-      setState(() {
-        message.result = {'status': approved ? 'approved' : 'rejected'};
-        message.approval!.complete(approved);
-      });
-    }
-
+    final actionable =
+        message.proposal != null &&
+        aiReviewCanConfirm(
+          message.proposal!,
+          message.result?['status'] as String?,
+        );
     return AiToolResultCard(
       result: message.result,
       summary: message.operationSummary,
       proposal: message.proposal,
       failed: message.failed,
-      awaitingApproval: pending,
-      onReview: message.proposal == null
-          ? null
-          : () => showDialog<void>(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: Text(context.appLocalizations.aiReviewPlan),
-                content: SizedBox(
-                  width: 560,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        AiToolResultCard(
-                          proposal: message.proposal,
-                          expanded: true,
-                          result: message.result,
-                          awaitingApproval: pending,
-                        ),
-                        if (message.proposal!.highRisk)
-                          Text(context.appLocalizations.aiHighRisk),
-                        if (message
-                                .proposal!
-                                .validation['requiresScriptExecutionApproval'] ==
-                            true)
-                          Text(context.appLocalizations.aiScriptExecutionOnly),
-                        if (message
-                                .proposal!
-                                .validation['finalConfigDifferences'] !=
-                            null) ...[
-                          Text(
-                            context.appLocalizations.aiFinalConfigDifferences,
-                          ),
-                          if (message
-                                  .proposal!
-                                  .validation['finalConfigDifferences']
-                              is List)
-                            for (final difference
-                                in message
-                                        .proposal!
-                                        .validation['finalConfigDifferences']
-                                    as List)
-                              if (difference is Map &&
-                                  difference['path'] is String)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text('${difference['path']}'),
-                                      Text(context.appLocalizations.aiBefore),
-                                      SelectableText(
-                                        aiDisplayValue({
-                                          '${difference['path']}':
-                                              difference['before'],
-                                        }),
-                                      ),
-                                      Text(context.appLocalizations.aiAfter),
-                                      SelectableText(
-                                        aiDisplayValue({
-                                          '${difference['path']}':
-                                              difference['after'],
-                                        }),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(context.appLocalizations.cancel),
-                  ),
-                ],
-              ),
-            ),
-      onApprove: pending
-          ? () async {
-              final approved = await showAiConfigurationApproval(
-                context,
-                message.proposal!,
-              );
-              if (mounted && !message.approval!.isCompleted) resolve(approved);
-            }
-          : null,
-      onCancel: pending ? () => resolve(false) : null,
+      awaitingApproval: pending || actionable,
+      reviewing: message.reviewing,
+      onReview: message.proposal == null ? null : () => _reviewMessage(message),
+      onCancel: pending || actionable ? () => _cancelMessage(message) : null,
     );
   }
 }

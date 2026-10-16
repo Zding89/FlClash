@@ -107,6 +107,7 @@ class _Controller extends Mock implements WorkbenchController {
     LocalPolicyDocument value, {
     String? draftId,
     String? expectedPolicyDigest,
+    String? changeSummary,
   }) async {
     proposed = value;
     return const ConfigurationProposal(
@@ -130,6 +131,7 @@ class _Controller extends Mock implements WorkbenchController {
     ConfigurationProposal proposal, {
     required ConfigurationApproval approve,
     bool Function()? isCurrent,
+    bool requireApproval = false,
   }) async {
     if (!await approve(proposal) || isCurrent?.call() == false) {
       return {'status': 'rejected'};
@@ -146,6 +148,7 @@ class _ScriptApprovalController extends _Controller {
     LocalPolicyDocument value, {
     String? draftId,
     String? expectedPolicyDigest,
+    String? changeSummary,
   }) async {
     final proposal = await super.proposePolicies(value, draftId: draftId);
     return ConfigurationProposal(
@@ -169,6 +172,7 @@ class _PageController extends _Controller {
     ConfigurationProposal proposal, {
     required ConfigurationApproval approve,
     bool Function()? isCurrent,
+    bool requireApproval = false,
   }) async {
     if (failCommit) {
       throw const ConfigurationChangeException(
@@ -191,6 +195,7 @@ class _FailingProposalController extends _Controller {
     LocalPolicyDocument value, {
     String? draftId,
     String? expectedPolicyDigest,
+    String? changeSummary,
   }) async => throw const ConfigurationChangeException(
     'configuration_version_conflict',
   );
@@ -205,6 +210,7 @@ class _DelayedCommitController extends _Controller {
     ConfigurationProposal proposal, {
     required ConfigurationApproval approve,
     bool Function()? isCurrent,
+    bool requireApproval = false,
   }) async {
     if (!await approve(proposal)) return {'status': 'rejected'};
     approved.complete();

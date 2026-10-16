@@ -59,14 +59,13 @@ class _AiSettingsViewState extends ConsumerState<AiSettingsView> {
   }
 
   ConfigurationApproval _afterInitialApproval(ConfigurationProposal original) =>
-      (proposal) async {
-        if (!mounted) return false;
-        if (proposal.validation['finalConfigValidated'] == true &&
-            original.validation['finalConfigValidated'] != true) {
-          return showAiConfigurationApproval(context, proposal);
-        }
-        return true;
-      };
+      aiAfterReviewApproval(
+        original,
+        onReview: (proposal) => mounted
+            ? showAiConfigurationApproval(context, proposal)
+            : Future.value(false),
+        isCurrent: () => mounted,
+      );
 
   Future<bool> _commitSettings(AgentSettings next) async {
     final controller = ref.read(workbenchControllerProvider);

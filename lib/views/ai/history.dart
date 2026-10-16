@@ -1,3 +1,4 @@
+import 'package:fl_clash/configuration/changes.dart';
 import 'package:fl_clash/ai/history.dart';
 import 'package:fl_clash/capabilities/service.dart';
 import 'package:fl_clash/common/common.dart';
@@ -9,7 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'change_record.dart';
-import 'presentation.dart';
+import 'approval.dart';
 
 class AiConversationHistoryView extends StatefulWidget {
   const AiConversationHistoryView({super.key, required this.store});
@@ -185,33 +186,17 @@ class _AiLinkedChangesViewState extends ConsumerState<AiLinkedChangesView> {
   }
 
   Future<void> _view(WorkbenchChange row) async {
-    final status = await _readStatus(row);
+    ConfigurationProposal proposal;
+    try {
+      proposal = await ref
+          .read(applicationCapabilityServiceProvider)
+          .reviewChange(row.id);
+    } catch (_) {
+      if (row.category.startsWith('capability:')) return;
+      proposal = aiStoredProposal(row);
+    }
     if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(row.summary),
-        content: SizedBox(
-          width: 560,
-          child: SingleChildScrollView(
-            child: AiToolResultCard(
-              proposal: row.category.startsWith('capability:')
-                  ? null
-                  : aiStoredProposal(row),
-              summary: row.summary,
-              result: {'status': status},
-              expanded: true,
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(context.appLocalizations.confirm),
-          ),
-        ],
-      ),
-    );
+    await showAiConfigurationApproval(context, proposal, readOnly: true);
   }
 
   @override

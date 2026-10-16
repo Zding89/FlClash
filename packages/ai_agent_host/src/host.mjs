@@ -2,6 +2,7 @@ import { Agent } from '@earendil-works/pi-agent-core';
 import { randomUUID } from 'node:crypto';
 import { validId } from './protocol.mjs';
 import { systemPrompt, workflowTool } from './workflows.mjs';
+import { modelResultValue } from './model_results.mjs';
 import { resolveSettings, providerStream, requestTransport, modelListRequest, fetchModels } from './providers.mjs';
 export const MAX_CONTEXT_BYTES = 192 * 1024;
 const emptyUsage = () => ({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } });
@@ -9,60 +10,6 @@ const object = value => value !== null && typeof value === 'object' && !Array.is
 const bytes = value => Buffer.byteLength(JSON.stringify(value));
 const safeCode = value => typeof value === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,95}$/.test(value) ? value : 'commandFailed';
 const toolContent = value => ({ content: [{ type: 'text', text: JSON.stringify(value) }], details: value });
-function modelResultValue(name, value) {
-  const budget = 6144;
-  if (!['policy_draft_edit', 'policy_draft_read', 'policies_propose', 'policies_draft_read'].includes(name) || bytes(value) <= budget) return value;
-  const result = { ...value };
-  const id = value.proposal?.id ?? value.draftId ?? value.id;
-  const references = { draftId: id, version: value.version, rulesTool: 'rules_query', nodeSetsTool: 'node_sets_query' };
-  const validationSummary = (validation, limit) => {
-    const issues = Array.isArray(validation.issues) ? validation.issues : [];
-    const warnings = Array.isArray(validation.warnings) ? validation.warnings : [];
-    const issueCount = Number.isSafeInteger(validation.issueCount) ? validation.issueCount : issues.length;
-    const warningCount = Number.isSafeInteger(validation.warningCount) ? validation.warningCount : warnings.length;
-    const sample = rows => rows.slice(0, limit).map(row => object(row) ? Object.fromEntries(['code', 'ruleId', 'previousRuleId', 'nodeSetId', 'field'].filter(key => typeof row[key] === 'string' && row[key].length <= 256).map(key => [key, row[key]])) : {});
-    return {
-      ...(typeof validation.valid === 'boolean' ? { valid: validation.valid } : {}),
-      issueCount, warningCount, issues: sample(issues), warnings: sample(warnings),
-      complete: issueCount <= Math.min(issues.length, limit) && warningCount <= Math.min(warnings.length, limit),
-      detailsTool: 'policy_preview', detailsArguments: { draftId: id, version: value.version, resultKind: 'validation' },
-    };
-  };
-  delete result.document;
-  delete result.contract;
-  if (object(result.proposal)) {
-    const proposal = result.proposal;
-    result.proposal = { id: proposal.id, summary: proposal.summary, highRisk: proposal.highRisk, expiresAt: proposal.expiresAt, differenceCount: Array.isArray(proposal.differences) ? proposal.differences.length : undefined };
-  }
-  if (object(result.validation)) result.validation = validationSummary(result.validation, 2);
-  if (object(result.businessSummary) && bytes(result.businessSummary) > 3000) {
-    const summary = result.businessSummary;
-    result.businessSummary = { ruleCount: summary.ruleCount, nodeSetCount: summary.nodeSetCount, complete: false, ...references };
-  }
-  result.detailsAvailable = true;
-  result.contextTruncated = true;
-  if (bytes(result) <= budget) return result;
-  if (object(result.assignedIds)) {
-    result.assignedIdCount = Object.keys(result.assignedIds).length;
-    result.assignedIdsComplete = false;
-    delete result.assignedIds;
-  }
-  if (Array.isArray(result.createdResources)) {
-    result.createdResourceCount = result.createdResources.length;
-    result.createdResourcesComplete = false;
-    delete result.createdResources;
-  }
-  result.resourceReferences = { complete: false, ...references };
-  if (bytes(result) <= budget) return result;
-  const fallback = {};
-  for (const key of ['id', 'draftId', 'operationId', 'status', 'code', 'errorCode', 'version', 'documentVersion', 'supersedesId', 'taskEffect', 'replayed', 'currentStateMatches', 'assignedIdCount', 'createdResourceCount', 'assignedIdsComplete', 'createdResourcesComplete']) if (['string', 'number', 'boolean'].includes(typeof result[key])) fallback[key] = result[key];
-  if (object(result.proposal)) fallback.proposal = { id: result.proposal.id, highRisk: result.proposal.highRisk, expiresAt: result.proposal.expiresAt, differenceCount: result.proposal.differenceCount, summaryAvailableLocally: true };
-  if (object(result.validation)) fallback.validation = validationSummary(result.validation, 0);
-  fallback.resourceReferences = result.resourceReferences;
-  fallback.detailsAvailable = true;
-  fallback.contextTruncated = true;
-  return fallback;
-}
 function textParts(content) {
   if (!Array.isArray(content) || content.length > 128) throw new Error('invalidContext');
   return content.map(part => {
@@ -124,7 +71,18 @@ function redactKey(value, key) {
 }
 function contextSummary(message, force = false) {
   if (message.role !== 'toolResult') return message;
+  let projected = false;
+  message = { ...message, content: message.content.map(part => {
+    try {
+      const value = JSON.parse(part.text);
+      const result = modelResultValue(message.toolName, value);
+      projected ||= result !== value;
+      return { type: 'text', text: JSON.stringify(result) };
+    } catch { return part; }
+  }) };
+  if (projected) return message;
   if (!force && bytes(message.content) <= 8192) return message;
+  if (!force && /(?:_query|_list|_read|_schema)$/.test(message.toolName)) return message;
   if (!force && ['application_catalog', 'policies_catalog', 'builtin_workflow_read'].includes(message.toolName) && bytes(message.content) <= 65536) return message;
   const content = message.content.map(part => {
     try {
@@ -147,8 +105,7 @@ function contextSummary(message, force = false) {
 function exportContext(messages, model, key) {
   const results = new Map(messages.filter(message => message.role === 'toolResult').map(message => [message.toolCallId, message]));
   const sourceMessages = messages.filter(message => ['user', 'assistant', 'toolResult'].includes(message.role));
-  const latestUser = sourceMessages.findLastIndex(message => message.role === 'user');
-  let canonical = sourceMessages.map((message, index) => canonicalMessage(index < latestUser || bytes(message) > MAX_CONTEXT_BYTES - 16384 ? contextSummary(message) : message, model, true));
+  let canonical = sourceMessages.map(message => canonicalMessage(contextSummary(message), model, true));
   canonical = canonical.map(message => message.role !== 'assistant' ? message : { ...message, content: message.content.filter(part => part.type !== 'toolCall' || results.get(part.id)?.toolName === part.name) });
   const calls = new Set(canonical.flatMap(message => message.role === 'assistant' ? message.content.filter(part => part.type === 'toolCall').map(part => part.id) : []));
   canonical = canonical.filter(message => message.role !== 'toolResult' || calls.has(message.toolCallId));
@@ -168,7 +125,7 @@ function exportContext(messages, model, key) {
     if (message.role !== 'toolResult' || message.isError) continue;
     if (['policies_catalog', 'application_catalog'].includes(message.toolName)) snapshots.set(message.toolName, message);
     if (['policies_draft_read', 'policies_propose', 'policy_draft_read', 'policy_draft_edit'].includes(message.toolName)) {
-      try { if (draftProof(JSON.parse(message.content[0]?.text))?.businessSummary) snapshots.set('latestDraft', message); } catch {}
+      try { if (draftProof(JSON.parse(message.content[0]?.text))) snapshots.set('latestDraft', message); } catch {}
     }
   }
   const pinSnapshots = () => {
@@ -203,7 +160,7 @@ function resultStatus(value) {
   return typeof value.status === 'string' ? value.status : object(value.change) ? resultStatus(value.change) : object(value.operation) ? resultStatus(value.operation) : object(value.result) ? resultStatus(value.result) : undefined;
 }
 function hasDraft(value) {
-  return object(value.proposal) && value.proposal.id !== undefined || ['draft', 'draft_ready'].includes(resultStatus(value)) && (value.id !== undefined || value.draftId !== undefined) || object(value.result) && hasDraft(value.result);
+  return object(value.proposal) && value.proposal.id !== undefined || ['draft', 'draft_ready'].includes(resultStatus(value)) && (value.id !== undefined || value.draftId !== undefined) || Array.isArray(value.proposals) && value.proposals.some(item => object(item) && hasDraft(item)) || object(value.result) && hasDraft(value.result);
 }
 function mutationResult(result) {
   if (['mutation', 'read'].includes(result.value.taskEffect)) return result.value.taskEffect === 'mutation';
@@ -297,7 +254,7 @@ function finishTool(run) {
       const completion = completedProof === undefined ? undefined : completionReceipt(entries[completedProof][1].value);
       const summary = completion ? completionSummary(completion) : args.status === 'completed' && evidence.some(result => resultStatus(result.value) === 'applied') ? '操作记录已确认；当前网络是否使用该配置尚未验证。' : typeof reply === 'string' && reply.trim() ? reply : args.summary;
       run.finished = { ...args, summary, evidenceToolCallIds: selected.map(index => entries[index][0]) };
-      return { ...toolContent({ status: args.status, summary, ...(args.reason ? { reason: args.reason } : {}) }), terminate: true };
+      return { ...toolContent(modelResultValue('task_finish', { status: args.status, summary, ...(args.reason ? { reason: args.reason } : {}) })), terminate: true };
     },
   };
 }
@@ -441,8 +398,7 @@ export class AgentHost {
         if (run.finished) return { action: 'end' };
         if (run.turns >= 20 && message.stopReason === 'toolUse') { run.limited = true; return { action: 'end' }; }
         const effects = [...run.results.values()].some(mutationResult);
-        const text = message.content.filter(part => part.type === 'text').map(part => part.text).join('');
-        if (message.stopReason === 'stop' && !/[？?]/.test(text) && effects && run.corrections < 2) {
+        if (message.stopReason === 'stop' && effects && run.corrections < 2) {
           run.corrections++;
           run.correctionNeeded = true;
           return { action: 'continue' };
@@ -451,7 +407,7 @@ export class AgentHost {
       prepareNextTurnWithContext: async ({ context }) => {
         if (!run.correctionNeeded) return { context: { ...context, tools: [...active.values(), ...builtinTools, catalogTool] } };
         run.correctionNeeded = false;
-        return { context: { ...context, tools: [...active.values(), ...builtinTools, catalogTool], messages: [...context.messages, { role: 'system', content: '请根据当前实际工具结果完成仍未完成的工作，或调用 task_finish 明确 draft_ready/completed/needs_input/failed。本地草稿先 policies_draft_read 重读最新版本并核对 businessSummary 和 validation，再 draft_ready；不得重放写入、把待确认当成功或为结束编造证据。', timestamp: Date.now() }] } };
+        return { context: { ...context, tools: [...active.values(), ...builtinTools, catalogTool], messages: [...context.messages, { role: 'system', content: '本轮已尝试修改，文字答复或问句不能代替完成状态。请根据当前实际工具结果完成仍未完成的工作，或调用 task_finish 明确 draft_ready/completed/needs_input/failed。本地草稿先 policy_draft_read（兼容入口 policies_draft_read）重读最新版本并核对 businessSummary 和 validation，再 draft_ready；仍需必要输入时用 needs_input，说明已有草稿及具体缺失信息。不得重放写入、把待确认当成功或为结束编造证据，也不为结束擅自提交。', timestamp: Date.now() }] } };
       },
     });
     run.agent = agent;

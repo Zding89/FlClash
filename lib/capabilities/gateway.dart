@@ -56,6 +56,13 @@ abstract interface class ApplicationCompletionGateway {
   );
 }
 
+abstract interface class ApplicationReviewGateway {
+  Future<Map<String, Object?>> reviewState(
+    String command,
+    Map<String, Object?> params,
+  );
+}
+
 class _FileGrant {
   const _FileGrant(this.path, this.mode, this.expiresAt);
   final String path;
@@ -64,7 +71,10 @@ class _FileGrant {
 }
 
 class FlutterApplicationCapabilityGateway
-    implements ApplicationCapabilityGateway, ApplicationCompletionGateway {
+    implements
+        ApplicationCapabilityGateway,
+        ApplicationCompletionGateway,
+        ApplicationReviewGateway {
   FlutterApplicationCapabilityGateway({
     required this.ref,
     required this.controller,
@@ -92,6 +102,171 @@ class FlutterApplicationCapabilityGateway
   Future<ConfigurationCompletionReceipt> readActivationBasis(
     ConfigurationActivationBasis basis,
   ) => controller.backend.readActivationBasis(basis);
+
+  @override
+  Future<Map<String, Object?>> reviewState(
+    String command,
+    Map<String, Object?> params,
+  ) async {
+    final before = <String, Object?>{};
+    final after = Map<String, Object?>.from(redactResource(params));
+    final labels = <String, String>{};
+    switch (command) {
+      case 'connection_set':
+        before['running'] = ref.read(isStartProvider);
+      case 'core_restart':
+        before['running'] = ref.read(isStartProvider);
+      case 'proxy_select':
+        final group = (await _groups())
+            .where((group) => group.name == params['group'])
+            .firstOrNull;
+        if (group == null ||
+            group.type != GroupType.Selector ||
+            !group.all.any((node) => node.name == params['node'])) {
+          throw const ConfigurationChangeException('proxy_selection_invalid');
+        }
+        before.addAll({'group': group.name, 'node': group.now});
+      case 'profile_select':
+        final selected = ref.read(currentProfileProvider);
+        final profiles = ref.read(profilesProvider);
+        if (params.containsKey('profileId')) {
+          before['profileId'] = selected?.id.toString();
+          final target = profiles
+              .where((profile) => '${profile.id}' == '${params['profileId']}')
+              .firstOrNull;
+          if (selected != null) {
+            labels['before.profileId'] = selected.realLabel;
+          }
+          if (target != null) {
+            labels['profileId'] = target.realLabel;
+            labels['after.profileId'] = target.realLabel;
+          }
+        }
+        if (params.containsKey('integrationId') ||
+            params.containsKey('moduleEnabled')) {
+          final document = await controller.readPolicies();
+          if (params.containsKey('moduleEnabled')) {
+            before['moduleEnabled'] = document.moduleEnabled;
+          }
+          if (params.containsKey('integrationId')) {
+            before['integrationId'] = document.activeIntegrationId;
+            for (final integration in document.integrations) {
+              if (integration.id == document.activeIntegrationId) {
+                labels['before.integrationId'] = integration.label;
+              }
+              if (integration.id == params['integrationId']) {
+                labels['integrationId'] = integration.label;
+                labels['after.integrationId'] = integration.label;
+              }
+            }
+          }
+        }
+      case 'policy_nodes_check':
+      case 'policy_nodes_cancel':
+        var nodeSetId = params['nodeSetId'];
+        if (command == 'policy_nodes_cancel') {
+          final check = await core.checkLocalPolicyNodes({
+            'revision': params['revision'],
+            'operationId': params['operationId'],
+          });
+          nodeSetId = check['nodeSetId'];
+        }
+        final document = await controller.readPolicies();
+        final group = document.nodeSets
+            .where((group) => group.id == nodeSetId)
+            .firstOrNull;
+        if (group != null) {
+          labels['nodeSetId'] = group.label;
+          if (command == 'policy_nodes_cancel') {
+            labels['operationId'] = group.label;
+          }
+        }
+      case 'profile_propose':
+        final profiles = ref.read(profilesProvider);
+        final target = profiles
+            .where((profile) => '${profile.id}' == '${params['profileId']}')
+            .firstOrNull;
+        if (target != null) {
+          labels['profileId'] = target.realLabel;
+          before['sourceVersion'] = policyDigest(target.toJson());
+        }
+        final patch = params['patch'];
+        if (patch is Map) {
+          after.remove('patch');
+          after.addAll(redactResource(Map<String, Object?>.from(patch)));
+        }
+      case 'profiles_refresh_all':
+        final sources = ref
+            .read(profilesProvider)
+            .where((profile) => profile.url.isNotEmpty)
+            .toList();
+        before['sourceVersion'] = policyDigest(
+          sources.map((profile) => profile.toJson()).toList(),
+        );
+        after['profiles'] = sources
+            .map((profile) => profile.realLabel)
+            .toList();
+      case 'operation_cancel':
+        final row = await controller.store.readChange(
+          '${params['operationId']}',
+        );
+        if (row != null) {
+          labels['operationId'] = row.summary;
+          before['operationStatus'] = row.status;
+          after['operationStatus'] = 'cancelled';
+        }
+      case 'profiles_reorder':
+        final profiles = ref.read(profilesProvider);
+        before['ids'] = profiles.map((profile) => '${profile.id}').toList();
+        for (final profile in profiles) {
+          labels['profile.${profile.id}'] = profile.realLabel;
+        }
+      case 'usage_set_enabled':
+        before['enabled'] = await ref.read(usageStoreProvider).isEnabled();
+      case 'webdav_upload' || 'webdav_restore':
+        final destination = ref.read(davSettingProvider);
+        if (destination == null) {
+          throw const ConfigurationChangeException('webdav_not_configured');
+        }
+        after['url'] = Uri.parse(destination.uri).origin;
+      case 'app_show' || 'app_hide':
+        after['visible'] = command == 'app_show';
+      default:
+        break;
+    }
+    if ({
+      'profile_export',
+      'profile_effective_export',
+      'script_export',
+      'script_patch',
+    }.contains(command)) {
+      final field = command == 'script_patch' ? 'scriptId' : 'id';
+      final id = params[field];
+      if (id != null) {
+        if (command.startsWith('script')) {
+          final scripts = await ref.read(scriptsProvider.future);
+          final source = scripts
+              .where((script) => '${script.id}' == '$id')
+              .firstOrNull;
+          if (source != null) labels[field] = source.label;
+        } else {
+          final source = ref
+              .read(profilesProvider)
+              .where((profile) => '${profile.id}' == '$id')
+              .firstOrNull;
+          if (source != null) labels[field] = source.realLabel;
+        }
+      }
+    }
+    final grant = _files[params['fileGrantId']];
+    if (grant != null) labels['fileGrantId'] = paths.basename(grant.path);
+    return {
+      'command': command,
+      'before': before,
+      'after': after,
+      'labels': labels,
+    };
+  }
 
   Future<List<Group>> _groups() => core.getProxiesGroups(
     sortType: ProxiesSortType.none,
@@ -160,6 +335,8 @@ class FlutterApplicationCapabilityGateway
   Future<Map<String, Object?>> _grant(
     Map<String, Object?> params,
     String origin,
+    Future<bool> Function()? beginMutation,
+    bool Function()? isCurrent,
   ) async {
     final mode = policyString(params, 'mode');
     String? path = params['path'] as String?;
@@ -173,8 +350,13 @@ class FlutterApplicationCapabilityGateway
         path = await selectLocalOutputPath('FlClash-export.bin');
       }
     }
-    if (path == null) return {'status': 'cancelled'};
+    if (path == null ||
+        isCurrent?.call() == false ||
+        beginMutation != null && !await beginMutation()) {
+      return {'status': 'cancelled'};
+    }
     await _validatePath(path, mode);
+    if (isCurrent?.call() == false) return {'status': 'cancelled'};
     _files.removeWhere((_, grant) => DateTime.now().isAfter(grant.expiresAt));
     if (_files.length >= 32) {
       throw const ConfigurationChangeException('file_grant_limit');
@@ -775,7 +957,7 @@ class FlutterApplicationCapabilityGateway
           'order': ids.map((id) => '$id').toList(),
         };
       case 'file_grant':
-        return _grant(params, origin);
+        return _grant(params, origin, beginMutation, isCurrent);
       case 'profile_export':
       case 'profile_effective_export':
       case 'script_export':
@@ -948,8 +1130,13 @@ class FlutterApplicationCapabilityGateway
         return {'status': await completed.future};
       case 'profile_qr_import':
         final url = await picker.pickerConfigQRCode();
-        if (url == null) return {'status': 'cancelled'};
+        if (url == null ||
+            isCurrent?.call() == false ||
+            beginMutation != null && !await beginMutation()) {
+          return {'status': 'cancelled'};
+        }
         final response = await controller.fetchSourceResponse(url);
+        if (isCurrent?.call() == false) return {'status': 'cancelled'};
         final bytes = response.data;
         if (bytes == null || bytes.isEmpty || bytes.length > 8 * 1024 * 1024) {
           throw const ConfigurationChangeException('resource_download_invalid');
@@ -976,7 +1163,11 @@ class FlutterApplicationCapabilityGateway
         };
       case 'profile_import_panel':
         final file = await picker.pickerFile();
-        if (file?.path == null) return {'status': 'cancelled'};
+        if (file?.path == null ||
+            isCurrent?.call() == false ||
+            beginMutation != null && !await beginMutation()) {
+          return {'status': 'cancelled'};
+        }
         final path = file!.path!;
         await _validatePath(path, 'read');
         final id = snowflake.id;

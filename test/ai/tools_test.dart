@@ -73,6 +73,7 @@ class _Controller extends Mock implements WorkbenchController {
     LocalPolicyDocument document, {
     String? draftId,
     String? expectedPolicyDigest,
+    String? changeSummary,
   }) async {
     proposedDocument = document;
     final changes = policyChanges;
@@ -80,7 +81,7 @@ class _Controller extends Mock implements WorkbenchController {
     final state = await changes.backend.readState();
     return changes.propose(
       category: 'policies',
-      summary: 'Local rules',
+      summary: changeSummary ?? 'Local rules',
       candidate: {...state, 'policies': document.toJson()},
       baseDraftId: draftId,
       expectedPolicyDigest: expectedPolicyDigest,
@@ -317,6 +318,19 @@ void main() {
     arguments: args,
     isCurrent: () => current,
   );
+  void useInternalTools() {
+    tools = AgentTools(
+      controller: controller,
+      resources: tools.resources,
+      gateway: gateway,
+      exposeApplication: false,
+      approve: (_) async {
+        approvals++;
+        return allow;
+      },
+    );
+  }
+
   Future<AgentToolResult> execute(
     String name, [
     Map<String, Object?> args = const {},
@@ -969,6 +983,7 @@ void main() {
   test(
     'profile URL proposal diff is redacted and commit is locally approved',
     () async {
+      useInternalTools();
       final result = await execute('profile_propose', {
         'operation': 'edit',
         'profileId': 7,
@@ -1331,6 +1346,7 @@ void main() {
   );
 
   test('usage clear denial and replay cannot bypass local approval', () async {
+    useInternalTools();
     allow = false;
     final denied = request('usage_clear');
     expect((await tools.execute(denied)).value['status'], 'rejected');
@@ -1347,6 +1363,7 @@ void main() {
   test('session cancellation during approval blocks mutation', () async {
     tools = AgentTools(
       controller: controller,
+      exposeApplication: false,
       resources: tools.resources,
       gateway: gateway,
       approve: (_) async {

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:fl_clash/ai/policy_summary.dart';
+import 'package:fl_clash/ai/policy_change_summary.dart';
 import 'package:fl_clash/configuration/changes.dart';
 import 'package:fl_clash/l10n/l10n.dart';
 import 'package:fl_clash/policy/models.dart';
@@ -112,6 +113,184 @@ void main() {
       expect(find.text('configuration_version_conflict'), findsNothing);
     },
   );
+  testWidgets('completion evidence failure asks for verification', (
+    tester,
+  ) async {
+    await AppLocalizations.load(const Locale('zh', 'CN'));
+    await tester.pumpWidget(
+      const MaterialApp(
+        locale: Locale('zh', 'CN'),
+        localizationsDelegates: [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        home: Scaffold(
+          body: AiToolResultCard(
+            failed: true,
+            result: {'code': 'completionEvidenceRequired'},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text(AppLocalizations.current.aiPolicyCompletionEvidenceRequired),
+      findsOneWidget,
+    );
+    expect(find.text(AppLocalizations.current.aiRequestFailed), findsNothing);
+    expect(find.text(AppLocalizations.current.networkException), findsNothing);
+  });
+
+  testWidgets(
+    'compact shows latest adjustment and detail keeps cumulative diff',
+    (tester) async {
+      await AppLocalizations.load(const Locale('zh', 'CN'));
+      final first = {'id': 'hk', 'label': '香港组', 'maxMultiplier': 1};
+      final second = {'id': 'us', 'label': '美国组', 'maxMultiplier': 1};
+      final latest = aiPolicyChangeSummary(
+        configurationDifferences(
+          {
+            'policies': {
+              'nodeSets': [first, second],
+            },
+          },
+          {
+            'policies': {
+              'nodeSets': [
+                {...first, 'maxMultiplier': 0.2},
+                second,
+              ],
+            },
+          },
+        ),
+      );
+      final proposal = ConfigurationProposal(
+        id: 'incremental',
+        summary: latest,
+        highRisk: false,
+        expiresAt: 2000000000000,
+        differences: configurationDifferences(
+          {
+            'policies': {'nodeSets': []},
+          },
+          {
+            'policies': {
+              'nodeSets': [
+                {...first, 'maxMultiplier': 0.2},
+                second,
+              ],
+            },
+          },
+        ),
+        validation: const {},
+      );
+      Future<void> show(bool expanded) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            locale: const Locale('zh', 'CN'),
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: AppLocalizations.delegate.supportedLocales,
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: AiToolResultCard(proposal: proposal, expanded: expanded),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      await show(false);
+      expect(find.textContaining('1× → 0.2×'), findsOneWidget);
+      expect(find.textContaining('美国组'), findsNothing);
+      expect(find.textContaining('新增'), findsNothing);
+      await show(true);
+      expect(
+        find.text(AppLocalizations.current.aiPolicyChangeBaseline),
+        findsOneWidget,
+      );
+      expect(find.textContaining('新增节点组“香港组”'), findsOneWidget);
+      expect(find.textContaining('新增节点组“美国组”'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'routing detail resolves unchanged node groups from plan metadata',
+    (tester) async {
+      await AppLocalizations.load(const Locale('zh', 'CN'));
+      final proposal = ConfigurationProposal(
+        id: 'routing',
+        summary: '本地规则',
+        highRisk: false,
+        expiresAt: 2000000000000,
+        differences: configurationDifferences(
+          {
+            'policies': {
+              'policies': [
+                {
+                  'id': 'ai',
+                  'label': 'AI 服务',
+                  'choices': [
+                    {'type': 'nodeSet', 'id': 'us-private-id'},
+                  ],
+                },
+              ],
+            },
+          },
+          {
+            'policies': {
+              'policies': [
+                {
+                  'id': 'ai',
+                  'label': 'AI 服务',
+                  'choices': [
+                    {'type': 'nodeSet', 'id': 'hk-private-id'},
+                  ],
+                },
+              ],
+            },
+          },
+        ),
+        validation: const {
+          'localPolicyPlan': {
+            'before': {},
+            'after': {
+              'nodeSets': [
+                {'id': 'us-private-id', 'label': '美国组'},
+                {'id': 'hk-private-id', 'label': '香港组'},
+              ],
+            },
+          },
+        },
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('zh', 'CN'),
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.delegate.supportedLocales,
+          home: Scaffold(
+            body: AiToolResultCard(proposal: proposal, expanded: true),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('美国组 → 香港组'), findsOneWidget);
+      expect(find.textContaining('private-id'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
   for (final width in [380.0, 1180.0]) {
     testWidgets('local plan is readable without raw paths at width $width', (
       tester,
@@ -190,21 +369,13 @@ void main() {
       };
       final proposal = ConfigurationProposal(
         id: 'synthetic',
-        summary: '内部摘要',
+        summary: '本地规则',
         highRisk: true,
         expiresAt: 2000000000000,
-        differences: const [
-          ConfigurationDifference(
-            path: 'policies.policies',
-            before: [],
-            after: [],
-          ),
-          ConfigurationDifference(
-            path: 'policies.revision',
-            before: 7,
-            after: 8,
-          ),
-        ],
+        differences: configurationDifferences(
+          {'policies': const LocalPolicyDocument().toJson()},
+          {'policies': after.toJson()},
+        ),
         validation: {'localPolicyPlan': plan},
       );
       final boundary = GlobalKey();
@@ -244,10 +415,17 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('本地规则方案'), findsOneWidget);
-      expect(find.text('方案已生成，尚未应用'), findsOneWidget);
+      expect(
+        find.text(
+          width < 500
+              ? '方案已生成，尚未应用'
+              : AppLocalizations.current.aiAwaitingApproval,
+        ),
+        findsOneWidget,
+      );
       expect(find.text('检查结果'), findsNothing);
-      expect(find.text('3 条规则 · 2 个节点组'), findsOneWidget);
-      expect(find.textContaining('国内（中国） (GeoIP) → 直连'), findsOneWidget);
+      expect(find.text('3 条规则 · 2 个节点组'), findsNothing);
+      expect(find.textContaining('新增规则“国内直连”'), findsOneWidget);
       expect(find.text('policies.policies'), findsNothing);
       expect(find.text('policies.revision'), findsNothing);
       expect(find.text(AppLocalizations.current.aiHighRisk), findsNothing);
@@ -366,8 +544,12 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(find.byType(AiPolicyPlanView), findsNothing);
-        expect(find.text(change.path), findsOneWidget);
+        expect(find.byType(AiPolicyChangeOverview), findsOneWidget);
+        expect(find.text(change.path), findsNothing);
+        expect(
+          find.text(AppLocalizations.current.aiPolicyChangeBaseline),
+          findsOneWidget,
+        );
         expect(find.text(AppLocalizations.current.aiHighRisk), findsOneWidget);
         await tester.pumpWidget(
           MaterialApp(
@@ -450,6 +632,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(AiPolicyPlanView), findsOneWidget);
     expect(find.textContaining('允许地区未知的节点入组'), findsOneWidget);
-    expect(find.textContaining('调整 1'), findsOneWidget);
+    expect(find.textContaining('已停用 → 已启用'), findsOneWidget);
   });
 }

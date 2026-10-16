@@ -1210,5 +1210,108 @@
   "policyCheckRetry": "状態を再取得",
   "aiPolicySavedOnly": "保存済み・未適用",
   "aiPolicyEffectiveVerified": "保存済み・動作を確認済み",
-  "aiPolicySavedUnverified": "保存済み・動作状態は未確認"
+  "aiPolicySavedUnverified": "保存済み・動作状態は未確認",
+  "aiPolicyChangeAdded": "{kind}「{label}」を追加",
+  "@aiPolicyChangeAdded": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyChangeRemoved": "{kind}「{label}」を削除",
+  "@aiPolicyChangeRemoved": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyChangeField": "{kind}「{label}」・{field}: {value}",
+  "@aiPolicyChangeField": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "label": {
+        "type": "String"
+      },
+      "field": {
+        "type": "String"
+      },
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyChangeAdjusted": "変更済み",
+  "aiPolicyChangeMore": "ほか {count} 件の変更",
+  "@aiPolicyChangeMore": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyChangeBaseline": "保存済み設定に対する未適用の全変更",
+  "aiPolicyChangePosition": "{position} 番目",
+  "@aiPolicyChangePosition": {
+    "placeholders": {
+      "position": {
+        "type": "String"
+      }
+    }
+  },
+  "aiPolicyFilterConditions": "フィルター条件",
+  "aiPolicyCompletionEvidenceRequired": "操作結果はまだ確認されていません。現在のプランまたは操作状況の確認をアシスタントに依頼してください。",
+  "aiPolicyChangeEmpty": "なし",
+  "aiPolicyChangeEnabled": "有効",
+  "aiPolicyChangeDisabled": "無効",
+  "aiPolicyChangeRuleOrder": "ルールの順序",
+  "aiPolicyChangeOtherFields": "その他の設定",
+  "aiPolicyChangeReferences": "{count} 件",
+  "@aiPolicyChangeReferences": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "aiReviewAndConfirm": "確認して実行",
+  "aiReviewActionScope": "操作の範囲",
+  "aiReviewTarget": "操作対象",
+  "aiReviewOtherSetting": "その他の項目",
+  "aiReviewSensitiveValue": "保護された内容を更新",
+  "aiReviewUnknownValue": "記録なし",
+  "aiReviewChange": "変更内容",
+  "aiReviewSelectNode": "ノードを切り替え",
+  "aiReviewSelectProfile": "設定を切り替え",
+  "aiReviewSetConnection": "接続の切り替え",
+  "aiReviewRefresh": "サブスクリプションを更新",
+  "aiReviewResource": "リソースを更新",
+  "aiReviewProbe": "ノードを確認",
+  "aiReviewClose": "閉じる",
+  "aiReviewChanged": "変更済み",
+  "aiReviewWindowSize": "ウィンドウサイズ",
+  "aiReviewWindowPosition": "ウィンドウ位置",
+  "aiReviewDns": "DNS 設定",
+  "aiReviewUnknownAction": "アプリの操作",
+  "aiReviewUnavailable": "現在この操作を確認できません。操作状況を再確認してください。",
+  "aiReviewCancelOperation": "操作を取り消す",
+  "aiReviewCancelProbe": "ノード確認を取り消す",
+  "aiReviewReadFile": "ローカルファイルを読み取る",
+  "aiReviewWriteFile": "ローカルファイルに書き込む",
+  "aiReviewHideApplication": "アプリを非表示",
+  "aiReviewDiagnostics": "診断を実行",
+  "aiReviewGrantFile": "ローカルファイルを選択",
+  "aiReviewCliCredentials": "ローカル制御の認証情報",
+  "aiReviewContent": "設定内容",
+  "aiReviewCloseConnections": "接続を閉じる",
+  "aiReviewFetchThenApply": "最新の内容を取得後、変更を確認してから適用します。"
 }

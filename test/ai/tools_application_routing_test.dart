@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:drift/native.dart';
 import 'package:fl_clash/ai/runtime.dart';
@@ -9,13 +10,70 @@ import 'package:fl_clash/configuration/changes.dart';
 import 'package:fl_clash/configuration/resources.dart';
 import 'package:fl_clash/database/workbench_database.dart';
 import 'package:fl_clash/l10n/l10n.dart';
+import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/workbench.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
-class _Environment extends Mock implements ResourceEnvironment {}
+class _Environment implements ResourceEnvironment {
+  int writes = 0;
+  final snapshots = <String, Map<String, Object?>>{};
+  @override
+  Future<Map<String, Object?>> read(ResourceScope scope) async =>
+      Map<String, Object?>.from(
+        jsonDecode(
+              jsonEncode(
+                snapshots.putIfAbsent(
+                  scope.category,
+                  () => {
+                    'scope': scope.toJson(),
+                    'profile': _profile(scope.id).toJson(),
+                    'protectedContent': 'old source',
+                    'protectedScriptContent': null,
+                    'selectedProfileId': 7,
+                    'addedRules': <Object?>[],
+                    'customRules': <Object?>[],
+                    'disabledRules': <Object?>[],
+                    'groups': <Object?>[],
+                  },
+                ),
+              ),
+            )
+            as Map,
+      );
+  @override
+  Future<ResourceValidation> validate(
+    ResourceScope scope,
+    Map<String, Object?> candidate, {
+    required bool approvedScript,
+  }) async =>
+      const ResourceValidation({'validated': true}, generatedYaml: 'fixture');
+  @override
+  Future<void> persist(
+    ResourceScope scope,
+    Map<String, Object?> candidate,
+  ) async {
+    writes++;
+    snapshots[scope.category] = Map.of(candidate);
+  }
+
+  @override
+  Future<void> activate(
+    ResourceScope scope,
+    Map<String, Object?> candidate, {
+    String? generatedYaml,
+    Map<String, Object?>? previousSnapshot,
+  }) async {}
+}
+
+Profile _profile(int id) => Profile(
+  id: id,
+  label: 'Subscription $id',
+  url: 'https://source$id.invalid/subscription',
+  autoUpdateDuration: const Duration(hours: 1),
+);
 
 class _Controller extends Mock implements WorkbenchController {
   _Controller(this.store);
@@ -27,6 +85,23 @@ class _Controller extends Mock implements WorkbenchController {
 
 class _InternalGateway extends Mock implements AgentResourceGateway {
   int calls = 0;
+  int downloads = 0;
+  final profiles = <Profile>[];
+  final failedUrls = <String>{};
+  @override
+  Future<List<Profile>> readProfiles() async => profiles;
+  @override
+  Future<Map<String, Object?>> downloadProfile(String url) async {
+    downloads++;
+    if (failedUrls.contains(url)) {
+      throw const ConfigurationChangeException('resource_download_failed');
+    }
+    return {
+      'protectedContent': 'downloaded source',
+      'subscriptionInfo': const SubscriptionInfo().toJson(),
+    };
+  }
+
   @override
   Future<Map<String, Object?>> updateResource(
     String kind,
@@ -102,6 +177,7 @@ void main() {
   late WorkbenchDatabase store;
   late _Controller controller;
   late _InternalGateway internal;
+  late _Environment environment;
   late _SharedGateway gateway;
   late ProviderContainer container;
   late ApplicationCapabilityService service;
@@ -118,6 +194,7 @@ void main() {
     store = WorkbenchDatabase(NativeDatabase.memory());
     controller = _Controller(store);
     internal = _InternalGateway();
+    environment = _Environment();
     gateway = _SharedGateway(store);
     builds = 0;
     approvals = 0;
@@ -128,7 +205,7 @@ void main() {
     approvedId = null;
     final resources = ResourceChangeService(
       store: store,
-      environment: _Environment(),
+      environment: environment,
     );
     container = ProviderContainer(
       overrides: [
@@ -223,10 +300,96 @@ void main() {
           expect(gateway.calls, 1);
           expect(internal.calls, 0);
           expect(builds, 1);
-          expect(approvals, command == 'resource_update' ? 1 : 0);
+          expect(approvals, 1);
         },
       );
     }
+  }
+  for (final command in ['profile_propose', 'profiles_refresh_all']) {
+    test(
+      '$command reviews downloads before network and returns unapplied child cards',
+      () async {
+        internal.profiles.addAll([_profile(7), _profile(8)]);
+        final params = command == 'profile_propose'
+            ? <String, Object?>{'operation': 'refresh', 'profileId': '7'}
+            : <String, Object?>{};
+        AgentToolRequest action() => command == 'profile_propose'
+            ? request(command, params)
+            : request('application_invoke', {
+                'command': command,
+                'params': params,
+              });
+        allow = false;
+        final cancelled = await tools.execute(action());
+        expect(cancelled.value['status'], 'cancelled');
+        expect(internal.downloads, 0);
+        expect(environment.writes, 0);
+        allow = true;
+        final prepared = await tools.execute(action());
+        expect(prepared.value['status'], 'accepted');
+        await service.drain();
+        final operation = await query(prepared.value['operationId'] as String);
+        expect(operation['status'], 'proposal_ready');
+        expect(internal.downloads, command == 'profile_propose' ? 1 : 2);
+        expect(environment.writes, 0);
+        final result = operation['result'] as Map;
+        final child = command == 'profile_propose'
+            ? result
+            : (result['proposals'] as List).first as Map;
+        final childId = child['operationId'] as String;
+        expect((await store.readChange(childId))!.status, 'draft');
+        final review = await service.reviewChange(childId);
+        expect(review.validation['reviewTarget'], 'Subscription 7');
+        var confirmations = 0;
+        final applied = await service.confirmReviewedChange(
+          childId,
+          approve: (proposal) async {
+            confirmations++;
+            expect(proposal.validation['reviewTarget'], 'Subscription 7');
+            return true;
+          },
+        );
+        expect(applied['status'], 'applied');
+        expect(environment.writes, 1);
+        expect(confirmations, 1);
+        expect(approvals, 2);
+        expect(gateway.calls, 0);
+      },
+    );
+  }
+  for (final allFailed in [false, true]) {
+    test(
+      'batch subscription errors retain accurate child statuses allFailed=$allFailed',
+      () async {
+        internal.profiles.addAll([_profile(7), _profile(8)]);
+        internal.failedUrls.add(_profile(7).url);
+        if (allFailed) internal.failedUrls.add(_profile(8).url);
+        final prepared = await tools.execute(
+          request('application_invoke', {
+            'command': 'profiles_refresh_all',
+            'params': <String, Object?>{},
+          }),
+        );
+        await service.drain();
+        final operation = await query(prepared.value['operationId'] as String);
+        expect(operation['status'], allFailed ? 'failed' : 'proposal_ready');
+        final result = operation['result'] as Map;
+        expect(result['failedCount'], allFailed ? 2 : 1);
+        final children = result['proposals'] as List;
+        expect(children.length, 2);
+        expect((children.first as Map)['status'], 'failed');
+        expect(
+          (children.first as Map)['errorCode'],
+          'resource_download_failed',
+        );
+        expect(
+          (children.last as Map)['status'],
+          allFailed ? 'failed' : 'pending_confirmation',
+        );
+        expect(environment.writes, 0);
+        expect(internal.downloads, 2);
+      },
+    );
   }
   test(
     'resource approval denial and request cancellation prevent gateway work',
@@ -263,12 +426,7 @@ void main() {
       expect((await tools.execute(call)).value['operationId'], id);
       expect(gateway.calls, 1);
       expect((await query(id))['status'], 'requires_user_action');
-      expect(
-        (await service.execute('operation_cancel', {
-          'operationId': id,
-        }, origin: 'agent'))['status'],
-        'cancelled',
-      );
+      expect((await service.cancelReviewedChange(id))['status'], 'cancelled');
       expect(await gateway.begin!(), false);
       gateway.pending!.complete({'status': 'cancelled'});
       expect((await query(id))['status'], 'cancelled');

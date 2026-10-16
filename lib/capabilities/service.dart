@@ -73,6 +73,170 @@ class ApplicationCapabilityService {
     }
   }
 
+  Future<bool> _resourceChange(WorkbenchChange row) async {
+    if (row.category.startsWith('resource:') ||
+        row.category.startsWith('repair:')) {
+      return true;
+    }
+    if (!row.category.startsWith('recovery:')) return false;
+    final original = await controller.store.readChange(
+      row.category.substring('recovery:'.length),
+    );
+    return original?.category.startsWith('resource:') == true;
+  }
+
+  ConfigurationProposal _capabilityProposal(WorkbenchChange row) {
+    final before = policyObject(jsonDecode(row.beforePayload), 'before');
+    final after = policyObject(jsonDecode(row.afterPayload), 'after');
+    final command = row.category.substring('capability:'.length);
+    final review = before['review'] is Map
+        ? policyObject(before['review'], 'review')
+        : {
+            'command': command,
+            'before': <String, Object?>{},
+            'after': after['params'] ?? <String, Object?>{},
+            'labels': <String, String>{},
+          };
+    return ConfigurationProposal(
+      id: row.id,
+      summary: row.summary,
+      highRisk: row.highRisk,
+      expiresAt: row.expiresAt,
+      differences: configurationDifferences(review['before'], review['after']),
+      validation: {'reversible': false, 'agentReview': review},
+    );
+  }
+
+  ConfigurationProposal _withReviewTarget(
+    ConfigurationProposal proposal,
+    WorkbenchChange row,
+  ) {
+    if (row.category.startsWith('capability:')) return proposal;
+    String? target;
+    final connections = <String, Map<String, String>>{};
+    for (final payload in {
+      'after': row.afterPayload,
+      'before': row.beforePayload,
+    }.entries) {
+      final data = policyObject(jsonDecode(payload.value), 'resource');
+      final ai = data['ai'];
+      if (ai is Map && ai['connections'] is List) {
+        connections[payload.key] = {
+          for (final connection in (ai['connections'] as List).whereType<Map>())
+            if (connection['id'] is String && connection['label'] is String)
+              connection['id'] as String: connection['label'] as String,
+        };
+      }
+      final resource = data['resource'] is Map
+          ? policyObject(data['resource'], 'resource')
+          : data;
+      for (final key in ['profile', 'script']) {
+        final item = resource[key];
+        if (item is! Map) continue;
+        final label = item['label'] ?? item['name'];
+        if (target == null && label is String && label.trim().isNotEmpty) {
+          target = label;
+          break;
+        }
+      }
+    }
+    if (target == null && connections.isEmpty) return proposal;
+    return ConfigurationProposal(
+      id: proposal.id,
+      summary: proposal.summary,
+      highRisk: proposal.highRisk,
+      expiresAt: proposal.expiresAt,
+      differences: proposal.differences,
+      validation: {
+        ...proposal.validation,
+        'reviewTarget': ?target,
+        if (connections.isNotEmpty) 'aiReviewConnections': connections,
+      },
+    );
+  }
+
+  Future<ConfigurationProposal> reviewChange(String id) async {
+    final row = await controller.store.readChange(id);
+    if (row == null) {
+      throw const ConfigurationChangeException(
+        'configuration_proposal_missing',
+      );
+    }
+    final original = row.category.startsWith('capability:')
+        ? _capabilityProposal(row)
+        : await _resourceChange(row)
+        ? await _baseTools.resources.readProposal(id)
+        : await controller.changes.readProposal(id);
+    final proposal = _withReviewTarget(original, row);
+    return ConfigurationProposal(
+      id: proposal.id,
+      summary: proposal.summary,
+      highRisk: proposal.highRisk,
+      expiresAt: proposal.expiresAt,
+      differences: proposal.differences,
+      validation: {
+        ...proposal.validation,
+        'reviewStatus':
+            {'draft', 'pending_confirmation'}.contains(row.status) &&
+                row.expiresAt <= DateTime.now().millisecondsSinceEpoch
+            ? 'expired'
+            : row.status,
+        'reviewCategory': row.category,
+      },
+    );
+  }
+
+  Future<Map<String, Object?>> confirmReviewedChange(
+    String id, {
+    required ConfigurationApproval approve,
+    bool Function()? isCurrent,
+  }) async {
+    final row = await controller.store.readChange(id);
+    if (row == null) {
+      throw const ConfigurationChangeException(
+        'configuration_proposal_missing',
+      );
+    }
+    if (isCurrent?.call() == false) {
+      return {'operationId': id, 'status': 'cancelled'};
+    }
+    final capability = row.category.startsWith('capability:');
+    final before = capability
+        ? policyObject(jsonDecode(row.beforePayload), 'before')
+        : <String, Object?>{};
+    final result = await execute(
+      capability ? 'capability_confirm' : 'changes_commit',
+      capability
+          ? {
+              'operationId': id,
+              'digest': before['digest'],
+              'version': before['version'],
+            }
+          : {'id': id},
+      origin: 'agent',
+      isCurrent: isCurrent,
+      approve: (proposal) async => approve(_withReviewTarget(proposal, row)),
+    );
+    if (result['status'] != 'accepted') return result;
+    await _active[id];
+    return _query(id);
+  }
+
+  Future<Map<String, Object?>> cancelReviewedChange(String id) async {
+    final row = await controller.store.readChange(id);
+    if (row == null) {
+      throw const ConfigurationChangeException(
+        'configuration_proposal_missing',
+      );
+    }
+    if (row.category.startsWith('capability:')) {
+      return execute('operation_cancel', {'operationId': id}, origin: 'ui');
+    }
+    return await _resourceChange(row)
+        ? _baseTools.resources.reject(id)
+        : controller.changes.reject(id);
+  }
+
   void invalidateCredentialGeneration(int generation) {
     _credentialGeneration = generation;
   }
@@ -201,36 +365,48 @@ class ApplicationCapabilityService {
         'result': {'capabilities': manifest},
       };
     }
-    if (command == 'profiles_refresh_all') {
+    if (command == 'profiles_refresh_all' && origin != 'agent') {
       policyKeys(params, {});
-      final profiles = await _baseTools.gateway.readProfiles();
-      if (profiles.length > 100) throw const FormatException();
-      final proposals = <Map<String, Object?>>[];
-      for (final profile in profiles.where(
-        (profile) => profile.url.isNotEmpty,
-      )) {
-        final result = await _baseTools.execute(
-          AgentToolRequest(
-            requestId: _id(),
-            toolCallId: _id(),
-            name: 'profile_propose',
-            arguments: {'operation': 'refresh', 'profileId': '${profile.id}'},
-            isCurrent: isCurrent,
-          ),
-        );
-        proposals.add({
-          'profileId': '${profile.id}',
-          ...await _decorateProposal(
-            result.value,
-            origin: origin,
-            credentialGeneration: credentialGeneration,
-          ),
-        });
-      }
+      final result = await _refreshProfiles(
+        isCurrent,
+        origin,
+        credentialGeneration,
+      );
       return {
-        'status': 'pending_confirmation',
-        'result': {'proposals': proposals},
+        'status': result['status'] == 'proposal_ready'
+            ? 'pending_confirmation'
+            : result['status'],
+        'result': {
+          'proposals': result['proposals'],
+          'failedCount': result['failedCount'],
+        },
       };
+    }
+    if (command == 'profile_propose' &&
+        origin == 'agent' &&
+        (params['operation'] == 'add' ||
+            params['operation'] == 'refresh' ||
+            params['patch'] is Map &&
+                (params['patch'] as Map).containsKey('url'))) {
+      final definition = _baseTools.definitions.singleWhere(
+        (definition) => definition.name == command,
+      );
+      AgentTools.validateArguments(definition, params);
+      return _prepare(
+        ApplicationCapability(
+          command: command,
+          domain: 'profiles',
+          description: definition.description,
+          mutating: true,
+          parameters: definition.parameters,
+        ),
+        params,
+        idempotencyKey,
+        origin,
+        credentialGeneration,
+        isCurrent,
+        approve ?? _approve,
+      );
     }
     final capability = applicationCapabilities
         .where((capability) => capability.command == command)
@@ -244,36 +420,10 @@ class ApplicationCapabilityService {
       if (command == 'operation_query') {
         return _query(policyString(params, 'operationId', maximum: 96));
       }
-      if (command == 'operation_cancel') {
-        final id = policyString(params, 'operationId', maximum: 96);
-        final row = await controller.store.readChange(id);
-        if (row == null || !row.category.startsWith('capability:')) {
-          return {'status': 'failed', 'errorCode': 'operation_missing'};
-        }
-        if (row.category == 'capability:proxy_test' &&
-            _active.containsKey(id)) {
-          _cancelledActions.add(id);
-          return {
-            'status': 'pending',
-            'operationId': id,
-            'cancellationRequested': true,
-          };
-        }
-        if (row.status == 'queued') {
-          if (_active.containsKey(id)) _cancelledActions.add(id);
-          await controller.store.changeStatus(id, 'cancelled');
-          return {'status': 'cancelled', 'operationId': id};
-        }
-        if (_active.containsKey(id) && !_manualWaiting.contains(id) ||
-            row.status == 'running') {
-          return {
-            'status': 'pending',
-            'operationId': id,
-            'errorCode': 'transaction_in_progress',
-          };
-        }
-        await controller.store.changeStatus(id, 'cancelled');
-        return {'status': 'cancelled', 'operationId': id};
+      if (command == 'operation_cancel' && origin != 'agent') {
+        return _cancelOperation(
+          policyString(params, 'operationId', maximum: 96),
+        );
       }
       if (command == 'capability_confirm') {
         return _confirm(
@@ -282,6 +432,16 @@ class ApplicationCapabilityService {
           credentialGeneration,
           isCurrent,
           approve: approve ?? _approve,
+        );
+      }
+      if (origin == 'cli' &&
+          {'credentials_panel', 'profile_qr_import'}.contains(command)) {
+        return _prepareManual(
+          capability,
+          params,
+          origin,
+          credentialGeneration,
+          idempotencyKey,
         );
       }
       if (capability.mutating) {
@@ -356,6 +516,23 @@ class ApplicationCapabilityService {
         (definition) => definition.name == command,
       );
       AgentTools.validateArguments(definition, params);
+      if (origin == 'agent') {
+        return _prepare(
+          ApplicationCapability(
+            command: command,
+            domain: 'files',
+            description: definition.description,
+            mutating: true,
+            parameters: definition.parameters,
+          ),
+          params,
+          idempotencyKey,
+          origin,
+          credentialGeneration,
+          isCurrent,
+          approve ?? _approve,
+        );
+      }
       return _prepareManual(
         ApplicationCapability(
           command: command,
@@ -462,6 +639,7 @@ class ApplicationCapabilityService {
     final tools = AgentTools(
       controller: controller,
       approve: localApproval ?? (_) async => false,
+      requireApproval: origin == 'agent',
       resources: _baseTools.resources,
       gateway: _baseTools.gateway,
       exposeApplication: false,
@@ -535,6 +713,127 @@ class ApplicationCapabilityService {
       return {'status': 'accepted', 'operationId': id};
     }
     return invoke();
+  }
+
+  Future<Map<String, Object?>> _cancelOperation(String id) async {
+    final row = await controller.store.readChange(id);
+    if (row == null || !row.category.startsWith('capability:')) {
+      return {'status': 'failed', 'errorCode': 'operation_missing'};
+    }
+    if (row.category == 'capability:proxy_test' && _active.containsKey(id)) {
+      _cancelledActions.add(id);
+      return {
+        'status': 'pending',
+        'operationId': id,
+        'cancellationRequested': true,
+      };
+    }
+    if (row.status == 'queued') {
+      if (_active.containsKey(id)) _cancelledActions.add(id);
+      await controller.store.changeStatus(id, 'cancelled');
+      return {'status': 'cancelled', 'operationId': id};
+    }
+    if (_active.containsKey(id) && !_manualWaiting.contains(id) ||
+        row.status == 'running') {
+      return {
+        'status': 'pending',
+        'operationId': id,
+        'errorCode': 'transaction_in_progress',
+      };
+    }
+    if (!{
+      'pending_confirmation',
+      'requires_user_action',
+    }.contains(row.status)) {
+      return _query(id);
+    }
+    if (_active.containsKey(id)) _cancelledActions.add(id);
+    await controller.store.changeStatus(id, 'cancelled');
+    return {'status': 'cancelled', 'operationId': id};
+  }
+
+  Future<Map<String, Object?>> _refreshProfiles(
+    bool Function() isCurrent,
+    String origin,
+    int? credentialGeneration,
+  ) async {
+    final profiles = await _baseTools.gateway.readProfiles();
+    if (profiles.length > 100) throw const FormatException();
+    final proposals = <Map<String, Object?>>[];
+    for (final profile in profiles.where((profile) => profile.url.isNotEmpty)) {
+      if (!isCurrent()) {
+        return {'status': 'cancelled', 'proposals': proposals};
+      }
+      final result = await _baseTools.execute(
+        AgentToolRequest(
+          requestId: _id(),
+          toolCallId: _id(),
+          name: 'profile_propose',
+          arguments: {'operation': 'refresh', 'profileId': '${profile.id}'},
+          isCurrent: isCurrent,
+        ),
+      );
+      proposals.add({
+        'profileId': '${profile.id}',
+        if (result.isError) ...{
+          'status': 'failed',
+          'errorCode': result.value['code'],
+          'result': result.value,
+        } else
+          ...await _decorateProposal(
+            result.value,
+            origin: origin,
+            credentialGeneration: credentialGeneration,
+          ),
+      });
+    }
+    final failed = proposals.where((row) => row['status'] == 'failed').length;
+    return {
+      'status': proposals.isEmpty
+          ? 'completed'
+          : failed == proposals.length
+          ? 'failed'
+          : 'proposal_ready',
+      'proposals': proposals,
+      'failedCount': failed,
+    };
+  }
+
+  Future<Map<String, Object?>> _executePrepared(
+    String command,
+    Map<String, Object?> params,
+    String origin,
+    int? generation,
+    bool Function() isCurrent,
+    Future<bool> Function()? beginMutation,
+  ) async {
+    if (command == 'operation_cancel') {
+      return _cancelOperation(policyString(params, 'operationId', maximum: 96));
+    }
+    if (command == 'profiles_refresh_all') {
+      return _refreshProfiles(isCurrent, origin, generation);
+    }
+    if (command == 'profile_propose') {
+      final result = await _baseTools.execute(
+        AgentToolRequest(
+          requestId: _id(),
+          toolCallId: _id(),
+          name: command,
+          arguments: params,
+          isCurrent: isCurrent,
+        ),
+      );
+      return result.isError
+          ? {'status': 'failed', 'errorCode': result.value['code']}
+          : result.value;
+    }
+    return gateway.execute(
+      command,
+      params,
+      origin: origin,
+      isCurrent: isCurrent,
+      beginMutation: beginMutation,
+    );
   }
 
   static Map<String, Object?> _safeProposal(Map<String, Object?> result) {
@@ -649,6 +948,17 @@ class ApplicationCapabilityService {
       return _query(id);
     }
     final version = await gateway.version();
+    final review = gateway is ApplicationReviewGateway
+        ? await (gateway as ApplicationReviewGateway).reviewState(
+            capability.command,
+            params,
+          )
+        : {
+            'command': capability.command,
+            'before': <String, Object?>{},
+            'after': redactResource(params),
+            'labels': <String, String>{},
+          };
     final digest = policyDigest({
       'command': capability.command,
       'params': params,
@@ -666,6 +976,7 @@ class ApplicationCapabilityService {
         'digest': digest,
         'origin': origin,
         'credentialGeneration': credentialGeneration,
+        'review': review,
       },
       after: {'command': capability.command, 'params': params},
       createdAt: now,
@@ -698,6 +1009,9 @@ class ApplicationCapabilityService {
     }
     if (row.status != 'pending_confirmation') return _query(id);
     final before = policyObject(jsonDecode(row.beforePayload), 'before');
+    final after = policyObject(jsonDecode(row.afterPayload), 'after');
+    final command = policyString(after, 'command', maximum: 96);
+    final arguments = policyObject(after['params'], 'params');
     if (before['origin'] != origin ||
         before['digest'] != params['digest'] ||
         before['version'] != params['version'] ||
@@ -707,6 +1021,7 @@ class ApplicationCapabilityService {
                     credentialGeneration != _credentialGeneration) ||
         !isCurrent() ||
         await gateway.version() != before['version'] ||
+        !await _reviewMatches(before, command, arguments) ||
         DateTime.now().millisecondsSinceEpoch >= row.expiresAt) {
       return {
         'status': 'conflict',
@@ -714,9 +1029,6 @@ class ApplicationCapabilityService {
         'errorCode': 'confirmation_stale',
       };
     }
-    final after = policyObject(jsonDecode(row.afterPayload), 'after');
-    final command = policyString(after, 'command', maximum: 96);
-    final arguments = policyObject(after['params'], 'params');
     if (_active.length >= 16) {
       return {
         'status': 'failed',
@@ -725,22 +1037,7 @@ class ApplicationCapabilityService {
       };
     }
     if (origin != 'cli') {
-      final accepted = await approve?.call(
-        ConfigurationProposal(
-          id: id,
-          summary: row.summary,
-          highRisk: true,
-          expiresAt: row.expiresAt,
-          differences: [
-            ConfigurationDifference(
-              path: command,
-              before: null,
-              after: redactResource(arguments),
-            ),
-          ],
-          validation: const {'reversible': false},
-        ),
-      );
+      final accepted = await approve?.call(_capabilityProposal(row));
       if (accepted != true || !isCurrent()) {
         await (controller.store.update(controller.store.workbenchChanges)
               ..where(
@@ -754,6 +1051,7 @@ class ApplicationCapabilityService {
     }
     if (!isCurrent() ||
         await gateway.version() != before['version'] ||
+        !await _reviewMatches(before, command, arguments) ||
         DateTime.now().millisecondsSinceEpoch >= row.expiresAt) {
       return {
         'status': 'conflict',
@@ -770,7 +1068,11 @@ class ApplicationCapabilityService {
               ))
             .write(const WorkbenchChangesCompanion(status: Value('queued')));
     if (claimed != 1) return _query(id);
-    final lifecycle = {'connection_set', 'core_restart'}.contains(command);
+    final lifecycle = {
+      'connection_set',
+      'core_restart',
+      'operation_cancel',
+    }.contains(command);
     final work = lifecycle
         ? _run(
             id,
@@ -800,6 +1102,21 @@ class ApplicationCapabilityService {
       }),
     );
     return {'status': 'accepted', 'operationId': id};
+  }
+
+  Future<bool> _reviewMatches(
+    Map<String, Object?> before,
+    String command,
+    Map<String, Object?> params,
+  ) async {
+    if (before['review'] == null || gateway is! ApplicationReviewGateway) {
+      return true;
+    }
+    final current = await (gateway as ApplicationReviewGateway).reviewState(
+      command,
+      params,
+    );
+    return policyDigest(current) == policyDigest(before['review']);
   }
 
   Future<void> _run(
@@ -842,7 +1159,8 @@ class ApplicationCapabilityService {
         }
 
         if (!await valid()) return;
-        if (await gateway.version() != before['version']) {
+        if (await gateway.version() != before['version'] ||
+            !await _reviewMatches(before, command, params)) {
           await controller.store.changeStatus(
             id,
             'conflict',
@@ -865,16 +1183,29 @@ class ApplicationCapabilityService {
           );
         }
       }
-      final result = await gateway.execute(
+      final localInput = {
+        'backup_panel',
+        'profile_import_panel',
+        'profile_qr_import',
+        'credentials_panel',
+        'file_grant',
+      }.contains(command);
+      if (localInput && !manual) {
+        _manualWaiting.add(id);
+        await controller.store.changeStatus(id, 'requires_user_action');
+      }
+      final result = await _executePrepared(
         command,
         params,
-        origin: origin,
-        isCurrent: current,
-        beginMutation: manual
+        origin,
+        generation,
+        current,
+        manual || localInput
             ? () async {
                 final row = await controller.store.readChange(id);
                 if (row == null ||
                     row.status == 'cancelled' ||
+                    !current() ||
                     DateTime.now().millisecondsSinceEpoch >= row.expiresAt ||
                     origin == 'cli' &&
                         _credentialGeneration != null &&
@@ -1124,6 +1455,8 @@ class ApplicationCapabilityService {
         'preview': redactResource(
           policyObject(jsonDecode(row.afterPayload), 'after'),
         ),
+      if (row.status == 'pending_confirmation')
+        'proposal': _capabilityProposal(row).toJson(),
       if (row.status == 'pending_confirmation')
         'confirmation': {
           'digest': before['digest'],

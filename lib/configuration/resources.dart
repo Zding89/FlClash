@@ -629,6 +629,7 @@ final class ResourceChangeService {
     String id, {
     required ConfigurationApproval approve,
     bool Function()? isCurrent,
+    bool requireApproval = false,
   }) async {
     final row = await store.readChange(id);
     if (row == null) {
@@ -649,6 +650,7 @@ final class ResourceChangeService {
           id: prepared.id,
           approve: approve,
           isCurrent: isCurrent,
+          requireApproval: requireApproval,
         ),
         'preparationOnly': true,
         'recoveryPending': true,
@@ -668,6 +670,7 @@ final class ResourceChangeService {
         await scoped.readProposal(id),
         approve: approve,
         isCurrent: isCurrent,
+        requireApproval: requireApproval,
       );
     }
     final scoped = service(ResourceScope.fromCategory(row.category));
@@ -691,8 +694,44 @@ final class ResourceChangeService {
     if (proposal.highRisk != scoped.backend.isHighRisk(before, after)) {
       throw const ConfigurationChangeException('resource_risk_mismatch');
     }
-    return scoped.commit(id: id, approve: approve, isCurrent: isCurrent);
+    return scoped.commit(
+      id: id,
+      approve: approve,
+      isCurrent: isCurrent,
+      requireApproval: requireApproval,
+    );
   }
+
+  Future<ConfigurationChangeService> _reviewService(String id) async {
+    final row = await store.readChange(id);
+    if (row == null) {
+      throw const ConfigurationChangeException(
+        'configuration_proposal_missing',
+      );
+    }
+    if (row.category.startsWith('repair:')) {
+      final parts = row.category.split(':');
+      return _repairService(parts[1], int.parse(parts[2]));
+    }
+    if (row.category.startsWith('recovery:')) {
+      final original = await store.readChange(
+        row.category.substring('recovery:'.length),
+      );
+      if (original == null) {
+        throw const ConfigurationChangeException(
+          'configuration_recovery_missing',
+        );
+      }
+      return service(ResourceScope.fromCategory(original.category));
+    }
+    return service(ResourceScope.fromCategory(row.category));
+  }
+
+  Future<ConfigurationProposal> readProposal(String id) async =>
+      (await _reviewService(id)).readProposal(id);
+
+  Future<Map<String, Object?>> reject(String id) async =>
+      (await _reviewService(id)).reject(id);
 
   Future<ConfigurationProposal> undo(String id) async {
     final row = await store.readChange(id);

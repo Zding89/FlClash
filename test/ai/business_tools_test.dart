@@ -159,9 +159,10 @@ class _Controller extends Mock implements WorkbenchController {
     LocalPolicyDocument document, {
     String? draftId,
     String? expectedPolicyDigest,
+    String? changeSummary,
   }) async => changes.propose(
     category: 'policies',
-    summary: 'Local policy draft',
+    summary: changeSummary ?? 'Local policy draft',
     candidate: {
       ...await backendState.readState(),
       'policies': document.toJson(),
@@ -542,6 +543,94 @@ void main() {
         'alpha',
         'beta',
       ]);
+    },
+  );
+
+  test(
+    'single resource and nested field edits preserve the full remaining document and persist only the latest summary',
+    () async {
+      backend.document = LocalPolicyDocument.fromJson({
+        ...backend.document.toJson(),
+        'nodeSets': [
+          ...backend.document.nodeSets.map((set) => set.toJson()),
+          {
+            'id': 'hk',
+            'label': 'Hong Kong',
+            'targetId': localPolicyTargetId,
+            'sourceIds': ['2', '1'],
+            'regions': ['HK'],
+            'preferences': [
+              {'type': 'source', 'direction': 'ascending'},
+            ],
+          },
+        ],
+        'policies': [
+          for (final rule in backend.document.policies)
+            {
+              ...rule.toJson(),
+              if (rule.id == 'alpha')
+                'probe': {
+                  ...rule.probe.toJson(),
+                  'intervalSeconds': 60,
+                  'failureThreshold': 4,
+                  'timeoutSeconds': 6,
+                },
+            },
+        ],
+      }).asStandalone();
+      final expected = policyObject(
+        jsonDecode(jsonEncode(backend.document.toJson())),
+        'document',
+      );
+      final saved = jsonEncode(expected);
+      final first = await success('policy_draft_edit', {
+        'version': version(),
+        'actions': [
+          {
+            'action': 'updateNodeSet',
+            'id': 'pool',
+            'fields': {'maxMultiplier': 0.1},
+          },
+        ],
+      });
+      ((expected['nodeSets'] as List).first as Map)['maxMultiplier'] = 0.1;
+      final firstId = draftId(first);
+      expect((await controller.readPolicyDraft(firstId)).toJson(), expected);
+      final firstSummary = (first['proposal'] as Map)['summary'] as String;
+      expect(firstSummary, contains('Pool'));
+      expect(firstSummary, contains('0.1'));
+      expect(firstSummary, isNot(contains('Hong Kong')));
+
+      final second = await success('policy_draft_edit', {
+        'draftId': firstId,
+        'version': first['version'],
+        'actions': [
+          {
+            'action': 'updateRule',
+            'id': 'alpha',
+            'fields': {
+              'probe': {'timeoutSeconds': 7},
+            },
+          },
+        ],
+      });
+      final expectedRule = (expected['policies'] as List).first as Map;
+      (expectedRule['probe'] as Map)['timeoutSeconds'] = 7;
+      final secondId = draftId(second);
+      final reopened = await controller.readPolicyDraft(secondId);
+      expect(reopened.toJson(), expected);
+      final summary = (second['proposal'] as Map)['summary'] as String;
+      expect(summary, contains('alpha'));
+      expect(summary, contains('6 → 7'));
+      expect(summary, isNot(contains('Pool')));
+      expect(summary, isNot(contains('Hong Kong')));
+      final stored = (await store.readChange(secondId))!;
+      expect(stored.summary, summary);
+      expect((await store.readChange(firstId))!.status, 'superseded');
+      final before = policyObject(jsonDecode(stored.beforePayload), 'before');
+      expect(jsonEncode(before['policies']), saved);
+      expect(jsonEncode(backend.document.toJson()), saved);
+      expect(backend.writes, 0);
     },
   );
 

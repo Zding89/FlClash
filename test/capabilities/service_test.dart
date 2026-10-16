@@ -114,6 +114,21 @@ class _CompletionGateway extends _Gateway
   }
 }
 
+class _ReviewGateway extends _Gateway implements ApplicationReviewGateway {
+  String selection = 'original-node';
+
+  @override
+  Future<Map<String, Object?>> reviewState(
+    String command,
+    Map<String, Object?> params,
+  ) async => {
+    'command': command,
+    'before': {'node': selection},
+    'after': params,
+    'labels': {'node': 'Requested node'},
+  };
+}
+
 class _CompletionBackend extends _ConfigurationBackend
     implements ConfigurationCompletionBackend {
   bool running = true;
@@ -143,6 +158,7 @@ class _CompletionBackend extends _ConfigurationBackend
 class _ConfigurationBackend implements ConfigurationBackend {
   Map<String, Object?> state = {'value': 1};
   bool script = false;
+  bool highRisk = true;
   int writes = 0;
   @override
   Future<Map<String, Object?>> readState() async => Map.of(state);
@@ -155,7 +171,7 @@ class _ConfigurationBackend implements ConfigurationBackend {
       };
   @override
   bool isHighRisk(Map<String, Object?> before, Map<String, Object?> after) =>
-      true;
+      highRisk;
   @override
   Future<void> persist(Map<String, Object?> candidate) async {
     writes++;
@@ -236,6 +252,267 @@ void main() {
           gateway: _AgentGateway(),
         ),
       );
+
+  void useConfigurationService(ConfigurationChangeService changes) {
+    when(() => controller.changes).thenReturn(changes);
+    when(
+      () => controller.commit(
+        any(),
+        approve: any(named: 'approve'),
+        isCurrent: any(named: 'isCurrent'),
+        requireApproval: any(named: 'requireApproval'),
+      ),
+    ).thenAnswer(
+      (invocation) => changes.commit(
+        id: (invocation.positionalArguments.first as ConfigurationProposal).id,
+        approve: invocation.namedArguments[#approve] as ConfigurationApproval,
+        isCurrent: invocation.namedArguments[#isCurrent] as bool Function()?,
+        requireApproval: invocation.namedArguments[#requireApproval] as bool,
+      ),
+    );
+  }
+
+  test(
+    'local capability review confirms once using the stored operation',
+    () async {
+      final live = _ReviewGateway();
+      gateway = live;
+      service = replacement(live);
+      final pending = await service.execute('proxy_select', {
+        'group': 'group',
+        'node': 'next-node',
+      }, origin: 'agent');
+      final id = pending['operationId'] as String;
+      expect(pending['status'], 'pending_confirmation');
+      expect(gateway.calls, 0);
+      final reviewed = await service.reviewChange(id);
+      expect(reviewed.id, id);
+      expect(reviewed.validation['reviewStatus'], 'pending_confirmation');
+      expect((reviewed.validation['agentReview'] as Map)['before'], {
+        'node': 'original-node',
+      });
+      var approvals = 0;
+      final applied = await service.confirmReviewedChange(
+        id,
+        approve: (shown) async {
+          approvals++;
+          expect(shown.id, reviewed.id);
+          expect(
+            shown.differences.map((row) => row.toJson()).toList(),
+            reviewed.differences.map((row) => row.toJson()).toList(),
+          );
+          return true;
+        },
+      );
+      expect(applied['status'], 'completed');
+      expect(applied['operationId'], id);
+      expect(gateway.calls, 1);
+      final replay = await service.confirmReviewedChange(
+        id,
+        approve: (_) async {
+          approvals++;
+          return true;
+        },
+      );
+      expect(replay['status'], 'completed');
+      expect(approvals, 1);
+      expect((await service.cancelReviewedChange(id))['status'], 'completed');
+      expect(gateway.calls, 1);
+    },
+  );
+
+  test(
+    'local cancellation of a capability card never executes its action',
+    () async {
+      final pending = await service.execute('connection_set', {
+        'running': true,
+      }, origin: 'agent');
+      final id = pending['operationId'] as String;
+      expect((await service.cancelReviewedChange(id))['status'], 'cancelled');
+      expect(
+        (await service.confirmReviewedChange(
+          id,
+          approve: (_) async => throw StateError('unexpected approval'),
+        ))['status'],
+        'cancelled',
+      );
+      expect(gateway.calls, 0);
+    },
+  );
+
+  test(
+    'AI review names survive selection-only diffs without exposing credentials',
+    () async {
+      final backend = _ConfigurationBackend()..highRisk = false;
+      backend.state = {
+        'ai': {
+          'selectedConnectionId': 'primary',
+          'connections': [
+            {'id': 'primary', 'label': '旧连接', 'password': 'local-secret'},
+            {
+              'id': 'alternate',
+              'label': '新连接',
+              'password': 'other-local-secret',
+            },
+          ],
+        },
+      };
+      final changes = ConfigurationChangeService(
+        backend: backend,
+        store: store,
+      );
+      useConfigurationService(changes);
+      final candidate =
+          jsonDecode(jsonEncode(backend.state)) as Map<String, Object?>;
+      (candidate['ai'] as Map)['selectedConnectionId'] = 'alternate';
+      final proposal = await changes.propose(
+        category: 'ai',
+        summary: 'Switch AI connection',
+        candidate: candidate,
+      );
+      final reviewed = await service.reviewChange(proposal.id);
+      expect(reviewed.differences.single.path, 'ai.selectedConnectionId');
+      final labels = reviewed.validation['aiReviewConnections'];
+      expect(labels, {
+        'before': {'primary': '旧连接', 'alternate': '新连接'},
+        'after': {'primary': '旧连接', 'alternate': '新连接'},
+      });
+      expect(jsonEncode(reviewed.toJson()), isNot(contains('local-secret')));
+      var approvals = 0;
+      final result = await service.confirmReviewedChange(
+        proposal.id,
+        approve: (actual) async {
+          approvals++;
+          expect(actual.validation['aiReviewConnections'], labels);
+          return true;
+        },
+      );
+      expect(result['status'], 'applied');
+      expect(approvals, 1);
+      expect(backend.writes, 1);
+    },
+  );
+
+  for (final accepted in [false, true]) {
+    test(
+      'agent configuration card forces low risk approval accepted=$accepted',
+      () async {
+        final backend = _ConfigurationBackend()..highRisk = false;
+        final changes = ConfigurationChangeService(
+          backend: backend,
+          store: store,
+        );
+        useConfigurationService(changes);
+        final proposal = await changes.propose(
+          category: 'settings',
+          summary: 'low risk setting',
+          candidate: {'value': 2},
+        );
+        final reviewed = await service.reviewChange(proposal.id);
+        expect(reviewed.highRisk, isFalse);
+        expect(reviewed.validation['reviewStatus'], 'draft');
+        expect(backend.writes, 0);
+        var approvals = 0;
+        final result = await service.confirmReviewedChange(
+          reviewed.id,
+          approve: (_) async {
+            approvals++;
+            expect(backend.writes, 0);
+            return accepted;
+          },
+        );
+        expect(approvals, 1);
+        expect(result['status'], accepted ? 'applied' : 'rejected');
+        expect(backend.writes, accepted ? 1 : 0);
+        expect(backend.state['value'], accepted ? 2 : 1);
+        expect(gateway.calls, 0);
+      },
+    );
+  }
+
+  test(
+    'local rejection of a configuration draft needs no action execution',
+    () async {
+      final backend = _ConfigurationBackend()..highRisk = false;
+      final changes = ConfigurationChangeService(
+        backend: backend,
+        store: store,
+      );
+      useConfigurationService(changes);
+      final proposal = await changes.propose(
+        category: 'settings',
+        summary: 'low risk setting',
+        candidate: {'value': 2},
+      );
+      expect(
+        (await service.cancelReviewedChange(proposal.id))['status'],
+        'rejected',
+      );
+      expect(
+        (await service.reviewChange(proposal.id)).validation['reviewStatus'],
+        'rejected',
+      );
+      expect(backend.writes, 0);
+      expect(backend.state['value'], 1);
+      expect(gateway.calls, 0);
+    },
+  );
+
+  test(
+    'runtime changes during approval invalidate an unchanged configuration version',
+    () async {
+      final live = _ReviewGateway();
+      gateway = live;
+      service = replacement(live);
+      final result = await service.execute(
+        'proxy_select',
+        {'group': 'group', 'node': 'next-node'},
+        origin: 'agent',
+        approve: (_) async {
+          live.selection = 'changed-node';
+          return true;
+        },
+      );
+      expect(result['status'], 'conflict');
+      expect(result['errorCode'], 'confirmation_stale');
+      expect(live.currentVersion, 'version-one');
+      expect(live.calls, 0);
+    },
+  );
+
+  test(
+    'queued reviewed actions recheck runtime state before execution',
+    () async {
+      final live = _ReviewGateway()..work = Completer<Map<String, Object?>>();
+      gateway = live;
+      service = replacement(live);
+      final first = await service.execute(
+        'maintenance_clear_cache',
+        {},
+        origin: 'agent',
+        approve: (_) async => true,
+      );
+      expect(first['status'], 'accepted');
+      await live.firstStarted.future;
+      final second = await service.execute(
+        'proxy_select',
+        {'group': 'group', 'node': 'next-node'},
+        origin: 'agent',
+        approve: (_) async => true,
+      );
+      expect(second['status'], 'accepted');
+      live.selection = 'changed-while-queued';
+      live.work!.complete({'status': 'completed'});
+      await service.drain();
+      final queried = await service.execute('operation_query', {
+        'operationId': second['operationId'],
+      }, origin: 'agent');
+      expect(queried['status'], 'conflict');
+      expect(queried['errorCode'], 'configuration_version_conflict');
+      expect(live.currentVersion, 'version-one');
+      expect(live.calls, 1);
+    },
+  );
 
   test(
     'connection completion binds before execution and refreshes after stop and target change',
@@ -829,6 +1106,76 @@ void main() {
     expect(gateway.calls, 1);
   });
 
+  test(
+    'agent manual commands remain inert until their review is approved',
+    () async {
+      for (final request in <(String, Map<String, Object?>)>[
+        ('credentials_panel', {'kind': 'ai'}),
+        ('profile_qr_import', {}),
+      ]) {
+        final pending = await service.execute(
+          request.$1,
+          request.$2,
+          origin: 'agent',
+        );
+        expect(pending['status'], 'pending_confirmation');
+        expect(gateway.calls, 0);
+        expect(
+          (await service.cancelReviewedChange(
+            pending['operationId'] as String,
+          ))['status'],
+          'cancelled',
+        );
+        var approvals = 0;
+        final declined = await service.execute(
+          request.$1,
+          request.$2,
+          origin: 'agent',
+          approve: (_) async {
+            approvals++;
+            return false;
+          },
+        );
+        expect(declined['status'], 'cancelled');
+        expect(approvals, 1);
+        expect(gateway.calls, 0);
+      }
+    },
+  );
+
+  test(
+    'agent cancellation requests review before changing another operation',
+    () async {
+      final target = await service.execute('connection_set', {
+        'running': true,
+      }, origin: 'agent');
+      final id = target['operationId'] as String;
+      final requested = await service.execute('operation_cancel', {
+        'operationId': id,
+      }, origin: 'agent');
+      final cancellationId = requested['operationId'] as String;
+      expect(requested['status'], 'pending_confirmation');
+      expect(cancellationId, isNot(id));
+      expect((await store.readChange(id))!.status, 'pending_confirmation');
+      expect(gateway.calls, 0);
+      expect(
+        (await service.cancelReviewedChange(cancellationId))['status'],
+        'cancelled',
+      );
+      expect((await store.readChange(id))!.status, 'pending_confirmation');
+      final approved = await service.execute(
+        'operation_cancel',
+        {'operationId': id},
+        origin: 'agent',
+        approve: (_) async => true,
+      );
+      expect(approved['status'], 'accepted');
+      await service.drain();
+      expect((await store.readChange(id))!.status, 'cancelled');
+      expect(gateway.calls, 0);
+    },
+  );
+
   test('pending approval can be cancelled and cannot later execute', () async {
     final proposal = await service.execute('connection_set', {'running': true});
     final id = proposal['operationId'] as String;
@@ -938,6 +1285,7 @@ void main() {
             any(),
             approve: any(named: 'approve'),
             isCurrent: any(named: 'isCurrent'),
+            requireApproval: any(named: 'requireApproval'),
           ),
         ).thenAnswer(
           (invocation) => changes.commit(
@@ -947,6 +1295,8 @@ void main() {
                 invocation.namedArguments[#approve] as ConfigurationApproval,
             isCurrent:
                 invocation.namedArguments[#isCurrent] as bool Function()?,
+            requireApproval:
+                invocation.namedArguments[#requireApproval] as bool,
           ),
         );
         final proposal = await changes.propose(

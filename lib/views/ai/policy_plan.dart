@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:fl_clash/ai/policy_summary.dart';
+import 'package:fl_clash/ai/policy_change_summary.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/configuration/changes.dart';
 import 'package:fl_clash/policy/models.dart';
@@ -163,204 +164,97 @@ Map<String, Object?>? aiPolicyPlan(
 }
 
 class AiPolicyPlanView extends StatelessWidget {
-  const AiPolicyPlanView({super.key, required this.plan, this.compact = false});
-  final Map<String, Object?> plan;
+  const AiPolicyPlanView({
+    super.key,
+    required this.proposal,
+    this.compact = false,
+  });
+  final ConfigurationProposal proposal;
   final bool compact;
 
-  List<Map<String, Object?>> _rows(Object? value) => value is List
-      ? value
-            .whereType<Map>()
-            .map((item) => Map<String, Object?>.from(item))
-            .toList()
-      : [];
-
   @override
-  Widget build(BuildContext context) {
-    final s = context.appLocalizations;
-    final before = Map<String, Object?>.from(plan['before']! as Map);
-    final after = Map<String, Object?>.from(plan['after']! as Map);
-    final rules = _rows(after['rules']);
-    final groups = _rows(after['nodeSets']);
-    final previousRules = _rows(before['rules']);
-    final previousGroups = _rows(before['nodeSets']);
-    final colors = Theme.of(context).colorScheme;
-    final changedGroups = groups.where((group) {
-      final old = previousGroups
-          .where((entry) => entry['id'] == group['id'])
-          .firstOrNull;
-      return old == null || jsonEncode(old) != jsonEncode(group);
-    }).toList();
-    Widget changes(
-      String kind,
-      List<Map<String, Object?>> old,
-      List<Map<String, Object?>> next,
-    ) {
-      final oldById = {for (final value in old) value['id']: value};
-      final nextById = {for (final value in next) value['id']: value};
-      final added = next
-          .where((value) => !oldById.containsKey(value['id']))
-          .length;
-      final removed = old
-          .where((value) => !nextById.containsKey(value['id']))
-          .length;
-      final updated = next
-          .where(
-            (value) =>
-                oldById.containsKey(value['id']) &&
-                jsonEncode(oldById[value['id']]) != jsonEncode(value),
-          )
-          .length;
-      return Text(
-        s.aiPolicyPlanChanges(kind, '$added', '$updated', '$removed'),
-        style: Theme.of(context).textTheme.bodySmall,
-      );
-    }
-
-    return Column(
-      key: const ValueKey('ai-policy-plan'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          s.aiPolicyPlanCounts('${rules.length}', '${groups.length}'),
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
-        const SizedBox(height: 8),
-        changes(s.rule, previousRules, rules),
-        if (changedGroups.isNotEmpty || previousGroups.length != groups.length)
-          changes(s.policyNodeSets, previousGroups, groups),
-        if (rules.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Text(
-            s.aiPolicyPlanOrder,
-            style: Theme.of(context).textTheme.labelLarge,
-          ),
-          const SizedBox(height: 8),
-          for (final row in compact ? rules.take(5) : rules)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 28,
-                    child: Text(
-                      '${row['order']}.',
-                      style: Theme.of(context).textTheme.labelLarge,
-                    ),
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${row['label']}${row['enabled'] == false ? ' · ${s.aiPolicyPlanDisabled}' : ''}',
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${row['match']} → ${row['action']}',
-                          maxLines: compact ? 3 : null,
-                          overflow: compact ? TextOverflow.ellipsis : null,
-                        ),
-                        if (row['schedule'] != s.policyScheduleAllDay)
-                          Text(
-                            '${s.policySchedule}: ${row['schedule']}',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-        if (changedGroups.isNotEmpty) ...[
-          const Divider(height: 24),
-          Text(s.policyNodeSets, style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 8),
-          for (final group in compact ? changedGroups.take(3) : changedGroups)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${group['label']}',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${group['details']}',
-                    maxLines: compact ? 3 : null,
-                    overflow: compact ? TextOverflow.ellipsis : null,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ],
-    );
-  }
+  Widget build(BuildContext context) => AiPolicyChangeOverview(
+    key: const ValueKey('ai-policy-plan'),
+    proposal: proposal,
+    compact: compact,
+  );
 }
 
 class AiPolicyChangeOverview extends StatelessWidget {
-  const AiPolicyChangeOverview({super.key, required this.proposal});
+  const AiPolicyChangeOverview({
+    super.key,
+    required this.proposal,
+    this.compact = true,
+  });
   final ConfigurationProposal proposal;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final s = context.appLocalizations;
-    String label(String path) => switch (path.split('.')[1]) {
-      'policies' || 'policiesEnabled' => s.rule,
-      'nodeSets' => s.policyNodeSets,
-      'moduleEnabled' => s.policyModule,
-      'integrationEnabled' => s.policyEnableIntegrations,
-      'budgetsEnabled' || 'budgets' => s.policyEnableBudgets,
-      'integrations' => s.policySubscriptionSources,
-      'overrides' => s.policyTemporaryOverride,
-      'nodeAttributes' => s.policyRegions,
-      _ => s.localPolicies,
-    };
-    String value(Object? raw) {
-      if (raw is bool) return raw ? s.start : s.stop;
-      if (raw is List) {
-        final names = raw
-            .whereType<Map>()
-            .map((entry) => entry['label'])
-            .whereType<String>()
-            .toList();
-        return '${raw.length}${names.isEmpty ? '' : ' · ${names.take(4).join(' / ')}'}';
+    final nodeSetLabels = <String, String>{};
+    final sourceLabels = <String, String>{};
+    for (final key in ['localPolicyPlan', 'localPolicyDocuments']) {
+      final metadata = proposal.validation[key];
+      if (metadata is! Map) continue;
+      final labels = metadata['sourceLabels'];
+      if (labels is Map) {
+        for (final entry in labels.entries) {
+          if (entry.value is String) {
+            sourceLabels['${entry.key}'] = entry.value as String;
+          }
+        }
       }
-      if (raw is Map) return '${raw.length}';
-      if (raw is num) return '$raw';
-      return s.aiPolicyPlanReady;
+      for (final side in ['before', 'after']) {
+        final document = metadata[side];
+        if (document is! Map) continue;
+        final groups = document['nodeSets'];
+        if (groups is! List) continue;
+        for (final group in groups.whereType<Map>()) {
+          if (group['id'] != null && group['label'] is String) {
+            nodeSetLabels['${group['id']}'] = group['label'] as String;
+          }
+        }
+      }
     }
-
+    final lines = aiPolicyChangeLines(
+      proposal.differences,
+      strings: s,
+      nodeSetLabels: nodeSetLabels,
+      sourceLabels: sourceLabels,
+      includeAddedDetails: !compact,
+    );
+    final summary = proposal.summary.trim();
+    final legacySummary = {
+      '',
+      s.localPolicies,
+      s.rule,
+      s.aiPolicyPlanTitle,
+      '本地规则',
+      'Local rules',
+      'Local policies',
+    }.contains(summary);
+    final displayed = compact && !legacySummary
+        ? [summary]
+        : compact
+        ? [
+            ...lines.take(4),
+            if (lines.length > 4) s.aiPolicyChangeMore('${lines.length - 4}'),
+          ]
+        : lines;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final change in proposal.differences.where(
-          (change) => change.path != 'policies.revision',
-        ))
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label(change.path),
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${s.aiBefore}: ${value(change.before)} → ${s.aiAfter}: ${value(change.after)}',
-                ),
-              ],
-            ),
+        if (!compact) ...[
+          Text(
+            s.aiPolicyChangeBaseline,
+            style: Theme.of(context).textTheme.labelLarge,
           ),
+          const SizedBox(height: 12),
+        ],
+        if (displayed.isEmpty) Text(s.aiNoDifferences),
+        for (final line in displayed)
+          Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(line)),
       ],
     );
   }

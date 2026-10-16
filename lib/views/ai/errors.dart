@@ -37,6 +37,7 @@ String aiErrorText(BuildContext context, Object? error) {
   }
   return switch (code) {
     'authenticationFailed' => strings.aiAuthFailed,
+    'completionEvidenceRequired' => strings.aiPolicyCompletionEvidenceRequired,
     'quotaExceeded' => strings.aiQuotaExceeded,
     'rateLimited' => strings.aiRateLimited,
     'timeout' || 'requestTimeout' => strings.aiTimedOut,

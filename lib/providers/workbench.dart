@@ -420,6 +420,7 @@ class WorkbenchController {
     LocalPolicyDocument document, {
     String? draftId,
     String? expectedPolicyDigest,
+    String? changeSummary,
   }) async {
     document = LocalPolicyDocument.fromJson(document.toJson()).asStandalone();
     final snapshot = await backend.readState();
@@ -449,7 +450,7 @@ class WorkbenchController {
         .toJson();
     return changes.propose(
       category: 'policies',
-      summary: currentAppLocalizations.localPolicies,
+      summary: changeSummary ?? currentAppLocalizations.localPolicies,
       candidate: snapshot,
       baseDraftId: draftId,
       expectedPolicyDigest: expectedPolicyDigest,
@@ -572,6 +573,7 @@ class WorkbenchController {
     ConfigurationProposal proposal, {
     required ConfigurationApproval approve,
     bool Function()? isCurrent,
+    bool requireApproval = false,
   }) async {
     final prepared = await changes.prepareApprovedValidation(
       id: proposal.id,
@@ -582,6 +584,7 @@ class WorkbenchController {
       id: prepared.id,
       approve: approve,
       isCurrent: isCurrent,
+      requireApproval: requireApproval,
     );
   }
 

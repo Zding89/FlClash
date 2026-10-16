@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/native.dart';
@@ -20,6 +21,7 @@ class _Backend
   bool failActivation = false;
   bool partialWrite = false;
   bool scriptRequired = false;
+  bool highRisk = true;
 
   @override
   Future<Map<String, Object?>> readState() async =>
@@ -29,7 +31,7 @@ class _Backend
       {'requiresScriptExecutionApproval': scriptRequired};
   @override
   bool isHighRisk(Map<String, Object?> before, Map<String, Object?> after) =>
-      true;
+      highRisk;
   @override
   Future<void> persist(Map<String, Object?> candidate) async {
     writes++;
@@ -214,6 +216,212 @@ void main() {
     summary: 'change',
     candidate: {'value': 2, 'other': 1},
   );
+  test(
+    'low risk agent commits wait for explicit approval before writing',
+    () async {
+      backend.highRisk = false;
+      final draft = await proposal();
+      expect(draft.highRisk, isFalse);
+      final requested = Completer<ConfigurationProposal>();
+      final decision = Completer<bool>();
+      final pending = service.commit(
+        id: draft.id,
+        requireApproval: true,
+        approve: (shown) {
+          requested.complete(shown);
+          return decision.future;
+        },
+      );
+      try {
+        final shown = await requested.future;
+        expect(shown.id, draft.id);
+        expect(shown.highRisk, isFalse);
+        expect(backend.writes, 0);
+        expect(backend.activations, 0);
+        expect(backend.state, {'value': 1, 'other': 1});
+        expect((await database.readChange(draft.id))!.status, 'draft');
+        decision.complete(true);
+        expect((await pending)['status'], 'applied');
+        expect(backend.writes, 1);
+        expect(backend.activations, 1);
+        expect(backend.state, {'value': 2, 'other': 1});
+      } finally {
+        if (!decision.isCompleted) decision.complete(false);
+      }
+    },
+  );
+
+  test(
+    'rejected low risk agent approval never persists or activates',
+    () async {
+      backend.highRisk = false;
+      final draft = await proposal();
+      var approvals = 0;
+      final result = await service.commit(
+        id: draft.id,
+        requireApproval: true,
+        approve: (_) async {
+          approvals++;
+          return false;
+        },
+      );
+      expect(result, {'id': draft.id, 'status': 'rejected'});
+      expect(approvals, 1);
+      expect((await database.readChange(draft.id))!.status, 'rejected');
+      expect(backend.state, {'value': 1, 'other': 1});
+      expect(backend.writes, 0);
+      expect(backend.activations, 0);
+    },
+  );
+
+  test(
+    'manual low risk commits retain their default approval behavior',
+    () async {
+      backend.highRisk = false;
+      final draft = await proposal();
+      final result = await service.commit(
+        id: draft.id,
+        approve: (_) async => throw StateError('unexpected approval'),
+      );
+      expect(result['status'], 'applied');
+      expect(backend.state, {'value': 2, 'other': 1});
+      expect(backend.writes, 1);
+      expect(backend.activations, 1);
+    },
+  );
+
+  test(
+    'reject during approval prevents a later approval from writing',
+    () async {
+      backend.highRisk = false;
+      final draft = await proposal();
+      final requested = Completer<void>();
+      final decision = Completer<bool>();
+      final pending = service.commit(
+        id: draft.id,
+        requireApproval: true,
+        approve: (_) {
+          requested.complete();
+          return decision.future;
+        },
+      );
+      try {
+        await requested.future;
+        final otherService = ConfigurationChangeService(
+          backend: backend,
+          store: database,
+        );
+        expect(await otherService.reject(draft.id), {
+          'id': draft.id,
+          'status': 'rejected',
+        });
+        final completion = expectLater(
+          pending,
+          throwsA(
+            isA<ConfigurationChangeException>().having(
+              (error) => error.code,
+              'code',
+              'configuration_proposal_not_pending',
+            ),
+          ),
+        );
+        decision.complete(true);
+        await completion;
+        expect((await database.readChange(draft.id))!.status, 'rejected');
+        expect(backend.state, {'value': 1, 'other': 1});
+        expect(backend.writes, 0);
+        expect(backend.activations, 0);
+      } finally {
+        if (!decision.isCompleted) decision.complete(false);
+      }
+    },
+  );
+
+  test(
+    'reject clears prepared validation without running or applying again',
+    () async {
+      backend.scriptRequired = true;
+      final draft = await proposal();
+      await service.prepareApprovedValidation(
+        id: draft.id,
+        approve: (_) async => true,
+      );
+      expect((await service.readProposal(draft.id)).validation, {
+        'finalConfigValidated': true,
+      });
+      expect(await service.reject(draft.id), {
+        'id': draft.id,
+        'status': 'rejected',
+      });
+      expect((await service.readProposal(draft.id)).validation, isEmpty);
+      expect(backend.scriptRuns, 1);
+      expect(backend.writes, 0);
+      expect(backend.activations, 0);
+    },
+  );
+
+  test(
+    'reject after application reports applied and never reverses it',
+    () async {
+      backend.highRisk = false;
+      final draft = await proposal();
+      await service.commit(
+        id: draft.id,
+        requireApproval: true,
+        approve: (_) async => true,
+      );
+      expect(await service.reject(draft.id), {
+        'id': draft.id,
+        'status': 'applied',
+      });
+      expect((await database.readChange(draft.id))!.status, 'applied');
+      expect(backend.state, {'value': 2, 'other': 1});
+      expect(backend.writes, 1);
+      expect(backend.activations, 1);
+    },
+  );
+
+  test(
+    'late approval refusal cannot relabel an already applied draft',
+    () async {
+      backend.highRisk = false;
+      final draft = await proposal();
+      final requested = Completer<void>();
+      final decision = Completer<bool>();
+      final pending = service.commit(
+        id: draft.id,
+        requireApproval: true,
+        approve: (_) {
+          requested.complete();
+          return decision.future;
+        },
+      );
+      try {
+        await requested.future;
+        final otherService = ConfigurationChangeService(
+          backend: backend,
+          store: database,
+        );
+        expect(
+          (await otherService.commit(
+            id: draft.id,
+            requireApproval: true,
+            approve: (_) async => true,
+          ))['status'],
+          'applied',
+        );
+        decision.complete(false);
+        expect((await pending)['status'], 'applied');
+        expect((await database.readChange(draft.id))!.status, 'applied');
+        expect(backend.state, {'value': 2, 'other': 1});
+        expect(backend.writes, 1);
+        expect(backend.activations, 1);
+      } finally {
+        if (!decision.isCompleted) decision.complete(false);
+      }
+    },
+  );
+
   test(
     'replayed commits re-read current runtime and saved state without writing',
     () async {

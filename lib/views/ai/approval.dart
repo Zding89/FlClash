@@ -1,12 +1,14 @@
+import 'dart:async';
 import 'dart:convert';
+
+import 'package:collection/collection.dart';
 
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/configuration/changes.dart';
 import 'package:fl_clash/policy/source_change.dart';
-import 'package:fl_clash/views/policy/source_change_summary.dart';
 import 'package:flutter/material.dart';
 
-import 'policy_plan.dart';
+import 'review.dart';
 
 Object? _redact(Object? value) {
   if (value is Map) {
@@ -53,21 +55,60 @@ String aiDisplayValue(Object? value) {
   return encoded.length > 8192 ? '${encoded.substring(0, 8192)}…' : encoded;
 }
 
+ConfigurationApproval aiAfterReviewApproval(
+  ConfigurationProposal reviewed, {
+  required ConfigurationApproval onReview,
+  bool Function()? isCurrent,
+}) {
+  var consumed = false;
+  Map<String, Object?> snapshot(ConfigurationProposal proposal) {
+    final validation = Map<String, Object?>.from(proposal.validation)
+      ..remove('reviewStatus')
+      ..remove('reviewCategory');
+    return {...proposal.toJson(), 'validation': validation};
+  }
+
+  final original = snapshot(reviewed);
+  return (proposal) async {
+    if (isCurrent?.call() == false) return false;
+    final same =
+        !consumed &&
+        const DeepCollectionEquality().equals(original, snapshot(proposal));
+    consumed = true;
+    final approved = same || await onReview(proposal);
+    return approved && isCurrent?.call() != false;
+  };
+}
+
 Future<bool> showAiConfigurationApproval(
   BuildContext context,
-  ConfigurationProposal proposal,
-) async =>
-    await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AiConfigurationApprovalDialog(proposal: proposal),
-    ) ??
-    false;
+  ConfigurationProposal proposal, {
+  bool readOnly = false,
+  Future<void>? cancelled,
+}) async {
+  final route = DialogRoute<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) =>
+        AiConfigurationApprovalDialog(proposal: proposal, readOnly: readOnly),
+  );
+  unawaited(
+    cancelled?.then((_) {
+      if (route.isActive) route.navigator?.removeRoute(route, false);
+    }),
+  );
+  return await Navigator.of(context).push(route) ?? false;
+}
 
 class AiConfigurationApprovalDialog extends StatelessWidget {
-  const AiConfigurationApprovalDialog({super.key, required this.proposal});
+  const AiConfigurationApprovalDialog({
+    super.key,
+    required this.proposal,
+    this.readOnly = false,
+  });
 
   final ConfigurationProposal proposal;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -88,32 +129,45 @@ class AiConfigurationApprovalDialog extends StatelessWidget {
               after: entry['after'],
             ),
     ];
-    final sourceChange =
+    final sourceOnly =
         !executionOnly &&
-            finalDifferences.isEmpty &&
-            proposal.differences.every(
-              (difference) =>
-                  difference.path == 'policies.revision' ||
-                  difference.path == 'policies.integrations' ||
-                  difference.path.startsWith('policies.integrations.'),
-            )
+        finalDifferences.isEmpty &&
+        proposal.differences.every(
+          (change) =>
+              change.path == 'policies.revision' ||
+              change.path == 'policies.integrations' ||
+              change.path.startsWith('policies.integrations.'),
+        );
+    final sourceChange = sourceOnly
         ? LocalSourceChangeSummary.tryParse(
             proposal.validation[localSourceChangeValidationKey],
           )
         : null;
-    final plan =
-        executionOnly || sourceChange != null || finalDifferences.isNotEmpty
-        ? null
-        : aiPolicyPlan(context, proposal);
+    final metadata = proposal.validation['agentReview'];
+    final command = metadata is Map ? metadata['command'] : null;
+    final fetching = const {
+      'profile_propose',
+      'profiles_refresh_all',
+    }.contains(command);
+    final warn =
+        proposal.highRisk &&
+        (metadata is! Map ||
+            const {
+              'backup_create',
+              'backup_restore',
+              'webdav_upload',
+              'webdav_restore',
+              'maintenance_clear_data',
+              'usage_clear',
+              'connection_close',
+              'developer_test',
+            }.contains(command) ||
+            command is String && command.endsWith('_export'));
     return AlertDialog(
       title: Text(
         sourceChange != null
             ? strings.policySourceChangeTitle
-            : plan != null
-            ? strings.aiPolicyPlanTitle
-            : executionOnly
-            ? strings.confirm
-            : strings.aiApprovalTitle,
+            : aiReviewTitle(strings, proposal),
       ),
       content: SizedBox(
         width: 520,
@@ -122,68 +176,38 @@ class AiConfigurationApprovalDialog extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (sourceChange == null && plan == null)
-                SelectableText(proposal.summary),
               if (executionOnly) ...[
-                const SizedBox(height: 12),
                 Text(
                   strings.aiScriptExecutionOnly,
                   style: TextStyle(color: colors.error),
                 ),
+                const SizedBox(height: 12),
               ],
-              if (proposal.highRisk &&
-                  sourceChange == null &&
-                  plan == null) ...[
+              AiProposalReviewBody(proposal: proposal),
+              if (warn && sourceChange == null) ...[
                 const SizedBox(height: 12),
                 Text(strings.aiHighRisk, style: TextStyle(color: colors.error)),
               ],
-              if (sourceChange == null && plan == null)
-                const SizedBox(height: 16),
-              if (sourceChange != null)
-                LocalSourceChangeSummaryView(summary: sourceChange),
-              if (plan != null) AiPolicyPlanView(plan: plan),
-              if (sourceChange == null &&
-                  plan == null &&
-                  proposal.differences.isEmpty)
-                Text(strings.aiNoDifferences),
-              if (sourceChange == null && plan == null)
-                for (final difference in proposal.differences) ...[
-                  Text(
-                    difference.path,
-                    style: Theme.of(context).textTheme.labelLarge,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    strings.aiBefore,
-                    style: Theme.of(context).textTheme.labelMedium,
-                  ),
-                  SelectableText(aiDisplayValue(difference.before)),
-                  const SizedBox(height: 6),
-                  Text(
-                    strings.aiAfter,
-                    style: Theme.of(context).textTheme.labelMedium,
-                  ),
-                  SelectableText(aiDisplayValue(difference.after)),
-                  const SizedBox(height: 16),
-                ],
               if (finalDifferences.isNotEmpty) ...[
+                const SizedBox(height: 16),
                 Text(
                   strings.aiFinalConfigDifferences,
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: 12),
-                for (final difference in finalDifferences) ...[
-                  Text(
-                    difference.path,
-                    style: Theme.of(context).textTheme.labelLarge,
+                AiReviewRowsView(
+                  rows: aiReviewRows(
+                    strings,
+                    ConfigurationProposal(
+                      id: proposal.id,
+                      summary: proposal.summary,
+                      highRisk: proposal.highRisk,
+                      expiresAt: proposal.expiresAt,
+                      differences: finalDifferences,
+                      validation: const {},
+                    ),
                   ),
-                  Text(strings.aiBefore),
-                  SelectableText(aiDisplayValue(difference.before)),
-                  const SizedBox(height: 6),
-                  Text(strings.aiAfter),
-                  SelectableText(aiDisplayValue(difference.after)),
-                  const SizedBox(height: 16),
-                ],
+                ),
               ],
             ],
           ),
@@ -192,16 +216,19 @@ class AiConfigurationApprovalDialog extends StatelessWidget {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: Text(strings.aiReject),
+          child: Text(readOnly ? strings.aiReviewClose : strings.cancel),
         ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: Text(
-            executionOnly
-                ? strings.aiApproveScriptExecution
-                : strings.aiApprove,
+        if (!readOnly)
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              executionOnly
+                  ? strings.aiApproveScriptExecution
+                  : fetching
+                  ? '${strings.confirm} · ${strings.download}'
+                  : strings.aiApprove,
+            ),
           ),
-        ),
       ],
     );
   }

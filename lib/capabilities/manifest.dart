@@ -102,6 +102,7 @@ final applicationCapabilities = <ApplicationCapability>[
     'policy_nodes_check',
     'policies',
     'Request a shared Core node-set check; checks stay deduplicated and bounded.',
+    mutating: true,
     properties: {'revision': capabilityInteger, 'nodeSetId': capabilityId},
     required: ['revision', 'nodeSetId'],
   ),
@@ -110,6 +111,7 @@ final applicationCapabilities = <ApplicationCapability>[
       'policy_nodes_$action',
       'policies',
       'Read or cancel only the specified shared-check operation.',
+      mutating: action == 'cancel',
       properties: {'revision': capabilityInteger, 'operationId': capabilityId},
       required: ['revision', 'operationId'],
     ),
@@ -238,6 +240,7 @@ final applicationCapabilities = <ApplicationCapability>[
     'update_check',
     'maintenance',
     'Check the configured application release feed.',
+    mutating: true,
   ),
   _cap(
     'hotkeys_status',
@@ -248,11 +251,13 @@ final applicationCapabilities = <ApplicationCapability>[
     'profile_qr_import',
     'profiles',
     'Use the trusted local image picker to read a QR subscription URL and create a validated import proposal; completion remains queryable.',
+    mutating: true,
   ),
   _cap(
     'profiles_refresh_all',
     'profiles',
     'Create bounded individual refresh proposals for all URL subscriptions.',
+    mutating: true,
   ),
   _cap(
     'profiles_reorder',
@@ -391,6 +396,7 @@ final applicationCapabilities = <ApplicationCapability>[
     'credentials_panel',
     'agent',
     'Open trusted local credential management and track completion or cancellation.',
+    mutating: true,
     properties: {
       'kind': {
         'type': 'string',
@@ -447,6 +453,7 @@ final applicationCapabilities = <ApplicationCapability>[
     'operation_cancel',
     'operations',
     'Cancel a pending approval or manual operation; never interrupt a started persistence transaction.',
+    mutating: true,
     properties: {'operationId': capabilityId},
     required: ['operationId'],
   ),

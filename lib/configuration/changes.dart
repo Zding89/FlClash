@@ -705,6 +705,7 @@ final class ConfigurationChangeService {
     required String id,
     required ConfigurationApproval approve,
     bool Function()? isCurrent,
+    bool requireApproval = false,
   }) async {
     final initial = await store.readChange(id);
     if (initial == null) {
@@ -735,10 +736,12 @@ final class ConfigurationChangeService {
     }
     final approvalProposal = await readProposal(id);
     final approvalDigest = policyDigest(approvalProposal.validation);
-    if (initial.highRisk && !await approve(approvalProposal)) {
-      await store.changeStatus(id, 'rejected');
-      _prepared.remove(id);
-      return {'id': id, 'status': 'rejected'};
+    if ((initial.highRisk || requireApproval) &&
+        !await approve(approvalProposal)) {
+      final rejected = await reject(id);
+      return rejected['status'] == 'applied'
+          ? {...rejected, 'replayed': true, ...await completionStatus(id)}
+          : rejected;
     }
     if (isCurrent?.call() == false) {
       throw const ConfigurationChangeException('configuration_cancelled');
@@ -960,6 +963,7 @@ final class ConfigurationChangeService {
     ConfigurationProposal proposal, {
     required ConfigurationApproval approve,
     bool Function()? isCurrent,
+    bool requireApproval = false,
   }) async {
     final row = await store.readChange(proposal.id);
     if (row == null || !row.category.startsWith('recovery:')) {
@@ -983,12 +987,26 @@ final class ConfigurationChangeService {
       id: prepared.id,
       approve: approve,
       isCurrent: isCurrent,
+      requireApproval: requireApproval,
     );
     if (result['status'] == 'applied') {
       await store.changeStatus(originalId, 'resolved', error: original!.error);
     }
     return {...result, 'recoveryOf': originalId};
   }
+
+  Future<Map<String, Object?>> reject(String id) => _serial(() async {
+    final row = await store.readChange(id);
+    if (row == null) {
+      throw const ConfigurationChangeException(
+        'configuration_proposal_missing',
+      );
+    }
+    if (row.status != 'draft') return {'id': id, 'status': row.status};
+    await store.changeStatus(id, 'rejected');
+    _prepared.remove(id);
+    return {'id': id, 'status': 'rejected'};
+  });
 
   Future<void> recoverInterrupted() => _serial(() async {
     for (final row in await store.interruptedChanges()) {

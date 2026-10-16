@@ -178,7 +178,8 @@ void main() {
     await tester.tap(find.text('Redacted change'));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsOneWidget);
-    expect(find.text('settings.mode'), findsOneWidget);
+    expect(find.text('settings.mode'), findsNothing);
+    expect(find.text(AppLocalizations.current.mode), findsOneWidget);
     final values = [
       ...tester
           .widgetList<SelectableText>(find.byType(SelectableText))
@@ -187,9 +188,10 @@ void main() {
           .widgetList<Text>(find.byType(Text))
           .map((widget) => widget.data ?? widget.textSpan?.toPlainText() ?? ''),
     ].join('\n');
-    expect(values, contains('rule'));
-    expect(values, contains('global'));
-    expect(values, contains('name=public'));
+    expect(values, contains(AppLocalizations.current.rule));
+    expect(values, contains(AppLocalizations.current.global));
+    expect(values, contains('example.com'));
+    expect(values, isNot(contains('name=public')));
     for (final secret in [
       'before-password',
       'after-password',
@@ -208,7 +210,7 @@ void main() {
     expect(dialog.left, greaterThanOrEqualTo(0));
     expect(dialog.right, lessThanOrEqualTo(360));
     expect(tester.takeException(), isNull);
-    await tester.tap(find.text(AppLocalizations.current.confirm));
+    await tester.tap(find.text(AppLocalizations.current.aiReviewClose));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsNothing);
   });

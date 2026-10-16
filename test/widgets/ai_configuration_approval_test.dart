@@ -139,63 +139,67 @@ ConfigurationProposal _sourceProposal({
 );
 
 void main() {
-  testWidgets(
-    'approval displays concrete changes and returns explicit choice',
-    (tester) async {
-      bool? approval;
-      await tester.pumpWidget(
-        MaterialApp(
-          localizationsDelegates: const [
-            AppLocalizations.delegate,
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          supportedLocales: AppLocalizations.delegate.supportedLocales,
-          home: Builder(
-            builder: (context) => Scaffold(
-              body: TextButton(
-                onPressed: () async {
-                  approval = await showAiConfigurationApproval(
-                    context,
-                    const ConfigurationProposal(
-                      id: 'proposal-1',
-                      summary: 'Proxy mode',
-                      highRisk: true,
-                      expiresAt: 1000,
-                      differences: [
-                        ConfigurationDifference(
-                          path: 'config.mode',
-                          before: 'rule',
-                          after: 'global',
-                        ),
-                      ],
-                      validation: {},
-                    ),
-                  );
-                },
-                child: const Text('open'),
-              ),
+  testWidgets('approval displays concrete changes and returns explicit choice', (
+    tester,
+  ) async {
+    bool? approval;
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: AppLocalizations.delegate.supportedLocales,
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () async {
+                approval = await showAiConfigurationApproval(
+                  context,
+                  const ConfigurationProposal(
+                    id: 'proposal-1',
+                    summary: 'Proxy mode',
+                    highRisk: true,
+                    expiresAt: 1000,
+                    differences: [
+                      ConfigurationDifference(
+                        path: 'config.mode',
+                        before: 'rule',
+                        after: 'global',
+                      ),
+                    ],
+                    validation: {},
+                  ),
+                );
+              },
+              child: const Text('open'),
             ),
           ),
         ),
-      );
-      await tester.tap(find.text('open'));
-      await tester.pumpAndSettle();
-      expect(find.text(AppLocalizations.current.aiHighRisk), findsOneWidget);
-      expect(find.text('config.mode'), findsOneWidget);
-      expect(find.text('"rule"'), findsOneWidget);
-      expect(find.text('"global"'), findsOneWidget);
-      await tester.tap(find.text(AppLocalizations.current.aiReject));
-      await tester.pumpAndSettle();
-      expect(approval, false);
-      await tester.tap(find.text('open'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(AppLocalizations.current.aiApprove));
-      await tester.pumpAndSettle();
-      expect(approval, true);
-    },
-  );
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.text(AppLocalizations.current.aiHighRisk), findsOneWidget);
+    expect(find.text('config.mode'), findsNothing);
+    expect(find.text(AppLocalizations.current.mode), findsOneWidget);
+    expect(
+      find.text(
+        '${AppLocalizations.current.rule} → ${AppLocalizations.current.global}',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text(AppLocalizations.current.cancel));
+    await tester.pumpAndSettle();
+    expect(approval, false);
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppLocalizations.current.aiApprove));
+    await tester.pumpAndSettle();
+    expect(approval, true);
+  });
 
   testWidgets('source approval replaces raw fields with concrete totals', (
     tester,
@@ -230,7 +234,7 @@ void main() {
       2147483648.traffic.show,
     );
     expect(find.text(strings.aiHighRisk), findsNothing);
-    await tester.tap(find.text(strings.aiReject));
+    await tester.tap(find.text(strings.cancel));
     await tester.pumpAndSettle();
     expect(approval, false);
   });
@@ -417,10 +421,15 @@ void main() {
       ),
     );
     expect(find.byType(LocalSourceChangeSummaryView), findsNothing);
-    expect(find.text('config.mode'), findsOneWidget);
-    expect(find.text('"rule"'), findsOneWidget);
-    expect(find.text('"global"'), findsOneWidget);
-    expect(find.text('policies.integrations'), findsOneWidget);
+    expect(find.text('config.mode'), findsNothing);
+    expect(find.text(AppLocalizations.current.mode), findsOneWidget);
+    expect(
+      find.text(
+        '${AppLocalizations.current.rule} → ${AppLocalizations.current.global}',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('policies.integrations'), findsNothing);
     expect(find.text(AppLocalizations.current.aiHighRisk), findsOneWidget);
   });
 
@@ -435,7 +444,7 @@ void main() {
     );
     final strings = AppLocalizations.current;
     expect(find.byType(LocalSourceChangeSummaryView), findsNothing);
-    expect(find.text('policies.integrations'), findsOneWidget);
+    expect(find.text('policies.integrations'), findsNothing);
     expect(find.text(strings.aiScriptExecutionOnly), findsOneWidget);
     expect(find.text(strings.aiHighRisk), findsOneWidget);
     await tester.tap(find.text(strings.aiApproveScriptExecution));
@@ -458,10 +467,15 @@ void main() {
       ),
     );
     expect(find.byType(LocalSourceChangeSummaryView), findsNothing);
-    expect(find.text('policies.integrations'), findsOneWidget);
-    expect(find.text('dns.enable'), findsOneWidget);
-    expect(find.text('false'), findsOneWidget);
-    expect(find.text('true'), findsOneWidget);
+    expect(find.text('policies.integrations'), findsNothing);
+    expect(find.text('dns.enable'), findsNothing);
+    expect(find.text(AppLocalizations.current.aiReviewDns), findsOneWidget);
+    expect(
+      find.text(
+        '${AppLocalizations.current.aiPolicyChangeDisabled} → ${AppLocalizations.current.aiPolicyChangeEnabled}',
+      ),
+      findsOneWidget,
+    );
     expect(find.text(AppLocalizations.current.aiHighRisk), findsOneWidget);
   });
 

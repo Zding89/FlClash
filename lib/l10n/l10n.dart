@@ -9898,6 +9898,451 @@ class AppLocalizations {
       args: [],
     );
   }
+
+  /// `Add {kind} “{label}”`
+  String aiPolicyChangeAdded(String kind, String label) {
+    return Intl.message(
+      'Add $kind “$label”',
+      name: 'aiPolicyChangeAdded',
+      desc: '',
+      args: [kind, label],
+    );
+  }
+
+  /// `Remove {kind} “{label}”`
+  String aiPolicyChangeRemoved(String kind, String label) {
+    return Intl.message(
+      'Remove $kind “$label”',
+      name: 'aiPolicyChangeRemoved',
+      desc: '',
+      args: [kind, label],
+    );
+  }
+
+  /// `{kind} “{label}” · {field}: {value}`
+  String aiPolicyChangeField(
+    String kind,
+    String label,
+    String field,
+    String value,
+  ) {
+    return Intl.message(
+      '$kind “$label” · $field: $value',
+      name: 'aiPolicyChangeField',
+      desc: '',
+      args: [kind, label, field, value],
+    );
+  }
+
+  /// `Adjusted`
+  String get aiPolicyChangeAdjusted {
+    return Intl.message(
+      'Adjusted',
+      name: 'aiPolicyChangeAdjusted',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `{count} more changes`
+  String aiPolicyChangeMore(String count) {
+    return Intl.message(
+      '$count more changes',
+      name: 'aiPolicyChangeMore',
+      desc: '',
+      args: [count],
+    );
+  }
+
+  /// `All pending changes compared with the saved configuration`
+  String get aiPolicyChangeBaseline {
+    return Intl.message(
+      'All pending changes compared with the saved configuration',
+      name: 'aiPolicyChangeBaseline',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Position {position}`
+  String aiPolicyChangePosition(String position) {
+    return Intl.message(
+      'Position $position',
+      name: 'aiPolicyChangePosition',
+      desc: '',
+      args: [position],
+    );
+  }
+
+  /// `Filter conditions`
+  String get aiPolicyFilterConditions {
+    return Intl.message(
+      'Filter conditions',
+      name: 'aiPolicyFilterConditions',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `The result has not been verified. Ask the assistant to check the current plan or operation status.`
+  String get aiPolicyCompletionEvidenceRequired {
+    return Intl.message(
+      'The result has not been verified. Ask the assistant to check the current plan or operation status.',
+      name: 'aiPolicyCompletionEvidenceRequired',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `None`
+  String get aiPolicyChangeEmpty {
+    return Intl.message(
+      'None',
+      name: 'aiPolicyChangeEmpty',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Enabled`
+  String get aiPolicyChangeEnabled {
+    return Intl.message(
+      'Enabled',
+      name: 'aiPolicyChangeEnabled',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Disabled`
+  String get aiPolicyChangeDisabled {
+    return Intl.message(
+      'Disabled',
+      name: 'aiPolicyChangeDisabled',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Rule order`
+  String get aiPolicyChangeRuleOrder {
+    return Intl.message(
+      'Rule order',
+      name: 'aiPolicyChangeRuleOrder',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Other settings`
+  String get aiPolicyChangeOtherFields {
+    return Intl.message(
+      'Other settings',
+      name: 'aiPolicyChangeOtherFields',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `{count} items`
+  String aiPolicyChangeReferences(String count) {
+    return Intl.message(
+      '$count items',
+      name: 'aiPolicyChangeReferences',
+      desc: '',
+      args: [count],
+    );
+  }
+
+  /// `View and confirm`
+  String get aiReviewAndConfirm {
+    return Intl.message(
+      'View and confirm',
+      name: 'aiReviewAndConfirm',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Operation scope`
+  String get aiReviewActionScope {
+    return Intl.message(
+      'Operation scope',
+      name: 'aiReviewActionScope',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Target`
+  String get aiReviewTarget {
+    return Intl.message('Target', name: 'aiReviewTarget', desc: '', args: []);
+  }
+
+  /// `Other option`
+  String get aiReviewOtherSetting {
+    return Intl.message(
+      'Other option',
+      name: 'aiReviewOtherSetting',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Protected value updated`
+  String get aiReviewSensitiveValue {
+    return Intl.message(
+      'Protected value updated',
+      name: 'aiReviewSensitiveValue',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Not recorded`
+  String get aiReviewUnknownValue {
+    return Intl.message(
+      'Not recorded',
+      name: 'aiReviewUnknownValue',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Changes`
+  String get aiReviewChange {
+    return Intl.message('Changes', name: 'aiReviewChange', desc: '', args: []);
+  }
+
+  /// `Switch node`
+  String get aiReviewSelectNode {
+    return Intl.message(
+      'Switch node',
+      name: 'aiReviewSelectNode',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Switch configuration`
+  String get aiReviewSelectProfile {
+    return Intl.message(
+      'Switch configuration',
+      name: 'aiReviewSelectProfile',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Connection switch`
+  String get aiReviewSetConnection {
+    return Intl.message(
+      'Connection switch',
+      name: 'aiReviewSetConnection',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Refresh subscriptions`
+  String get aiReviewRefresh {
+    return Intl.message(
+      'Refresh subscriptions',
+      name: 'aiReviewRefresh',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Update resource`
+  String get aiReviewResource {
+    return Intl.message(
+      'Update resource',
+      name: 'aiReviewResource',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Check nodes`
+  String get aiReviewProbe {
+    return Intl.message(
+      'Check nodes',
+      name: 'aiReviewProbe',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Close`
+  String get aiReviewClose {
+    return Intl.message('Close', name: 'aiReviewClose', desc: '', args: []);
+  }
+
+  /// `Updated`
+  String get aiReviewChanged {
+    return Intl.message('Updated', name: 'aiReviewChanged', desc: '', args: []);
+  }
+
+  /// `Window size`
+  String get aiReviewWindowSize {
+    return Intl.message(
+      'Window size',
+      name: 'aiReviewWindowSize',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Window position`
+  String get aiReviewWindowPosition {
+    return Intl.message(
+      'Window position',
+      name: 'aiReviewWindowPosition',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `DNS settings`
+  String get aiReviewDns {
+    return Intl.message(
+      'DNS settings',
+      name: 'aiReviewDns',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Application operation`
+  String get aiReviewUnknownAction {
+    return Intl.message(
+      'Application operation',
+      name: 'aiReviewUnknownAction',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `This operation cannot currently be confirmed. Check its status again.`
+  String get aiReviewUnavailable {
+    return Intl.message(
+      'This operation cannot currently be confirmed. Check its status again.',
+      name: 'aiReviewUnavailable',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Cancel operation`
+  String get aiReviewCancelOperation {
+    return Intl.message(
+      'Cancel operation',
+      name: 'aiReviewCancelOperation',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Cancel node check`
+  String get aiReviewCancelProbe {
+    return Intl.message(
+      'Cancel node check',
+      name: 'aiReviewCancelProbe',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Read local file`
+  String get aiReviewReadFile {
+    return Intl.message(
+      'Read local file',
+      name: 'aiReviewReadFile',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Write local file`
+  String get aiReviewWriteFile {
+    return Intl.message(
+      'Write local file',
+      name: 'aiReviewWriteFile',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Hide application`
+  String get aiReviewHideApplication {
+    return Intl.message(
+      'Hide application',
+      name: 'aiReviewHideApplication',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Run diagnostics`
+  String get aiReviewDiagnostics {
+    return Intl.message(
+      'Run diagnostics',
+      name: 'aiReviewDiagnostics',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Select local file`
+  String get aiReviewGrantFile {
+    return Intl.message(
+      'Select local file',
+      name: 'aiReviewGrantFile',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Local control credentials`
+  String get aiReviewCliCredentials {
+    return Intl.message(
+      'Local control credentials',
+      name: 'aiReviewCliCredentials',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Configuration content`
+  String get aiReviewContent {
+    return Intl.message(
+      'Configuration content',
+      name: 'aiReviewContent',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Close connections`
+  String get aiReviewCloseConnections {
+    return Intl.message(
+      'Close connections',
+      name: 'aiReviewCloseConnections',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `After fetching the latest content, review its changes before applying.`
+  String get aiReviewFetchThenApply {
+    return Intl.message(
+      'After fetching the latest content, review its changes before applying.',
+      name: 'aiReviewFetchThenApply',
+      desc: '',
+      args: [],
+    );
+  }
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<AppLocalizations> {

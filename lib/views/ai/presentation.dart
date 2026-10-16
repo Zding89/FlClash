@@ -1,13 +1,10 @@
-import 'dart:convert';
-
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/configuration/changes.dart';
 import 'package:flutter/material.dart';
 
-import 'approval.dart';
 import 'change_record.dart';
 import 'errors.dart';
-import 'policy_plan.dart';
+import 'review.dart';
 
 ConfigurationProposal? aiResultProposal(Map<String, Object?> result) {
   final nested = result['result'];
@@ -39,6 +36,27 @@ ConfigurationProposal? aiResultProposal(Map<String, Object?> result) {
         ? validation.map((key, value) => MapEntry('$key', value))
         : const {},
   );
+}
+
+List<ConfigurationProposal> aiResultProposals(Map<String, Object?> result) {
+  final proposals = <String, ConfigurationProposal>{};
+  void collect(Object? raw) {
+    if (raw is! Map) return;
+    final value = Map<String, Object?>.from(raw);
+    final proposal =
+        aiResultProposal(value) ?? aiResultProposal({'proposal': value});
+    if (proposal != null) proposals[proposal.id] = proposal;
+    collect(value['result']);
+    final batch = value['proposals'];
+    if (batch is List) {
+      for (final item in batch) {
+        collect(item);
+      }
+    }
+  }
+
+  collect(result);
+  return proposals.values.toList();
 }
 
 class AiCapabilityPanel extends StatelessWidget {
@@ -103,6 +121,27 @@ class AiCapabilityPanel extends StatelessWidget {
       'agent_settings_read' => strings.aiSettingsTitle,
       _ => null,
     };
+  }
+
+  Set<String> _additionalActions(
+    BuildContext context,
+    List<Map<String, Object?>> capabilities,
+  ) {
+    final strings = context.appLocalizations;
+    return capabilities
+        .where(
+          (entry) =>
+              _action(context, '${entry['command']}') == null &&
+              !const {
+                'capabilities',
+                'capabilities_list',
+                'operation_query',
+                'capability_confirm',
+              }.contains(entry['command']),
+        )
+        .map((entry) => aiReviewCommandTitle(strings, '${entry['command']}'))
+        .where((title) => title != strings.aiReviewUnknownAction)
+        .toSet();
   }
 
   @override
@@ -214,21 +253,18 @@ class AiCapabilityPanel extends StatelessWidget {
                   ],
                 ),
               ),
-            ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              title: Text(
-                strings.more,
-                style: Theme.of(context).textTheme.labelMedium,
+            if (_additionalActions(context, entry.value).isNotEmpty)
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: Text(
+                  strings.more,
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+                children: [
+                  for (final action in _additionalActions(context, entry.value))
+                    ListTile(dense: true, title: Text(action)),
+                ],
               ),
-              children: [
-                for (final capability in entry.value)
-                  ListTile(
-                    dense: true,
-                    title: Text('${capability['command']}'),
-                    subtitle: Text('${capability['description']}'),
-                  ),
-              ],
-            ),
             const Divider(),
           ],
         ],
@@ -249,6 +285,7 @@ class AiToolResultCard extends StatelessWidget {
     this.onReview,
     this.onApprove,
     this.onCancel,
+    this.reviewing = false,
   });
   final Map<String, Object?>? result;
   final String? summary;
@@ -256,6 +293,7 @@ class AiToolResultCard extends StatelessWidget {
   final bool failed;
   final bool expanded;
   final bool awaitingApproval;
+  final bool reviewing;
   final VoidCallback? onReview;
   final VoidCallback? onApprove;
   final VoidCallback? onCancel;
@@ -293,71 +331,14 @@ class AiToolResultCard extends StatelessWidget {
     };
   }
 
-  String _field(BuildContext context, String key) {
-    final strings = context.appLocalizations;
-    return switch (key) {
-      'running' || 'connected' => strings.coreStatus,
-      'mode' => strings.mode,
-      'model' => strings.aiModel,
-      'provider' => strings.aiProvider,
-      'connections' => strings.connections,
-      'profiles' => strings.profiles,
-      'nodes' || 'node' => strings.proxies,
-      'latency' => strings.delay,
-      'rules' => strings.rule,
-      'settings' => strings.settings,
-      'logs' => strings.logs,
-      'errorCode' || 'code' => strings.aiRequestFailed,
-      _ => key,
-    };
-  }
-
-  String _differenceValue(String key, Object? value) {
-    final display = aiDisplayValue({key: value});
-    if (display.endsWith('…')) return display;
-    final safe = (jsonDecode(display) as Map)[key];
-    if (safe == null) return '—';
-    if (safe is Map || safe is List) return jsonEncode(safe);
-    return '$safe';
-  }
-
-  String _value(BuildContext context, String key, Object? value) {
-    if ((key == 'running' || key == 'connected') && value is bool) {
-      return value
-          ? context.appLocalizations.start
-          : context.appLocalizations.stop;
-    }
-    if (value is Map || value is List) {
-      return '${value is Map ? value.length : (value as List).length}';
-    }
-    final display = aiDisplayValue({key: value});
-    if (display.endsWith('…')) return display;
-    final safe = (jsonDecode(display) as Map)[key];
-    if (safe is Map) return '${safe.length}';
-    if (safe is List) return '${safe.length}';
-    return '$safe';
-  }
-
   @override
   Widget build(BuildContext context) {
     final strings = context.appLocalizations;
     final colors = Theme.of(context).colorScheme;
-    final plan = proposal == null ? null : aiPolicyPlan(context, proposal!);
-    final localPolicyChanges =
-        proposal != null &&
-        proposal!.differences.isNotEmpty &&
-        proposal!.differences.every(
-          (difference) => difference.path.startsWith('policies.'),
-        );
-    final nested = result?['result'];
-    final fields = <String, Object?>{
-      if (nested is Map)
-        for (final entry in nested.entries) '${entry.key}': entry.value,
-      if (result != null)
-        for (final entry in result!.entries)
-          if (!{'status', 'result', 'proposal'}.contains(entry.key))
-            entry.key: entry.value,
-    };
+    final review = onReview;
+    final rows = result == null
+        ? const <AiReviewRow>[]
+        : aiReadableResultRows(strings, result!);
     return Card(
       key: ValueKey('ai-result-${proposal?.id ?? 'check'}'),
       margin: const EdgeInsets.only(top: 8, bottom: 8),
@@ -370,165 +351,55 @@ class AiToolResultCard extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  proposal == null
-                      ? Icons.fact_check_outlined
-                      : Icons.rule_outlined,
+                  proposal == null ? Icons.fact_check_outlined : Icons.tune,
                   color: failed ? colors.error : colors.primary,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    plan != null
-                        ? strings.aiPolicyPlanTitle
-                        : proposal?.summary ?? summary ?? strings.aiCheckResult,
+                    proposal == null
+                        ? strings.aiCheckResult
+                        : aiReviewTitle(strings, proposal!),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            if (proposal != null) ...[
-              if (plan != null)
-                AiPolicyPlanView(plan: plan, compact: !expanded),
-              if (plan == null && localPolicyChanges)
-                AiPolicyChangeOverview(proposal: proposal!),
-              if (plan == null && !localPolicyChanges)
-                for (final difference
-                    in expanded
-                        ? proposal!.differences
-                        : proposal!.differences.take(8))
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          difference.path,
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                '${strings.aiBefore}: ${_differenceValue(difference.path, difference.before)}',
-                                maxLines: expanded ? null : 3,
-                                overflow: expanded
-                                    ? TextOverflow.visible
-                                    : TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 8),
-                              child: Icon(Icons.arrow_forward, size: 16),
-                            ),
-                            Expanded(
-                              child: Text(
-                                '${strings.aiAfter}: ${_differenceValue(difference.path, difference.after)}',
-                                maxLines: expanded ? null : 3,
-                                overflow: expanded
-                                    ? TextOverflow.visible
-                                    : TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-              if (awaitingApproval ||
-                  result?['status'] == null ||
-                  result!['status'] == 'pending_confirmation')
-                Text(
-                  awaitingApproval
-                      ? strings.aiAwaitingApproval
-                      : strings.aiPolicyPlanReady,
-                )
-              else
-                Text(_status(context)),
-            ] else if (result != null) ...[
-              Text(
-                _status(context),
-                style: TextStyle(
-                  color: failed || result!['status'] == 'failed'
-                      ? colors.error
-                      : colors.onSurface,
-                ),
+            if (proposal != null)
+              AiProposalReviewBody(proposal: proposal!, compact: !expanded)
+            else if (rows.isNotEmpty)
+              AiReviewRowsView(rows: rows, compact: !expanded),
+            Text(
+              awaitingApproval
+                  ? strings.aiAwaitingApproval
+                  : proposal != null && result?['status'] == null
+                  ? strings.aiPolicyPlanReady
+                  : _status(context),
+              style: TextStyle(
+                color: failed ? colors.error : colors.onSurfaceVariant,
               ),
-              const SizedBox(height: 10),
-              for (final entry
-                  in fields.entries
-                      .where(
-                        (entry) => !{
-                          'taskEffect',
-                          'recovery',
-                          'completion',
-                        }.contains(entry.key),
-                      )
-                      .where(
-                        (entry) =>
-                            !{'code', 'errorCode'}.contains(entry.key) ||
-                            (!failed && entry.value != null),
-                      )
-                      .take(8))
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 100,
-                        child: Text(
-                          _field(context, entry.key),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _value(context, entry.key, entry.value),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                title: Text(strings.view),
-                children: [SelectableText(aiDisplayValue(result))],
-              ),
-            ],
-            if (onReview != null || onApprove != null || onCancel != null) ...[
+            ),
+            if (review != null || onCancel != null) ...[
               const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  if (onReview != null)
+                  if (review != null)
                     OutlinedButton(
-                      onPressed: onReview,
-                      child: Text(strings.aiReviewPlan),
-                    ),
-                  if (onApprove != null)
-                    FilledButton(
-                      onPressed: onApprove,
+                      key: ValueKey('ai-review-${proposal?.id ?? 'check'}'),
+                      onPressed: reviewing ? null : review,
                       child: Text(
-                        proposal!.validation['executionOnly'] == true ||
-                                (proposal!.validation['requiresScriptExecutionApproval'] ==
-                                        true &&
-                                    proposal!
-                                            .validation['finalConfigValidated'] !=
-                                        true)
-                            ? strings.aiApproveScriptExecution
-                            : strings.aiApprove,
+                        awaitingApproval
+                            ? strings.aiReviewAndConfirm
+                            : strings.aiReviewPlan,
                       ),
                     ),
                   if (onCancel != null)
                     TextButton(
-                      onPressed: onCancel,
+                      onPressed: reviewing ? null : onCancel,
                       child: Text(strings.cancel),
                     ),
                 ],
