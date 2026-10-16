@@ -721,7 +721,13 @@ void main() {
         '1:a',
         '1:b',
       ]);
-      await tester.tap(find.text(AppLocalizations.current.aiReject));
+      expect(find.byType(AiConfigurationApprovalDialog), findsOneWidget);
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AiConfigurationApprovalDialog),
+          matching: find.text(AppLocalizations.current.cancel),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(controller.applies, 0);
       expect(tester.takeException(), isNull);
